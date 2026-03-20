@@ -26,6 +26,15 @@ export type ResolvedContextEntry = {
   content: string;
 };
 
+export type ReferenceProjectCandidate = {
+  projectId: string;
+  projectName: string;
+  projectPath: string;
+  projectBankPath: string;
+  detectedStacks: DetectableStack[];
+  sharedStacks: DetectableStack[];
+};
+
 export type ResolvedMemoryBankStatus = "missing" | "ready" | "creation_declined";
 
 export type ResolvedMemoryBankContext = ProjectContext & {
@@ -33,6 +42,7 @@ export type ResolvedMemoryBankContext = ProjectContext & {
   message: string;
   projectId: string;
   projectBankPath: string;
+  referenceProjects: ReferenceProjectCandidate[];
   rules: ResolvedContextEntry[];
   skills: ResolvedContextEntry[];
   agentInstructions: string;

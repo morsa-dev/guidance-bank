@@ -1,4 +1,5 @@
 import type { DetectableStack } from "../context/types.js";
+import type { ReferenceProjectCandidate } from "../context/types.js";
 
 type CreateBankPromptInput = {
   projectName: string;
@@ -7,6 +8,7 @@ type CreateBankPromptInput = {
   rulesDirectory: string;
   skillsDirectory: string;
   detectedStacks: DetectableStack[];
+  selectedReferenceProjects: ReferenceProjectCandidate[];
 };
 
 const renderStackSection = (detectedStacks: readonly DetectableStack[]): string => {
@@ -24,6 +26,25 @@ ${detectedStacks.map((stack) => `- ${stack}`).join("\n")}
 Use these signals as a starting point, but verify them against the codebase before generating project-specific Memory Bank entries.`;
 };
 
+const renderReferenceProjectsSection = (selectedReferenceProjects: readonly ReferenceProjectCandidate[]): string => {
+  if (selectedReferenceProjects.length === 0) {
+    return "No reference project banks were selected. Create the project bank from the real codebase, shared Memory Bank context, and any local repository guidance.";
+  }
+
+  const projectLines = selectedReferenceProjects
+    .map(
+      (project) => `- ${project.projectName}
+  - Project path: \`${project.projectPath}\`
+  - Memory Bank path: \`${project.projectBankPath}\`
+  - Shared stacks with the current project: ${project.sharedStacks.join(", ")}`,
+    )
+    .join("\n");
+
+  return `Use these existing project Memory Banks as reference material while creating the new bank:
+
+${projectLines}`;
+};
+
 export const buildCreateBankPrompt = ({
   projectName,
   projectPath,
@@ -31,6 +52,7 @@ export const buildCreateBankPrompt = ({
   rulesDirectory,
   skillsDirectory,
   detectedStacks,
+  selectedReferenceProjects,
 }: CreateBankPromptInput): string => `# Project Memory Bank Creation
 
 You are creating a canonical Memory Bank for the project \`${projectName}\`.
@@ -47,6 +69,10 @@ Target directories:
 
 ${renderStackSection(detectedStacks)}
 
+## Reference Projects
+
+${renderReferenceProjectsSection(selectedReferenceProjects)}
+
 ## Goal
 
 Create a project-specific Memory Bank that captures stable patterns from this repository without duplicating broad user-level guidance that already belongs in the shared Memory Bank layer.
@@ -56,6 +82,7 @@ Create a project-specific Memory Bank that captures stable patterns from this re
 Use these inputs together:
 - Real project code and configuration from the repository
 - Existing shared Memory Bank rules and skills already returned by \`resolve_context\`
+- Any selected reference project banks listed above
 - Any existing repo-local agent guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` as migration/reference input
 - Any additional user instructions from the current chat
 

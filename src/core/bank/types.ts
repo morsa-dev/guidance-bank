@@ -31,6 +31,7 @@ export type ProjectBankManifest = {
   projectId: string;
   projectName: string;
   projectPath: string;
+  detectedStacks: string[];
   createdAt: string;
   updatedAt: string;
 };

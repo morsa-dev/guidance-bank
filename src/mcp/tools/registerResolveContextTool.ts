@@ -43,6 +43,16 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
             path: z.string(),
           }),
         ),
+        referenceProjects: z.array(
+          z.object({
+            projectId: z.string(),
+            projectName: z.string(),
+            projectPath: z.string(),
+            projectBankPath: z.string(),
+            detectedStacks: z.array(z.string()),
+            sharedStacks: z.array(z.string()),
+          }),
+        ),
         rules: z.array(
           z.object({
             layer: z.enum(["shared", "project"]),

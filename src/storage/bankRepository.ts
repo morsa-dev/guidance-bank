@@ -20,6 +20,7 @@ import {
   deleteManagedDirectory,
   deleteManagedFile,
   ensureManagedDirectory,
+  listManagedChildDirectories,
   listManagedFilesRecursively,
   managedPathExists,
   readManagedJsonFile,
@@ -120,6 +121,18 @@ export class BankRepository {
 
     const manifest = await readManagedJsonFile<unknown>(this.rootPath, manifestFilePath);
     return parseProjectBankManifest(manifest);
+  }
+
+  async listProjectManifests(): Promise<ProjectBankManifest[]> {
+    const projectDirectoryPaths = await listManagedChildDirectories(this.rootPath, this.paths.projectsDirectory);
+    const manifests = await Promise.all(
+      projectDirectoryPaths.map(async (projectDirectoryPath) => {
+        const projectId = path.basename(projectDirectoryPath);
+        return this.readProjectManifestOptional(projectId);
+      }),
+    );
+
+    return manifests.filter((manifest): manifest is ProjectBankManifest => manifest !== null);
   }
 
   async writeProjectState(projectId: string, state: ProjectBankState): Promise<void> {

@@ -6,8 +6,10 @@ import {
   type ProjectBankState,
   type ProjectCreationState,
 } from "./types.js";
+import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
+const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
 
 export const ProjectBankManifestSchema = z
   .object({
@@ -15,6 +17,7 @@ export const ProjectBankManifestSchema = z
     projectId: z.string().min(1),
     projectName: z.string().min(1),
     projectPath: z.string().min(1),
+    detectedStacks: z.array(DetectableStackSchema).default([]),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })
@@ -32,6 +35,7 @@ export const createProjectBankManifest = (
   projectId: string,
   projectName: string,
   projectPath: string,
+  detectedStacks: readonly DetectableStack[],
   now = new Date(),
 ): ProjectBankManifest => {
   const timestamp = now.toISOString();
@@ -41,6 +45,7 @@ export const createProjectBankManifest = (
     projectId,
     projectName,
     projectPath,
+    detectedStacks: [...detectedStacks],
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -62,6 +67,16 @@ export const updateProjectBankState = (
 ): ProjectBankState => ({
   ...state,
   creationState,
+  updatedAt: now.toISOString(),
+});
+
+export const updateProjectBankManifest = (
+  manifest: ProjectBankManifest,
+  detectedStacks: readonly DetectableStack[],
+  now = new Date(),
+): ProjectBankManifest => ({
+  ...manifest,
+  detectedStacks: [...detectedStacks],
   updatedAt: now.toISOString(),
 });
 

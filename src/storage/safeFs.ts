@@ -168,6 +168,25 @@ export const listManagedFilesRecursively = async (
   return filePaths.sort((left, right) => left.localeCompare(right));
 };
 
+export const listManagedChildDirectories = async (
+  rootPath: string,
+  startDirectoryPath: string,
+): Promise<string[]> => {
+  const managedPaths = assertPathInsideRoot(rootPath, startDirectoryPath);
+  await assertExistingSegmentsAreSafe(managedPaths.rootPath, managedPaths.targetPath);
+
+  if (!(await pathExists(managedPaths.targetPath))) {
+    return [];
+  }
+
+  const entries = await fs.readdir(managedPaths.targetPath, { withFileTypes: true });
+
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(managedPaths.targetPath, entry.name))
+    .sort((left, right) => left.localeCompare(right));
+};
+
 export const deleteManagedFile = async (rootPath: string, filePath: string): Promise<boolean> => {
   const managedPaths = assertPathInsideRoot(rootPath, filePath);
   await assertExistingSegmentsAreSafe(managedPaths.rootPath, path.dirname(managedPaths.targetPath));

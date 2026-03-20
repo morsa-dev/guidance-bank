@@ -197,6 +197,13 @@ test("resolve_context returns shared context and missing status when no project 
           path: z.string(),
         }),
       ),
+      referenceProjects: z.array(
+        z.object({
+          projectId: z.string(),
+          projectName: z.string(),
+          sharedStacks: z.array(z.string()),
+        }),
+      ),
       rules: z.array(z.object({ path: z.string() })),
       skills: z.array(z.object({ path: z.string() })),
       agentInstructions: z.string(),
@@ -209,6 +216,7 @@ test("resolve_context returns shared context and missing status when no project 
   assert.equal(structuredContent.projectPath, projectRoot);
   assert.deepEqual(structuredContent.detectedStacks, ["nodejs", "typescript", "react"]);
   assert.deepEqual(structuredContent.localGuidance, []);
+  assert.deepEqual(structuredContent.referenceProjects, []);
   assert.deepEqual(
     structuredContent.rules.map((entry) => entry.path),
     ["core/general.md", "stacks/nodejs/runtime.md", "stacks/typescript/strict-mode.md"],
@@ -263,11 +271,19 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
       projectBankPath: z.string(),
       rulesDirectory: z.string(),
       skillsDirectory: z.string(),
+      selectedReferenceProjects: z.array(
+        z.object({
+          projectId: z.string(),
+          projectName: z.string(),
+          sharedStacks: z.array(z.string()),
+        }),
+      ),
       creationPrompt: z.string(),
     })
     .parse(createResult.structuredContent);
 
   assert.equal(createStructuredContent.status, "created");
+  assert.deepEqual(createStructuredContent.selectedReferenceProjects, []);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
 
   const resolveResult = CallToolResultSchema.parse(
@@ -360,6 +376,130 @@ test("set_project_state persists declined creation and resolve_context stops ask
   assert.equal(resolveStructuredContent.status, "creation_declined");
   assert.deepEqual(resolveStructuredContent.localGuidance, []);
   assert.match(resolveStructuredContent.agentInstructions, /Do not ask to create a project Memory Bank again/i);
+});
+
+test("resolve_context suggests similar existing project banks and create_bank accepts selected references", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const referenceRoot = path.join(tempDirectoryPath, "angular-shared-ui");
+  const targetRoot = path.join(tempDirectoryPath, "angular-admin");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(referenceRoot, { recursive: true });
+  await writeFile(
+    path.join(referenceRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: "angular-shared-ui",
+        dependencies: {
+          "@angular/core": "^19.0.0",
+        },
+        devDependencies: {
+          typescript: "^5.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(path.join(referenceRoot, "tsconfig.json"), "{}\n");
+
+  await mkdir(targetRoot, { recursive: true });
+  await writeFile(
+    path.join(targetRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: "angular-admin",
+        dependencies: {
+          "@angular/core": "^19.0.0",
+        },
+        devDependencies: {
+          typescript: "^5.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(path.join(targetRoot, "tsconfig.json"), "{}\n");
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const referenceCreateResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: referenceRoot,
+      },
+    }),
+  );
+  const referenceCreateStructured = z
+    .object({
+      projectId: z.string(),
+    })
+    .parse(referenceCreateResult.structuredContent);
+
+  const resolveResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: targetRoot,
+      },
+    }),
+  );
+  const resolveStructured = z
+    .object({
+      status: z.enum(["missing", "ready", "creation_declined"]),
+      referenceProjects: z.array(
+        z.object({
+          projectId: z.string(),
+          projectName: z.string(),
+          sharedStacks: z.array(z.string()),
+        }),
+      ),
+      agentInstructions: z.string(),
+    })
+    .parse(resolveResult.structuredContent);
+
+  assert.equal(resolveStructured.status, "missing");
+  assert.equal(resolveStructured.referenceProjects.length, 1);
+  assert.equal(resolveStructured.referenceProjects[0]?.projectId, referenceCreateStructured.projectId);
+  assert.deepEqual(resolveStructured.referenceProjects[0]?.sharedStacks, ["nodejs", "typescript", "angular"]);
+  assert.match(resolveStructured.agentInstructions, /offer those projects as possible reference bases/i);
+
+  const createResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: targetRoot,
+        referenceProjectIds: [referenceCreateStructured.projectId],
+      },
+    }),
+  );
+  const createStructured = z
+    .object({
+      selectedReferenceProjects: z.array(
+        z.object({
+          projectId: z.string(),
+          projectName: z.string(),
+          sharedStacks: z.array(z.string()),
+        }),
+      ),
+      creationPrompt: z.string(),
+    })
+    .parse(createResult.structuredContent);
+
+  assert.equal(createStructured.selectedReferenceProjects.length, 1);
+  assert.equal(createStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
+  assert.match(createStructured.creationPrompt, /Reference Projects/i);
+  assert.match(createStructured.creationPrompt, /angular-shared-ui/i);
 });
 
 test("upsert tools can write shared and project entries, and delete_entry removes them", async (t) => {

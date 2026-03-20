@@ -3,6 +3,7 @@ import path from "node:path";
 import type { BankRepository } from "../../storage/bankRepository.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
+import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
 
 type ResolveContextOptions = {
@@ -137,6 +138,11 @@ export const resolveMemoryBankContext = async ({
   const detectedProjectContext = await detectProjectContext(identity.projectPath);
   const projectManifest = await repository.readProjectManifestOptional(identity.projectId);
   const projectState = await repository.readProjectStateOptional(identity.projectId);
+  const referenceProjects = await findReferenceProjects({
+    repository,
+    currentProjectId: identity.projectId,
+    detectedStacks: detectedProjectContext.detectedStacks,
+  });
 
   const sharedRules = await loadEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
   const sharedSkills = await loadEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
@@ -169,7 +175,9 @@ export const resolveMemoryBankContext = async ({
       ? "Use the resolved Memory Bank rules and skills as the primary user-managed context for this repository. Apply project-layer entries as overrides over shared guidance. When changing the Memory Bank, write through upsert_rule, upsert_skill, and delete_entry. Put reusable cross-project or stack guidance into the shared layer, and keep repository-specific guidance in the project layer. If the correct scope is ambiguous, ask the user whether the change should apply only to this project or to the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, treat them as repository-local reference or migration input rather than the canonical Memory Bank source."
       : status === "creation_declined"
         ? "Use only the shared Memory Bank context for now as the primary user-managed context. Do not ask to create a project Memory Bank again unless the user explicitly requests it. Reusable updates can still be written to the shared layer through upsert_rule or upsert_skill. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can still be used as repository-local reference."
-        : "Use the shared Memory Bank context for now as the primary user-managed context. Before project-specific work becomes substantial, ask the user whether to create a project Memory Bank. If the user agrees, call create_bank. If the user declines, persist that choice through set_project_state. If you discover guidance that is clearly reusable across repositories or across a shared stack, it can still be written into the shared layer through upsert_rule or upsert_skill. If the right scope is unclear, ask the user whether the new entry should live only in this project or in the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can be used as migration/reference input for the new Memory Bank.";
+        : referenceProjects.length > 0
+          ? "Use the shared Memory Bank context for now as the primary user-managed context. Before project-specific work becomes substantial, ask the user whether to create a project Memory Bank. Similar existing project banks were found; offer those projects as possible reference bases before calling create_bank. If the user agrees, call create_bank and pass any selected reference project ids. If the user declines, persist that choice through set_project_state. If you discover guidance that is clearly reusable across repositories or across a shared stack, it can still be written into the shared layer through upsert_rule or upsert_skill. If the right scope is unclear, ask the user whether the new entry should live only in this project or in the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can be used as migration/reference input for the new Memory Bank."
+          : "Use the shared Memory Bank context for now as the primary user-managed context. Before project-specific work becomes substantial, ask the user whether to create a project Memory Bank. If the user agrees, call create_bank. If the user declines, persist that choice through set_project_state. If you discover guidance that is clearly reusable across repositories or across a shared stack, it can still be written into the shared layer through upsert_rule or upsert_skill. If the right scope is unclear, ask the user whether the new entry should live only in this project or in the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can be used as migration/reference input for the new Memory Bank.";
 
   return {
     projectId: identity.projectId,
@@ -181,6 +189,7 @@ export const resolveMemoryBankContext = async ({
     status,
     message,
     projectBankPath: path.join(repository.paths.projectsDirectory, identity.projectId),
+    referenceProjects,
     rules: mergeLayeredEntries(sharedRules, projectRules),
     skills: mergeLayeredEntries(sharedSkills, projectSkills),
     agentInstructions,

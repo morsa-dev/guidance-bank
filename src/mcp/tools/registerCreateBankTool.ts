@@ -1,14 +1,20 @@
 import { z } from "zod";
 
 import { detectProjectContext } from "../../core/context/detectProjectContext.js";
-import { createProjectBankManifest, createProjectBankState } from "../../core/bank/project.js";
+import { createProjectBankManifest, createProjectBankState, updateProjectBankManifest } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
+import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 
 const CreateBankArgsSchema = z
   .object({
     projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    referenceProjectIds: z
+      .array(z.string().trim().min(1))
+      .max(5)
+      .optional()
+      .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
   })
   .strict();
 
@@ -25,6 +31,11 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        referenceProjectIds: z
+          .array(z.string().trim().min(1))
+          .max(5)
+          .optional()
+          .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
       },
       outputSchema: {
         status: z.enum(["created", "already_exists"]),
@@ -35,6 +46,16 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory: z.string(),
         skillsDirectory: z.string(),
         detectedStacks: z.array(z.string()),
+        selectedReferenceProjects: z.array(
+          z.object({
+            projectId: z.string(),
+            projectName: z.string(),
+            projectPath: z.string(),
+            projectBankPath: z.string(),
+            detectedStacks: z.array(z.string()),
+            sharedStacks: z.array(z.string()),
+          }),
+        ),
         creationPrompt: z.string(),
       },
     },
@@ -54,6 +75,31 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
       const projectContext = await detectProjectContext(identity.projectPath);
+      const referenceProjects = await findReferenceProjects({
+        repository: options.repository,
+        currentProjectId: identity.projectId,
+        detectedStacks: projectContext.detectedStacks,
+      });
+      const unknownReferenceIds =
+        parsedArgs.data.referenceProjectIds?.filter(
+          (referenceProjectId) => !referenceProjects.some((project) => project.projectId === referenceProjectId),
+        ) ?? [];
+
+      if (unknownReferenceIds.length > 0) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Unknown reference project ids for tool create_bank: ${unknownReferenceIds.join(", ")}`,
+            },
+          ],
+        };
+      }
+
+      const selectedReferenceProjects = parsedArgs.data.referenceProjectIds
+        ? referenceProjects.filter((project) => parsedArgs.data.referenceProjectIds?.includes(project.projectId))
+        : [];
       const existingManifest = await options.repository.readProjectManifestOptional(identity.projectId);
 
       await options.repository.ensureProjectStructure(identity.projectId);
@@ -61,7 +107,17 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       if (existingManifest === null) {
         await options.repository.writeProjectManifest(
           identity.projectId,
-          createProjectBankManifest(identity.projectId, identity.projectName, identity.projectPath),
+          createProjectBankManifest(
+            identity.projectId,
+            identity.projectName,
+            identity.projectPath,
+            projectContext.detectedStacks,
+          ),
+        );
+      } else {
+        await options.repository.writeProjectManifest(
+          identity.projectId,
+          updateProjectBankManifest(existingManifest, projectContext.detectedStacks),
         );
       }
 
@@ -77,6 +133,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory,
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
+        selectedReferenceProjects,
       });
 
       const payload = {
@@ -88,6 +145,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory,
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
+        selectedReferenceProjects,
         creationPrompt,
       } as const;
 
