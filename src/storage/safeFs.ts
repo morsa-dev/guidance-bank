@@ -167,3 +167,48 @@ export const listManagedFilesRecursively = async (
 
   return filePaths.sort((left, right) => left.localeCompare(right));
 };
+
+export const deleteManagedFile = async (rootPath: string, filePath: string): Promise<boolean> => {
+  const managedPaths = assertPathInsideRoot(rootPath, filePath);
+  await assertExistingSegmentsAreSafe(managedPaths.rootPath, path.dirname(managedPaths.targetPath));
+
+  if (!(await pathExists(managedPaths.targetPath))) {
+    return false;
+  }
+
+  const stats = await fs.lstat(managedPaths.targetPath);
+  if (stats.isSymbolicLink()) {
+    throw new ValidationError(`Managed file cannot be a symbolic link: ${managedPaths.targetPath}`);
+  }
+  if (!stats.isFile()) {
+    throw new ValidationError(`Expected file but found non-file path: ${managedPaths.targetPath}`);
+  }
+
+  await fs.unlink(managedPaths.targetPath);
+  return true;
+};
+
+export const deleteManagedDirectory = async (rootPath: string, directoryPath: string): Promise<boolean> => {
+  const managedPaths = assertPathInsideRoot(rootPath, directoryPath);
+
+  if (managedPaths.rootPath === managedPaths.targetPath) {
+    throw new ValidationError("Refusing to delete the managed root directory.");
+  }
+
+  await assertExistingSegmentsAreSafe(managedPaths.rootPath, path.dirname(managedPaths.targetPath));
+
+  if (!(await pathExists(managedPaths.targetPath))) {
+    return false;
+  }
+
+  const stats = await fs.lstat(managedPaths.targetPath);
+  if (stats.isSymbolicLink()) {
+    throw new ValidationError(`Managed directory cannot be a symbolic link: ${managedPaths.targetPath}`);
+  }
+  if (!stats.isDirectory()) {
+    throw new ValidationError(`Expected directory but found non-directory path: ${managedPaths.targetPath}`);
+  }
+
+  await fs.rm(managedPaths.targetPath, { recursive: true, force: false });
+  return true;
+};

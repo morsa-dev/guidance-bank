@@ -56,14 +56,27 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
 
   assert.deepEqual(
     [...tools.keys()].sort(),
-    ["bank_manifest", "create_bank", "list_entries", "read_entry", "resolve_context", "set_project_state"],
+    [
+      "bank_manifest",
+      "create_bank",
+      "delete_entry",
+      "list_entries",
+      "read_entry",
+      "resolve_context",
+      "set_project_state",
+      "upsert_rule",
+      "upsert_skill",
+    ],
   );
   assert.ok(tools.get("bank_manifest")?.outputSchema);
   assert.ok(tools.get("create_bank")?.outputSchema);
+  assert.ok(tools.get("delete_entry")?.outputSchema);
   assert.ok(tools.get("list_entries")?.outputSchema);
   assert.ok(tools.get("read_entry")?.outputSchema);
   assert.ok(tools.get("resolve_context")?.outputSchema);
   assert.ok(tools.get("set_project_state")?.outputSchema);
+  assert.ok(tools.get("upsert_rule")?.outputSchema);
+  assert.ok(tools.get("upsert_skill")?.outputSchema);
 });
 
 test("bank_manifest returns validated structured content", async (t) => {
@@ -347,4 +360,240 @@ test("set_project_state persists declined creation and resolve_context stops ask
   assert.equal(resolveStructuredContent.status, "creation_declined");
   assert.deepEqual(resolveStructuredContent.localGuidance, []);
   assert.match(resolveStructuredContent.agentInstructions, /Do not ask to create a project Memory Bank again/i);
+});
+
+test("upsert tools can write shared and project entries, and delete_entry removes them", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "angular-admin");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(
+    path.join(projectRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: "angular-admin",
+        dependencies: {
+          "@angular/core": "^19.0.0",
+        },
+        devDependencies: {
+          typescript: "^5.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(path.join(projectRoot, "tsconfig.json"), "{}\n");
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await client.callTool({
+    name: "create_bank",
+    arguments: {
+      projectPath: projectRoot,
+    },
+  });
+
+  const sharedRuleResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "upsert_rule",
+      arguments: {
+        scope: "shared",
+        projectPath: projectRoot,
+        path: "topics/angular-architecture.md",
+        content: "# Angular Architecture\n\n- Keep route containers thin.\n",
+      },
+    }),
+  );
+  const sharedRuleStructured = z
+    .object({
+      status: z.enum(["created", "updated"]),
+      scope: z.enum(["shared", "project"]),
+      path: z.string(),
+    })
+    .parse(sharedRuleResult.structuredContent);
+  assert.equal(sharedRuleStructured.status, "created");
+  assert.equal(sharedRuleStructured.scope, "shared");
+  assert.equal(sharedRuleStructured.path, "topics/angular-architecture.md");
+
+  const projectRuleResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "upsert_rule",
+      arguments: {
+        scope: "project",
+        projectPath: projectRoot,
+        path: "topics/admin-dashboard.md",
+        content: "# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+      },
+    }),
+  );
+  const projectRuleStructured = z
+    .object({
+      status: z.enum(["created", "updated"]),
+      scope: z.enum(["shared", "project"]),
+      path: z.string(),
+    })
+    .parse(projectRuleResult.structuredContent);
+  assert.equal(projectRuleStructured.status, "created");
+  assert.equal(projectRuleStructured.scope, "project");
+
+  const sharedSkillResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "upsert_skill",
+      arguments: {
+        scope: "shared",
+        projectPath: projectRoot,
+        path: "stacks/angular/component-audit",
+        content:
+          "---\nname: component-audit\ndescription: Review Angular components before editing.\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+      },
+    }),
+  );
+  const sharedSkillStructured = z
+    .object({
+      status: z.enum(["created", "updated"]),
+      scope: z.enum(["shared", "project"]),
+      path: z.string(),
+      filePath: z.string(),
+    })
+    .parse(sharedSkillResult.structuredContent);
+  assert.equal(sharedSkillStructured.status, "created");
+  assert.equal(sharedSkillStructured.scope, "shared");
+  assert.equal(sharedSkillStructured.filePath, "stacks/angular/component-audit/SKILL.md");
+
+  const projectSkillResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "upsert_skill",
+      arguments: {
+        scope: "project",
+        projectPath: projectRoot,
+        path: "stacks/angular/adding-admin-widget",
+        content:
+          "---\nname: adding-admin-widget\ndescription: Add a new admin widget in this repository.\n---\n\n# Adding Admin Widget\n\n1. Start from the existing dashboard feature shell.\n",
+      },
+    }),
+  );
+  const projectSkillStructured = z
+    .object({
+      status: z.enum(["created", "updated"]),
+      scope: z.enum(["shared", "project"]),
+      path: z.string(),
+      filePath: z.string(),
+    })
+    .parse(projectSkillResult.structuredContent);
+  assert.equal(projectSkillStructured.status, "created");
+  assert.equal(projectSkillStructured.scope, "project");
+
+  const resolveAfterUpserts = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolvedUpserts = z
+    .object({
+      rules: z.array(
+        z.object({
+          layer: z.enum(["shared", "project"]),
+          path: z.string(),
+        }),
+      ),
+      skills: z.array(
+        z.object({
+          layer: z.enum(["shared", "project"]),
+          path: z.string(),
+        }),
+      ),
+    })
+    .parse(resolveAfterUpserts.structuredContent);
+
+  assert.ok(
+    resolvedUpserts.rules.some((entry) => entry.layer === "shared" && entry.path === "topics/angular-architecture.md"),
+  );
+  assert.ok(resolvedUpserts.rules.some((entry) => entry.layer === "project" && entry.path === "topics/admin-dashboard.md"));
+  assert.ok(
+    resolvedUpserts.skills.some((entry) => entry.layer === "shared" && entry.path === "stacks/angular/component-audit/SKILL.md"),
+  );
+  assert.ok(
+    resolvedUpserts.skills.some(
+      (entry) => entry.layer === "project" && entry.path === "stacks/angular/adding-admin-widget/SKILL.md",
+    ),
+  );
+
+  const deleteProjectRuleResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "delete_entry",
+      arguments: {
+        scope: "project",
+        kind: "rules",
+        projectPath: projectRoot,
+        path: "topics/admin-dashboard.md",
+      },
+    }),
+  );
+  const deleteProjectRuleStructured = z
+    .object({
+      status: z.enum(["deleted", "not_found"]),
+      path: z.string(),
+    })
+    .parse(deleteProjectRuleResult.structuredContent);
+  assert.equal(deleteProjectRuleStructured.status, "deleted");
+
+  const deleteSharedSkillResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "delete_entry",
+      arguments: {
+        scope: "shared",
+        kind: "skills",
+        projectPath: projectRoot,
+        path: "stacks/angular/component-audit",
+      },
+    }),
+  );
+  const deleteSharedSkillStructured = z
+    .object({
+      status: z.enum(["deleted", "not_found"]),
+      path: z.string(),
+    })
+    .parse(deleteSharedSkillResult.structuredContent);
+  assert.equal(deleteSharedSkillStructured.status, "deleted");
+
+  const resolveAfterDeletes = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolvedDeletes = z
+    .object({
+      rules: z.array(
+        z.object({
+          layer: z.enum(["shared", "project"]),
+          path: z.string(),
+        }),
+      ),
+      skills: z.array(
+        z.object({
+          layer: z.enum(["shared", "project"]),
+          path: z.string(),
+        }),
+      ),
+    })
+    .parse(resolveAfterDeletes.structuredContent);
+
+  assert.ok(!resolvedDeletes.rules.some((entry) => entry.path === "topics/admin-dashboard.md"));
+  assert.ok(!resolvedDeletes.skills.some((entry) => entry.path === "stacks/angular/component-audit/SKILL.md"));
 });

@@ -6,6 +6,7 @@ import { parseManifest } from "../core/bank/manifest.js";
 import { parseProjectBankManifest, parseProjectBankState } from "../core/bank/project.js";
 import type {
   EntryKind,
+  EntryScope,
   ListedEntry,
   McpServerConfig,
   MemoryBankManifest,
@@ -16,16 +17,17 @@ import type {
 } from "../core/bank/types.js";
 import { ValidationError } from "../shared/errors.js";
 import {
+  deleteManagedDirectory,
+  deleteManagedFile,
   ensureManagedDirectory,
   listManagedFilesRecursively,
   managedPathExists,
   readManagedJsonFile,
   readManagedTextFile,
+  writeManagedTextFile,
   writeManagedJsonFile,
   writeManagedTextFileIfMissing,
 } from "./safeFs.js";
-
-type BankLayer = "shared" | "project";
 
 export class BankRepository {
   readonly paths: ReturnType<typeof resolveBankPaths>;
@@ -135,7 +137,7 @@ export class BankRepository {
     return parseProjectBankState(state);
   }
 
-  private resolveEntryBasePath(kind: EntryKind, layer: BankLayer, projectId?: string): string {
+  private resolveEntryBasePath(kind: EntryKind, layer: EntryScope, projectId?: string): string {
     if (layer === "shared") {
       return kind === "rules" ? this.paths.sharedRulesDirectory : this.paths.sharedSkillsDirectory;
     }
@@ -163,7 +165,7 @@ export class BankRepository {
   }
 
   async listLayerEntries(
-    layer: BankLayer,
+    layer: EntryScope,
     kind: EntryKind,
     projectId?: string,
     groupPath?: string,
@@ -181,7 +183,7 @@ export class BankRepository {
     return this.readLayerEntry("shared", kind, entryPath);
   }
 
-  async readLayerEntry(layer: BankLayer, kind: EntryKind, entryPath: string, projectId?: string): Promise<string> {
+  async readLayerEntry(layer: EntryScope, kind: EntryKind, entryPath: string, projectId?: string): Promise<string> {
     const basePath = this.resolveEntryBasePath(kind, layer, projectId);
     const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
 
@@ -190,5 +192,156 @@ export class BankRepository {
     }
 
     return readManagedTextFile(this.rootPath, resolvedEntryPath);
+  }
+
+  private async touchManifest(): Promise<void> {
+    const manifest = await this.readManifestOptional();
+    if (manifest === null) {
+      return;
+    }
+
+    await this.writeManifest({
+      ...manifest,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private async touchProjectManifest(projectId: string): Promise<void> {
+    const manifest = await this.readProjectManifestOptional(projectId);
+    if (manifest === null) {
+      return;
+    }
+
+    await this.writeProjectManifest(projectId, {
+      ...manifest,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private validateRuleEntryPath(entryPath: string): void {
+    const normalizedPath = entryPath.replaceAll("\\", "/").trim();
+
+    if (!normalizedPath.endsWith(".md")) {
+      throw new ValidationError("Rule path must end with .md.");
+    }
+
+    if (path.posix.basename(normalizedPath).toLowerCase() === "skill.md") {
+      throw new ValidationError("Rule path cannot target SKILL.md.");
+    }
+  }
+
+  private normalizeSkillPath(skillPath: string): string {
+    const trimmedPath = skillPath.replaceAll("\\", "/").trim().replace(/\/+$/u, "");
+    const lowerCasePath = trimmedPath.toLowerCase();
+
+    if (trimmedPath.length === 0) {
+      throw new ValidationError("Skill path must not be empty.");
+    }
+
+    if (lowerCasePath === "skill.md") {
+      throw new ValidationError("Skill path must reference a skill folder, not SKILL.md directly.");
+    }
+
+    if (lowerCasePath.endsWith("/skill.md")) {
+      return trimmedPath.slice(0, -"/SKILL.md".length);
+    }
+
+    return trimmedPath;
+  }
+
+  async upsertRule(
+    layer: EntryScope,
+    entryPath: string,
+    content: string,
+    projectId?: string,
+  ): Promise<{ status: "created" | "updated"; path: string; absolutePath: string }> {
+    this.validateRuleEntryPath(entryPath);
+    const basePath = this.resolveEntryBasePath("rules", layer, projectId);
+    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
+    const existed = await managedPathExists(this.rootPath, resolvedEntryPath);
+
+    await writeManagedTextFile(this.rootPath, resolvedEntryPath, content);
+    await this.touchManifest();
+    if (layer === "project" && projectId) {
+      await this.touchProjectManifest(projectId);
+    }
+
+    return {
+      status: existed ? "updated" : "created",
+      path: path.relative(basePath, resolvedEntryPath),
+      absolutePath: resolvedEntryPath,
+    };
+  }
+
+  async upsertSkill(
+    layer: EntryScope,
+    skillPath: string,
+    content: string,
+    projectId?: string,
+  ): Promise<{ status: "created" | "updated"; path: string; filePath: string; absolutePath: string }> {
+    const normalizedSkillPath = this.normalizeSkillPath(skillPath);
+    const basePath = this.resolveEntryBasePath("skills", layer, projectId);
+    const resolvedSkillDirectory = this.resolvePathWithinEntryBase(basePath, normalizedSkillPath);
+    const resolvedEntryPath = path.join(resolvedSkillDirectory, "SKILL.md");
+    const existed = await managedPathExists(this.rootPath, resolvedEntryPath);
+
+    await writeManagedTextFile(this.rootPath, resolvedEntryPath, content);
+    await this.touchManifest();
+    if (layer === "project" && projectId) {
+      await this.touchProjectManifest(projectId);
+    }
+
+    return {
+      status: existed ? "updated" : "created",
+      path: path.relative(basePath, resolvedSkillDirectory),
+      filePath: path.relative(basePath, resolvedEntryPath),
+      absolutePath: resolvedEntryPath,
+    };
+  }
+
+  async deleteRule(
+    layer: EntryScope,
+    entryPath: string,
+    projectId?: string,
+  ): Promise<{ status: "deleted" | "not_found"; path: string }> {
+    this.validateRuleEntryPath(entryPath);
+    const basePath = this.resolveEntryBasePath("rules", layer, projectId);
+    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
+    const deleted = await deleteManagedFile(this.rootPath, resolvedEntryPath);
+
+    if (deleted) {
+      await this.touchManifest();
+      if (layer === "project" && projectId) {
+        await this.touchProjectManifest(projectId);
+      }
+    }
+
+    return {
+      status: deleted ? "deleted" : "not_found",
+      path: path.relative(basePath, resolvedEntryPath),
+    };
+  }
+
+  async deleteSkill(
+    layer: EntryScope,
+    skillPath: string,
+    projectId?: string,
+  ): Promise<{ status: "deleted" | "not_found"; path: string }> {
+    const normalizedSkillPath = this.normalizeSkillPath(skillPath);
+    const basePath = this.resolveEntryBasePath("skills", layer, projectId);
+    const resolvedSkillDirectory = this.resolvePathWithinEntryBase(basePath, normalizedSkillPath);
+    const deleted = await deleteManagedDirectory(this.rootPath, resolvedSkillDirectory);
+
+    if (deleted) {
+      await this.touchManifest();
+      if (layer === "project" && projectId) {
+        await this.touchProjectManifest(projectId);
+      }
+    }
+
+    return {
+      status: deleted ? "deleted" : "not_found",
+      path: path.relative(basePath, resolvedSkillDirectory),
+    };
   }
 }

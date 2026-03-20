@@ -62,11 +62,16 @@ Use these inputs together:
 Important:
 - Memory Bank is the canonical user-managed context for this project
 - Existing repo-local agent files are source material, not the final destination
-- Extract durable patterns from them when useful, but write the canonical bank only into the target Memory Bank directories
+- Extract durable patterns from them when useful, but write the canonical bank only into the target Memory Bank through the MCP mutation tools
 
 ## Canonical Output Contract
 
-Create files only inside the target project Memory Bank directories.
+Write Memory Bank entries through MCP tools instead of editing the user storage directly.
+
+Available write tools:
+- \`upsert_rule\` for thematic rule files
+- \`upsert_skill\` for skill folders with a single \`SKILL.md\`
+- \`delete_entry\` for cleanup when you intentionally remove a previous entry
 
 Rules:
 - Rules live under \`${rulesDirectory}\`
@@ -90,6 +95,10 @@ Keep guidance in the project bank only when at least one is true:
 - It meaningfully refines shared guidance with project-specific detail
 
 Do not duplicate shared rules or skills unless the project needs a narrower override or a materially different workflow.
+
+If you discover guidance that is clearly reusable across repositories or across a shared stack such as Angular, store it in the shared layer with \`scope: "shared"\` instead of the project layer.
+
+If the right scope is unclear, ask the user explicitly whether the entry should live only in this project or in the shared layer.
 
 ## Quality Gates
 
