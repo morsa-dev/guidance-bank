@@ -1,0 +1,44 @@
+{
+  "name": "mb-cli",
+  "version": "0.1.0",
+  "description": "Bootstrap CLI and local runtime for Memory Bank.",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "mb": "./dist/cli/index.js"
+  },
+  "main": "./dist/cli/index.js",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test --test-concurrency=1 test/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "memory-bank",
+    "mcp",
+    "cli",
+    "ai"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.5.0",
+    "eslint": "^10.0.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0"
+  }
+}
