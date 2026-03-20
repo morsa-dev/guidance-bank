@@ -4,13 +4,31 @@ import { stdin as input, stdout as output } from "node:process";
 import { PROVIDER_DEFINITIONS } from "../../core/providers/providerRegistry.js";
 import type { ProviderId } from "../../core/bank/types.js";
 import { UserInputError } from "../../shared/errors.js";
+import { getProviderAvailability, type ProviderAvailability } from "./providerAvailability.js";
 
 const selectionSeparators = /[\s,]+/;
 
-const parseSelection = (value: string): ProviderId[] => {
+const parseSelection = (value: string, availableProviders: readonly ProviderAvailability[]): ProviderId[] => {
   const trimmed = value.trim();
+  const availableProviderIds = new Set(availableProviders.filter((provider) => provider.available).map((provider) => provider.id));
+
   if (!trimmed) {
-    return PROVIDER_DEFINITIONS.map((provider) => provider.id);
+    const defaults = PROVIDER_DEFINITIONS.filter((provider) => availableProviderIds.has(provider.id)).map((provider) => provider.id);
+    if (defaults.length === 0) {
+      throw new UserInputError("No supported provider CLIs were found on PATH. Install at least one provider CLI first.");
+    }
+
+    return defaults;
+  }
+
+  const loweredValue = trimmed.toLowerCase();
+  if (loweredValue === "all" || loweredValue === "available") {
+    const defaults = PROVIDER_DEFINITIONS.filter((provider) => availableProviderIds.has(provider.id)).map((provider) => provider.id);
+    if (defaults.length === 0) {
+      throw new UserInputError("No supported provider CLIs were found on PATH. Install at least one provider CLI first.");
+    }
+
+    return defaults;
   }
 
   const selectedProviders = new Set<ProviderId>();
@@ -25,6 +43,10 @@ const parseSelection = (value: string): ProviderId[] => {
         : undefined;
 
     if (providerByIndex) {
+      if (!availableProviderIds.has(providerByIndex.id)) {
+        throw new UserInputError(`${providerByIndex.displayName} CLI was not found on PATH.`);
+      }
+
       selectedProviders.add(providerByIndex.id);
       continue;
     }
@@ -35,6 +57,10 @@ const parseSelection = (value: string): ProviderId[] => {
     });
 
     if (providerByName) {
+      if (!availableProviderIds.has(providerByName.id)) {
+        throw new UserInputError(`${providerByName.displayName} CLI was not found on PATH.`);
+      }
+
       selectedProviders.add(providerByName.id);
       continue;
     }
@@ -54,11 +80,13 @@ export const promptForProviders = async (): Promise<ProviderId[]> => {
     throw new UserInputError("mb init requires an interactive terminal in the current MVP.");
   }
 
-  output.write("Select providers to enable for this Memory Bank:\n");
-  for (const [index, provider] of PROVIDER_DEFINITIONS.entries()) {
-    output.write(`${index + 1}. ${provider.displayName}\n`);
+  const availability = await getProviderAvailability();
+
+  output.write("Select providers to enable for Memory Bank MCP:\n");
+  for (const [index, provider] of availability.entries()) {
+    output.write(`${index + 1}. ${provider.displayName} [${provider.available ? "available" : "not found"}]\n`);
   }
-  output.write("Enter comma-separated numbers or provider ids. Press Enter to select all.\n");
+  output.write('Press Enter to select all available providers. Type numbers, ids, or "all".\n');
 
   const readline = createInterface({ input, output });
 
@@ -67,7 +95,7 @@ export const promptForProviders = async (): Promise<ProviderId[]> => {
       const answer = await readline.question("> ");
 
       try {
-        return parseSelection(answer);
+        return parseSelection(answer, availability);
       } catch (error) {
         if (error instanceof UserInputError) {
           output.write(`${error.message}\n`);

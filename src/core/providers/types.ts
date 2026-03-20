@@ -29,5 +29,6 @@ export type ProviderInstallResult = {
 export type ProviderDefinition = {
   id: ProviderId;
   displayName: string;
+  cliCommand: string;
   install: (context: ProviderInstallerContext) => Promise<ProviderInstallResult>;
 };

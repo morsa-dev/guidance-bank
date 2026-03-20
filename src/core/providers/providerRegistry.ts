@@ -8,16 +8,19 @@ export const PROVIDER_DEFINITIONS: readonly ProviderDefinition[] = [
   {
     id: "codex",
     displayName: "Codex",
+    cliCommand: "codex",
     install: installCodexIntegration,
   },
   {
     id: "cursor",
     displayName: "Cursor",
+    cliCommand: "cursor",
     install: installCursorIntegration,
   },
   {
     id: "claude-code",
     displayName: "Claude Code",
+    cliCommand: "claude",
     install: installClaudeCodeIntegration,
   },
 ];

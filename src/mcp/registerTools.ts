@@ -2,9 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { BankRepository } from "../storage/bankRepository.js";
 import { registerBankManifestTool } from "./tools/registerBankManifestTool.js";
+import { registerCreateBankTool } from "./tools/registerCreateBankTool.js";
 import { registerListEntriesTool } from "./tools/registerListEntriesTool.js";
 import { registerReadEntryTool } from "./tools/registerReadEntryTool.js";
 import { registerResolveContextTool } from "./tools/registerResolveContextTool.js";
+import { registerSetProjectStateTool } from "./tools/registerSetProjectStateTool.js";
 
 export type McpServerRuntimeOptions = {
   repository: BankRepository;
@@ -14,6 +16,8 @@ export type ToolRegistrar = (server: McpServer, options: McpServerRuntimeOptions
 
 const toolRegistrars: ToolRegistrar[] = [
   registerResolveContextTool,
+  registerCreateBankTool,
+  registerSetProjectStateTool,
   registerBankManifestTool,
   registerListEntriesTool,
   registerReadEntryTool,

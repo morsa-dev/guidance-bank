@@ -6,22 +6,33 @@ export type DetectedSignal = {
   source: string;
 };
 
+export type LocalGuidanceSignal = {
+  kind: "agents" | "cursor" | "claude" | "codex";
+  path: string;
+};
+
 export type ProjectContext = {
-  cwd: string;
   projectName: string;
+  projectPath: string;
   detectedStacks: DetectableStack[];
   detectedSignals: DetectedSignal[];
+  localGuidance: LocalGuidanceSignal[];
 };
 
 export type ResolvedContextEntry = {
+  layer: "shared" | "project";
   path: string;
   reason: string;
   content: string;
 };
 
+export type ResolvedMemoryBankStatus = "missing" | "ready" | "creation_declined";
+
 export type ResolvedMemoryBankContext = ProjectContext & {
-  provider?: string;
-  task?: string;
+  status: ResolvedMemoryBankStatus;
+  message: string;
+  projectId: string;
+  projectBankPath: string;
   rules: ResolvedContextEntry[];
   skills: ResolvedContextEntry[];
   agentInstructions: string;

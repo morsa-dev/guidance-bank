@@ -1,22 +1,11 @@
 import { z } from "zod";
 
-import { PROVIDER_IDS } from "../../core/bank/types.js";
 import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
 import type { ToolRegistrar } from "../registerTools.js";
 
 const ResolveContextArgsSchema = z
   .object({
-    cwd: z.string().trim().min(1).describe("Absolute path to the current project or working directory."),
-    provider: z
-      .enum(PROVIDER_IDS)
-      .optional()
-      .describe("Active agent provider. Use when provider-specific Memory Bank entries may apply."),
-    task: z
-      .string()
-      .trim()
-      .min(1)
-      .optional()
-      .describe("Optional short task summary to include in the resolved context payload."),
+    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
   })
   .strict();
 
@@ -26,29 +15,21 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
     {
       title: "Resolve Memory Bank Context",
       description:
-        "Resolve the applicable user-level Memory Bank rules and skills for the current repository. Call this at the start of work in a project, and again when the working directory or task changes materially.",
+        "Resolve the primary Memory Bank context for the current repository. Call this at the start of work in a project, and again when the working directory changes materially.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
       inputSchema: {
-        cwd: z.string().trim().min(1).describe("Absolute path to the current project or working directory."),
-        provider: z
-          .enum(PROVIDER_IDS)
-          .optional()
-          .describe("Active agent provider. Use when provider-specific Memory Bank entries may apply."),
-        task: z
-          .string()
-          .trim()
-          .min(1)
-          .optional()
-          .describe("Optional short task summary to include in the resolved context payload."),
+        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
       },
       outputSchema: {
-        cwd: z.string(),
+        status: z.enum(["missing", "ready", "creation_declined"]),
+        message: z.string(),
+        projectId: z.string(),
         projectName: z.string(),
-        provider: z.enum(PROVIDER_IDS).optional(),
-        task: z.string().optional(),
+        projectPath: z.string(),
+        projectBankPath: z.string(),
         detectedStacks: z.array(z.string()),
         detectedSignals: z.array(
           z.object({
@@ -56,8 +37,15 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
             source: z.string(),
           }),
         ),
+        localGuidance: z.array(
+          z.object({
+            kind: z.enum(["agents", "cursor", "claude", "codex"]),
+            path: z.string(),
+          }),
+        ),
         rules: z.array(
           z.object({
+            layer: z.enum(["shared", "project"]),
             path: z.string(),
             reason: z.string(),
             content: z.string(),
@@ -65,6 +53,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         ),
         skills: z.array(
           z.object({
+            layer: z.enum(["shared", "project"]),
             path: z.string(),
             reason: z.string(),
             content: z.string(),
@@ -89,9 +78,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
 
       const resolvedContext = await resolveMemoryBankContext({
         repository: options.repository,
-        cwd: parsedArgs.data.cwd,
-        ...(parsedArgs.data.provider ? { provider: parsedArgs.data.provider } : {}),
-        ...(parsedArgs.data.task ? { task: parsedArgs.data.task } : {}),
+        projectPath: parsedArgs.data.projectPath,
       });
 
       return {

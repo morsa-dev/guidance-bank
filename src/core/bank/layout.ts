@@ -5,28 +5,42 @@ import type { ProviderId } from "./types.js";
 export type BankPaths = {
   root: string;
   manifestFile: string;
-  rulesDirectory: string;
-  skillsDirectory: string;
+  sharedDirectory: string;
+  sharedRulesDirectory: string;
+  sharedSkillsDirectory: string;
+  projectsDirectory: string;
   mcpDirectory: string;
   integrationsDirectory: string;
   mcpServerConfigFile: string;
   integrationFile: (providerId: ProviderId) => string;
+  projectDirectory: (projectId: string) => string;
+  projectManifestFile: (projectId: string) => string;
+  projectStateFile: (projectId: string) => string;
+  projectRulesDirectory: (projectId: string) => string;
+  projectSkillsDirectory: (projectId: string) => string;
 };
 
 export const resolveBankPaths = (root: string): BankPaths => ({
   root,
   manifestFile: path.join(root, "manifest.json"),
-  rulesDirectory: path.join(root, "rules"),
-  skillsDirectory: path.join(root, "skills"),
+  sharedDirectory: path.join(root, "shared"),
+  sharedRulesDirectory: path.join(root, "shared", "rules"),
+  sharedSkillsDirectory: path.join(root, "shared", "skills"),
+  projectsDirectory: path.join(root, "projects"),
   mcpDirectory: path.join(root, "mcp"),
   integrationsDirectory: path.join(root, "integrations"),
   mcpServerConfigFile: path.join(root, "mcp", "server.json"),
   integrationFile: (providerId) => path.join(root, "integrations", `${providerId}.json`),
+  projectDirectory: (projectId) => path.join(root, "projects", projectId),
+  projectManifestFile: (projectId) => path.join(root, "projects", projectId, "manifest.json"),
+  projectStateFile: (projectId) => path.join(root, "projects", projectId, "state.json"),
+  projectRulesDirectory: (projectId) => path.join(root, "projects", projectId, "rules"),
+  projectSkillsDirectory: (projectId) => path.join(root, "projects", projectId, "skills"),
 });
 
 export const createStarterFiles = (paths: BankPaths): Array<{ filePath: string; content: string }> => [
   {
-    filePath: path.join(paths.rulesDirectory, "core", "README.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "core", "README.md"),
     content: `# Core Rules
 
 Store shared, provider-agnostic rules here.
@@ -36,7 +50,7 @@ Store shared, provider-agnostic rules here.
 `,
   },
   {
-    filePath: path.join(paths.rulesDirectory, "core", "general.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "core", "general.md"),
     content: `# General Behavior
 
 - Apply these rules as user-level guidance across repositories unless the local project clearly conflicts.
@@ -46,7 +60,7 @@ Store shared, provider-agnostic rules here.
 `,
   },
   {
-    filePath: path.join(paths.rulesDirectory, "stacks", "README.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "stacks", "README.md"),
     content: `# Stack Rules
 
 Store stack-specific rules here.
@@ -58,7 +72,7 @@ Examples:
 `,
   },
   {
-    filePath: path.join(paths.rulesDirectory, "stacks", "nodejs", "runtime.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "stacks", "nodejs", "runtime.md"),
     content: `# Node.js Runtime
 
 - Respect the existing package manager and lockfile already present in the repository.
@@ -67,7 +81,7 @@ Examples:
 `,
   },
   {
-    filePath: path.join(paths.rulesDirectory, "stacks", "typescript", "strict-mode.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "stacks", "typescript", "strict-mode.md"),
     content: `# TypeScript Strict Mode
 
 - Preserve strict typing and avoid weakening types with \`any\`, broad casts, or unchecked fallbacks.
@@ -76,7 +90,19 @@ Examples:
 `,
   },
   {
-    filePath: path.join(paths.rulesDirectory, "providers", "README.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "topics", "README.md"),
+    content: `# Topic Rules
+
+Store thematic shared rule groups here.
+
+Examples:
+- architecture/
+- styling/
+- routing/
+`,
+  },
+  {
+    filePath: path.join(paths.sharedRulesDirectory, "providers", "README.md"),
     content: `# Provider Rules
 
 Store provider-specific rule variations here.
@@ -88,18 +114,18 @@ Examples:
 `,
   },
   {
-    filePath: path.join(paths.skillsDirectory, "README.md"),
+    filePath: path.join(paths.sharedSkillsDirectory, "README.md"),
     content: `# Skills
 
-Store each skill in its own markdown file.
+Store each skill in its own folder with a single \`SKILL.md\` file.
 
 Examples:
-- typescript-diagnostics.md
-- angular-components.md
+- task-based-reading/SKILL.md
+- adding-feature/SKILL.md
 `,
   },
   {
-    filePath: path.join(paths.skillsDirectory, "shared", "task-based-reading", "SKILL.md"),
+    filePath: path.join(paths.sharedSkillsDirectory, "shared", "task-based-reading", "SKILL.md"),
     content: `---
 name: task-based-reading
 description: Use when starting work in an unfamiliar repository and you need to identify the minimum relevant files quickly.

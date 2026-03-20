@@ -3,6 +3,8 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export const ENTRY_KINDS = ["rules", "skills"] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
+export const PROJECT_CREATION_STATES = ["unknown", "declined", "ready"] as const;
+export type ProjectCreationState = (typeof PROJECT_CREATION_STATES)[number];
 
 export type MemoryBankManifest = {
   schemaVersion: 1;
@@ -20,6 +22,21 @@ export type McpServerConfig = {
   command: string;
   args: string[];
   env: Record<string, string>;
+};
+
+export type ProjectBankManifest = {
+  schemaVersion: 1;
+  projectId: string;
+  projectName: string;
+  projectPath: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProjectBankState = {
+  schemaVersion: 1;
+  creationState: ProjectCreationState;
+  updatedAt: string;
 };
 
 export type ProviderIntegrationDescriptor = {

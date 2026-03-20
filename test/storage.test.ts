@@ -26,6 +26,7 @@ test("repository lists starter entries from the managed storage", async () => {
       "stacks/nodejs/runtime.md",
       "stacks/README.md",
       "stacks/typescript/strict-mode.md",
+      "topics/README.md",
     ],
   );
   assert.deepEqual(skillEntries.map((entry) => entry.path), ["README.md", "shared/task-based-reading/SKILL.md"]);

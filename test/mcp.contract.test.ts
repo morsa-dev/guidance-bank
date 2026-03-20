@@ -54,11 +54,16 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
   const result = await client.listTools();
   const tools = new Map(result.tools.map((tool) => [tool.name, tool]));
 
-  assert.deepEqual([...tools.keys()].sort(), ["bank_manifest", "list_entries", "read_entry", "resolve_context"]);
+  assert.deepEqual(
+    [...tools.keys()].sort(),
+    ["bank_manifest", "create_bank", "list_entries", "read_entry", "resolve_context", "set_project_state"],
+  );
   assert.ok(tools.get("bank_manifest")?.outputSchema);
+  assert.ok(tools.get("create_bank")?.outputSchema);
   assert.ok(tools.get("list_entries")?.outputSchema);
   assert.ok(tools.get("read_entry")?.outputSchema);
   assert.ok(tools.get("resolve_context")?.outputSchema);
+  assert.ok(tools.get("set_project_state")?.outputSchema);
 });
 
 test("bank_manifest returns validated structured content", async (t) => {
@@ -122,7 +127,7 @@ test("read_entry surfaces invalid arguments as tool errors", async (t) => {
   assert.match(firstText, /Invalid arguments for tool read_entry/);
 });
 
-test("resolve_context returns stack-matched rules and shared skills for a repository", async (t) => {
+test("resolve_context returns shared context and missing status when no project bank exists", async (t) => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
@@ -160,16 +165,25 @@ test("resolve_context returns stack-matched rules and shared skills for a reposi
     await client.callTool({
       name: "resolve_context",
       arguments: {
-        cwd: projectRoot,
-        provider: "cursor",
+        projectPath: projectRoot,
       },
     }),
   );
 
   const structuredContent = z
     .object({
+      status: z.enum(["missing", "ready", "creation_declined"]),
+      projectId: z.string(),
       projectName: z.string(),
+      projectPath: z.string(),
+      projectBankPath: z.string(),
       detectedStacks: z.array(z.string()),
+      localGuidance: z.array(
+        z.object({
+          kind: z.string(),
+          path: z.string(),
+        }),
+      ),
       rules: z.array(z.object({ path: z.string() })),
       skills: z.array(z.object({ path: z.string() })),
       agentInstructions: z.string(),
@@ -177,11 +191,160 @@ test("resolve_context returns stack-matched rules and shared skills for a reposi
     .parse(result.structuredContent);
 
   assert.equal(result.isError, undefined);
+  assert.equal(structuredContent.status, "missing");
   assert.equal(structuredContent.projectName, "demo-project");
+  assert.equal(structuredContent.projectPath, projectRoot);
   assert.deepEqual(structuredContent.detectedStacks, ["nodejs", "typescript", "react"]);
+  assert.deepEqual(structuredContent.localGuidance, []);
   assert.deepEqual(
     structuredContent.rules.map((entry) => entry.path),
     ["core/general.md", "stacks/nodejs/runtime.md", "stacks/typescript/strict-mode.md"],
   );
   assert.deepEqual(structuredContent.skills.map((entry) => entry.path), ["shared/task-based-reading/SKILL.md"]);
+  assert.match(structuredContent.agentInstructions, /primary user-managed context/i);
+});
+
+test("create_bank scaffolds a project bank and resolve_context returns ready status", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(
+    path.join(projectRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: "demo-project",
+        dependencies: {
+          react: "^19.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const createResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+
+  const createStructuredContent = z
+    .object({
+      status: z.enum(["created", "already_exists"]),
+      projectId: z.string(),
+      projectBankPath: z.string(),
+      rulesDirectory: z.string(),
+      skillsDirectory: z.string(),
+      creationPrompt: z.string(),
+    })
+    .parse(createResult.structuredContent);
+
+  assert.equal(createStructuredContent.status, "created");
+  assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
+
+  const resolveResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+
+  const resolveStructuredContent = z
+    .object({
+      status: z.enum(["missing", "ready", "creation_declined"]),
+      projectBankPath: z.string(),
+      localGuidance: z.array(
+        z.object({
+          kind: z.string(),
+          path: z.string(),
+        }),
+      ),
+      agentInstructions: z.string(),
+    })
+    .parse(resolveResult.structuredContent);
+
+  assert.equal(resolveStructuredContent.status, "ready");
+  assert.equal(resolveStructuredContent.projectBankPath, createStructuredContent.projectBankPath);
+  assert.deepEqual(resolveStructuredContent.localGuidance, []);
+  assert.match(resolveStructuredContent.agentInstructions, /primary user-managed context/i);
+});
+
+test("set_project_state persists declined creation and resolve_context stops asking again", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const setStateResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "set_project_state",
+      arguments: {
+        projectPath: projectRoot,
+        creationState: "declined",
+      },
+    }),
+  );
+
+  const setStateStructuredContent = z
+    .object({
+      creationState: z.enum(["unknown", "declined", "ready"]),
+    })
+    .parse(setStateResult.structuredContent);
+
+  assert.equal(setStateStructuredContent.creationState, "declined");
+
+  const resolveResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+
+  const resolveStructuredContent = z
+    .object({
+      status: z.enum(["missing", "ready", "creation_declined"]),
+      localGuidance: z.array(
+        z.object({
+          kind: z.string(),
+          path: z.string(),
+        }),
+      ),
+      agentInstructions: z.string(),
+    })
+    .parse(resolveResult.structuredContent);
+
+  assert.equal(resolveStructuredContent.status, "creation_declined");
+  assert.deepEqual(resolveStructuredContent.localGuidance, []);
+  assert.match(resolveStructuredContent.agentInstructions, /Do not ask to create a project Memory Bank again/i);
 });

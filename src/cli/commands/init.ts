@@ -8,17 +8,30 @@ export const runInitCommand = async (): Promise<void> => {
     selectedProviders,
   });
 
-  console.info(`${result.alreadyExisted ? "Updated" : "Initialized"} Memory Bank at ${result.bankRoot}`);
-  console.info(`Enabled providers: ${result.manifest.enabledProviders.join(", ")}`);
-  console.info(`MCP runtime config: ${result.mcpServerConfig.command} ${result.mcpServerConfig.args.join(" ")}`);
+  const configuredProviders = result.integrations
+    .filter((integration) => integration.action === "installed" || integration.action === "reconfigured")
+    .map((integration) => integration.descriptor.displayName);
+  const reusedProviders = result.integrations
+    .filter((integration) => integration.action === "skipped")
+    .map((integration) => integration.descriptor.displayName);
 
-  for (const integration of result.integrations) {
-    const verb =
-      integration.action === "skipped"
-        ? "Skipped existing global integration for"
-        : integration.action === "reconfigured"
-          ? "Reconfigured global integration for"
-          : "Configured global integration for";
-    console.info(`${verb}: ${integration.descriptor.provider}`);
+  console.info(
+    result.alreadyExisted
+      ? `Memory Bank is ready at ${result.bankRoot}.`
+      : `Memory Bank initialized successfully at ${result.bankRoot}.`,
+  );
+
+  if (configuredProviders.length > 0) {
+    console.info(`Connected providers: ${configuredProviders.join(", ")}.`);
   }
+
+  if (reusedProviders.length > 0) {
+    console.info(`Existing provider connections kept: ${reusedProviders.join(", ")}.`);
+  }
+
+  console.info("");
+  console.info("Next step:");
+  console.info(
+    "Open any project in your agent. The agent can use the Memory Bank MCP to resolve shared context, detect when a project bank is missing, and guide you through creating or updating it.",
+  );
 };

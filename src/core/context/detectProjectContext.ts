@@ -1,7 +1,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import { type DetectableStack, type DetectedSignal, type ProjectContext } from "./types.js";
+import { type DetectableStack, type DetectedSignal, type LocalGuidanceSignal, type ProjectContext } from "./types.js";
 
 type PackageJson = {
   dependencies?: Record<string, string>;
@@ -46,6 +46,7 @@ export const detectProjectContext = async (cwd: string): Promise<ProjectContext>
   const resolvedCwd = path.resolve(cwd);
   const stacks = new Set<DetectableStack>();
   const signals: DetectedSignal[] = [];
+  const localGuidance: LocalGuidanceSignal[] = [];
 
   const packageJson = await readJsonFileIfExists<PackageJson>(path.join(resolvedCwd, "package.json"));
   const tsconfigExists = await pathExists(path.join(resolvedCwd, "tsconfig.json"));
@@ -85,12 +86,30 @@ export const detectProjectContext = async (cwd: string): Promise<ProjectContext>
     addStack(stacks, signals, "nodejs", "package.json");
   }
 
+  const localGuidanceCandidates: Array<{ kind: LocalGuidanceSignal["kind"]; relativePath: string }> = [
+    { kind: "agents", relativePath: "AGENTS.md" },
+    { kind: "cursor", relativePath: ".cursor" },
+    { kind: "claude", relativePath: ".claude" },
+    { kind: "codex", relativePath: ".codex" },
+  ];
+
+  for (const candidate of localGuidanceCandidates) {
+    const candidatePath = path.join(resolvedCwd, candidate.relativePath);
+    if (await pathExists(candidatePath)) {
+      localGuidance.push({
+        kind: candidate.kind,
+        path: candidatePath,
+      });
+    }
+  }
+
   const detectedStacks = [...stacks].sort((left, right) => (stackOrder.get(left) ?? 0) - (stackOrder.get(right) ?? 0));
 
   return {
-    cwd: resolvedCwd,
     projectName: path.basename(resolvedCwd),
+    projectPath: resolvedCwd,
     detectedStacks,
     detectedSignals: signals,
+    localGuidance,
   };
 };
