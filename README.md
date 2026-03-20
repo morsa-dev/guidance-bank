@@ -14,6 +14,8 @@ After installation, agent providers can launch the local MCP runtime through:
 mb mcp serve
 ```
 
+The MCP runtime exposes a `resolve_context` tool so agents can ask Memory Bank for the applicable user-level rules and skills for the current repository without writing project-local rule files.
+
 The current MVP intentionally focuses on one primary workflow:
 
 ```bash

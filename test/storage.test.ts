@@ -19,9 +19,16 @@ test("repository lists starter entries from the managed storage", async () => {
 
   assert.deepEqual(
     ruleEntries.map((entry) => entry.path),
-    ["core/README.md", "providers/README.md", "stacks/README.md"],
+    [
+      "core/general.md",
+      "core/README.md",
+      "providers/README.md",
+      "stacks/nodejs/runtime.md",
+      "stacks/README.md",
+      "stacks/typescript/strict-mode.md",
+    ],
   );
-  assert.deepEqual(skillEntries.map((entry) => entry.path), ["README.md"]);
+  assert.deepEqual(skillEntries.map((entry) => entry.path), ["README.md", "shared/task-based-reading/SKILL.md"]);
 });
 
 test("repository rejects reading entries outside the managed root", async () => {
