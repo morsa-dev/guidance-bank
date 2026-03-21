@@ -27,6 +27,7 @@ export const ProjectBankStateSchema = z
   .object({
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
+    createIteration: z.number().int().nonnegative().nullable().default(null),
     postponedUntil: z.iso.datetime().nullable(),
     lastSyncedAt: z.iso.datetime().nullable(),
     lastSyncedStorageVersion: z.number().int().positive().nullable(),
@@ -57,6 +58,7 @@ export const createProjectBankManifest = (
 export const createProjectBankState = (
   creationState: ProjectCreationState,
   options?: {
+    createIteration?: number | null;
     postponedUntil?: string | null;
     lastSyncedAt?: string | null;
     lastSyncedStorageVersion?: number | null;
@@ -65,6 +67,7 @@ export const createProjectBankState = (
 ): ProjectBankState => ({
   schemaVersion: 1,
   creationState,
+  createIteration: options?.createIteration ?? null,
   postponedUntil: options?.postponedUntil ?? null,
   lastSyncedAt: options?.lastSyncedAt ?? null,
   lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
@@ -78,6 +81,16 @@ export const updateProjectBankState = (
 ): ProjectBankState => ({
   ...state,
   creationState,
+  updatedAt: now.toISOString(),
+});
+
+export const setProjectBankCreateIteration = (
+  state: ProjectBankState,
+  createIteration: number | null,
+  now = new Date(),
+): ProjectBankState => ({
+  ...state,
+  createIteration,
   updatedAt: now.toISOString(),
 });
 

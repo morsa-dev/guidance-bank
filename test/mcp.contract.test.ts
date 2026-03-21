@@ -305,6 +305,8 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
           sharedStacks: z.array(z.string()),
         }),
       ),
+      iteration: z.number(),
+      prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
     })
@@ -312,8 +314,10 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
 
   assert.equal(createStructuredContent.status, "created");
   assert.equal(createStructuredContent.syncRequired, false);
+  assert.equal(createStructuredContent.iteration, 0);
   assert.deepEqual(createStructuredContent.selectedReferenceProjects, []);
   assert.match(createStructuredContent.text, /scaffold created successfully/i);
+  assert.match(createStructuredContent.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(createStructuredContent.creationPrompt, /Do not duplicate or mirror provider-native guidance/i);
   assert.match(createStructuredContent.creationPrompt, /only during explicit bootstrap or sync\/import flows/i);
@@ -605,6 +609,8 @@ test("create_bank does not clear sync_required for an existing outdated project 
       status: z.enum(["created", "already_exists"]),
       syncRequired: z.boolean(),
       projectId: z.string(),
+      iteration: z.number(),
+      prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
     })
@@ -613,7 +619,9 @@ test("create_bank does not clear sync_required for an existing outdated project 
   assert.equal(recreateStructured.status, "already_exists");
   assert.equal(recreateStructured.syncRequired, true);
   assert.equal(recreateStructured.projectId, createBankStructured.projectId);
-  assert.equal(recreateStructured.creationPrompt, "");
+  assert.equal(recreateStructured.iteration, 0);
+  assert.match(recreateStructured.prompt, /requires synchronization before reuse/i);
+  assert.match(recreateStructured.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(recreateStructured.text, /already exists/i);
   assert.match(recreateStructured.text, /synchroniz/i);
 
@@ -750,6 +758,8 @@ test("resolve_context suggests similar existing project banks and create_bank ac
           sharedStacks: z.array(z.string()),
         }),
       ),
+      iteration: z.number(),
+      prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
     })
@@ -757,11 +767,75 @@ test("resolve_context suggests similar existing project banks and create_bank ac
 
   assert.equal(createStructured.status, "created");
   assert.equal(createStructured.syncRequired, false);
+  assert.equal(createStructured.iteration, 0);
   assert.equal(createStructured.selectedReferenceProjects.length, 1);
   assert.equal(createStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
   assert.match(createStructured.text, /scaffold created successfully/i);
+  assert.match(createStructured.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
   assert.match(createStructured.creationPrompt, /Reference Projects/i);
   assert.match(createStructured.creationPrompt, /angular-shared-ui/i);
+});
+
+test("create_bank persists requested iteration and overwrites mismatched stored iteration", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+  const repository = new BankRepository(bankRoot);
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((value) => String(value)).join(" "));
+  };
+
+  try {
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    });
+
+    const advancedResult = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "create_bank",
+        arguments: {
+          projectPath: projectRoot,
+          iteration: 3,
+        },
+      }),
+    );
+    const advancedStructured = z
+      .object({
+        iteration: z.number(),
+        prompt: z.string(),
+        projectId: z.string(),
+      })
+      .parse(advancedResult.structuredContent);
+
+    assert.equal(advancedStructured.iteration, 3);
+    assert.match(advancedStructured.prompt, /# Derive From Project/i);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0] ?? "", /iteration mismatch/i);
+
+    const state = await repository.readProjectStateOptional(advancedStructured.projectId);
+    assert.equal(state?.createIteration, 3);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test("upsert tools can write shared and project entries, and delete_entry removes them", async (t) => {

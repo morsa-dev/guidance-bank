@@ -41,6 +41,7 @@ export type ProjectBankManifest = {
 export type ProjectBankState = {
   schemaVersion: 1;
   creationState: ProjectCreationState;
+  createIteration: number | null;
   postponedUntil: string | null;
   lastSyncedAt: string | null;
   lastSyncedStorageVersion: number | null;
