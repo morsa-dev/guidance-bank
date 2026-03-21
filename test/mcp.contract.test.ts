@@ -306,6 +306,14 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
         }),
       ),
       iteration: z.number(),
+      discoveredSources: z.array(
+        z.object({
+          kind: z.string(),
+          entryType: z.string(),
+          path: z.string(),
+          relativePath: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -316,11 +324,45 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.equal(createStructuredContent.syncRequired, false);
   assert.equal(createStructuredContent.iteration, 0);
   assert.deepEqual(createStructuredContent.selectedReferenceProjects, []);
+  assert.deepEqual(
+    createStructuredContent.discoveredSources.map((source) => source.relativePath),
+    [".cursor", "AGENTS.md"],
+  );
   assert.match(createStructuredContent.text, /scaffold created successfully/i);
   assert.match(createStructuredContent.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(createStructuredContent.creationPrompt, /Do not duplicate or mirror provider-native guidance/i);
   assert.match(createStructuredContent.creationPrompt, /only during explicit bootstrap or sync\/import flows/i);
+
+  const reviewResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+        iteration: 1,
+      },
+    }),
+  );
+  const reviewStructuredContent = z
+    .object({
+      iteration: z.number(),
+      prompt: z.string(),
+      discoveredSources: z.array(
+        z.object({
+          relativePath: z.string(),
+        }),
+      ),
+    })
+    .parse(reviewResult.structuredContent);
+
+  assert.equal(reviewStructuredContent.iteration, 1);
+  assert.deepEqual(
+    reviewStructuredContent.discoveredSources.map((source) => source.relativePath),
+    [".cursor", "AGENTS.md"],
+  );
+  assert.match(reviewStructuredContent.prompt, /## Discovered Guidance Sources/);
+  assert.match(reviewStructuredContent.prompt, /\[agents\] AGENTS\.md \(file\)/);
+  assert.match(reviewStructuredContent.prompt, /\[cursor\] \.cursor \(directory\)/);
 
   const resolveResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -610,6 +652,11 @@ test("create_bank does not clear sync_required for an existing outdated project 
       syncRequired: z.boolean(),
       projectId: z.string(),
       iteration: z.number(),
+      discoveredSources: z.array(
+        z.object({
+          relativePath: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -620,6 +667,7 @@ test("create_bank does not clear sync_required for an existing outdated project 
   assert.equal(recreateStructured.syncRequired, true);
   assert.equal(recreateStructured.projectId, createBankStructured.projectId);
   assert.equal(recreateStructured.iteration, 0);
+  assert.deepEqual(recreateStructured.discoveredSources, []);
   assert.match(recreateStructured.prompt, /requires synchronization before reuse/i);
   assert.match(recreateStructured.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(recreateStructured.text, /already exists/i);
@@ -759,6 +807,11 @@ test("resolve_context suggests similar existing project banks and create_bank ac
         }),
       ),
       iteration: z.number(),
+      discoveredSources: z.array(
+        z.object({
+          relativePath: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -768,6 +821,7 @@ test("resolve_context suggests similar existing project banks and create_bank ac
   assert.equal(createStructured.status, "created");
   assert.equal(createStructured.syncRequired, false);
   assert.equal(createStructured.iteration, 0);
+  assert.deepEqual(createStructured.discoveredSources, []);
   assert.equal(createStructured.selectedReferenceProjects.length, 1);
   assert.equal(createStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
   assert.match(createStructured.text, /scaffold created successfully/i);
@@ -823,11 +877,17 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
         iteration: z.number(),
         prompt: z.string(),
         projectId: z.string(),
+        discoveredSources: z.array(
+          z.object({
+            relativePath: z.string(),
+          }),
+        ),
       })
       .parse(advancedResult.structuredContent);
 
     assert.equal(advancedStructured.iteration, 3);
     assert.match(advancedStructured.prompt, /# Derive From Project/i);
+    assert.deepEqual(advancedStructured.discoveredSources, []);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0] ?? "", /iteration mismatch/i);
 

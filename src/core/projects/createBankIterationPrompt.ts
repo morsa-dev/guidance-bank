@@ -1,6 +1,7 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
 import { buildCreateBankPrompt } from "./createBankPrompt.js";
+import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 
 type BuildCreateBankIterationPromptInput = {
   iteration: number;
@@ -11,6 +12,7 @@ type BuildCreateBankIterationPromptInput = {
   skillsDirectory: string;
   detectedStacks: DetectableStack[];
   selectedReferenceProjects: ReferenceProjectCandidate[];
+  discoveredSources: ExistingGuidanceSource[];
 };
 
 const appendContinuationInstruction = (prompt: string, iteration: number): string => `${prompt}
@@ -19,16 +21,31 @@ const appendContinuationInstruction = (prompt: string, iteration: number): strin
 
 After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\`.`;
 
-const buildReviewExistingPrompt = (projectPath: string): string => `# Existing Guidance Review
+const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
+  if (discoveredSources.length === 0) {
+    return `## Discovered Guidance Sources
+
+No repository-local guidance sources were discovered for this project.`;
+  }
+
+  return `## Discovered Guidance Sources
+
+${discoveredSources
+  .map((source) => `- [${source.kind}] ${source.relativePath} (${source.entryType})`)
+  .join("\n")}`;
+};
+
+const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
 
 Review any existing repository-local guidance before importing it into Memory Bank.
 
 Project path:
 - \`${projectPath}\`
 
+${renderDiscoveredSourcesSection(discoveredSources)}
+
 What to do:
-- Find repository-local guidance files and folders such as \`AGENTS.md\`, \`CLAUDE.md\`, \`claude.md\`, \`.cursor/\`, \`.claude/\`, and \`.codex/\`
-- Read them and identify what is still useful, redundant, project-specific, or reusable across projects
+- Read the discovered guidance sources and identify what is still useful, redundant, project-specific, or reusable across projects
 - Ask the user what to do with each meaningful source:
   - ignore it and keep the source as-is
   - copy it into Memory Bank
@@ -36,9 +53,11 @@ What to do:
 - Do not duplicate provider-native guidance blindly into Memory Bank
 - Keep a concise record in chat of what was reviewed and what needs user confirmation`;
 
-const buildImportSelectedPrompt = (): string => `# Import Selected Guidance
+const buildImportSelectedPrompt = (discoveredSources: readonly ExistingGuidanceSource[]): string => `# Import Selected Guidance
 
 Import only the guidance the user approved for canonicalization.
+
+${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
 - Convert approved guidance into canonical Memory Bank rules and skills
@@ -90,6 +109,7 @@ export const buildCreateBankIterationPrompt = ({
   skillsDirectory,
   detectedStacks,
   selectedReferenceProjects,
+  discoveredSources,
 }: BuildCreateBankIterationPromptInput): string => {
   if (iteration <= 0) {
     return appendContinuationInstruction(
@@ -107,11 +127,11 @@ export const buildCreateBankIterationPrompt = ({
   }
 
   if (iteration === 1) {
-    return appendContinuationInstruction(buildReviewExistingPrompt(projectPath), 1);
+    return appendContinuationInstruction(buildReviewExistingPrompt(projectPath, discoveredSources), 1);
   }
 
   if (iteration === 2) {
-    return appendContinuationInstruction(buildImportSelectedPrompt(), 2);
+    return appendContinuationInstruction(buildImportSelectedPrompt(discoveredSources), 2);
   }
 
   if (iteration === 3) {

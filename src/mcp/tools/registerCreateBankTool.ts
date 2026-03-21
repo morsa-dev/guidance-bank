@@ -8,6 +8,7 @@ import {
   setProjectBankCreateIteration,
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
+import { discoverExistingGuidance } from "../../core/projects/discoverExistingGuidance.js";
 import { buildCreateBankIterationPrompt } from "../../core/projects/createBankIterationPrompt.js";
 import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
@@ -63,6 +64,14 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         skillsDirectory: z.string(),
         detectedStacks: z.array(z.string()),
         iteration: z.number().int().nonnegative(),
+        discoveredSources: z.array(
+          z.object({
+            kind: z.enum(["agents", "claude-md", "copilot", "cursor", "claude", "codex"]),
+            entryType: z.enum(["file", "directory"]),
+            path: z.string(),
+            relativePath: z.string(),
+          }),
+        ),
         selectedReferenceProjects: z.array(
           z.object({
             projectId: z.string(),
@@ -95,6 +104,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       const requestedIteration = parsedArgs.data.iteration ?? 0;
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
       const projectContext = await detectProjectContext(identity.projectPath);
+      const discoveredSources = await discoverExistingGuidance(identity.projectPath);
       const referenceProjects = await findReferenceProjects({
         repository: options.repository,
         currentProjectId: identity.projectId,
@@ -184,6 +194,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             skillsDirectory,
             detectedStacks: projectContext.detectedStacks,
             selectedReferenceProjects,
+            discoveredSources,
           });
 
       const payload = {
@@ -197,6 +208,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
         iteration: requestedIteration,
+        discoveredSources,
         selectedReferenceProjects,
         prompt,
         creationPrompt,
