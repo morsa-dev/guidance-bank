@@ -1,15 +1,21 @@
 import { z } from "zod";
 
 import { detectProjectContext } from "../../core/context/detectProjectContext.js";
-import { createProjectBankManifest, createProjectBankState, updateProjectBankManifest } from "../../core/bank/project.js";
+import {
+  createProjectBankManifest,
+  createProjectBankState,
+  markProjectBankSynced,
+} from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
 import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
+import type { ProjectBankState } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const CreateBankArgsSchema = z
   .object({
-    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    projectPath: AbsoluteProjectPathSchema,
     referenceProjectIds: z
       .array(z.string().trim().min(1))
       .max(5)
@@ -17,6 +23,11 @@ const CreateBankArgsSchema = z
       .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
   })
   .strict();
+
+const requiresSync = (
+  projectState: ProjectBankState | null,
+  expectedStorageVersion: number,
+): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
 
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
@@ -30,7 +41,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         destructiveHint: false,
       },
       inputSchema: {
-        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        projectPath: AbsoluteProjectPathSchema,
         referenceProjectIds: z
           .array(z.string().trim().min(1))
           .max(5)
@@ -39,6 +50,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       },
       outputSchema: {
         status: z.enum(["created", "already_exists"]),
+        syncRequired: z.boolean(),
         projectId: z.string(),
         projectName: z.string(),
         projectPath: z.string(),
@@ -57,6 +69,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           }),
         ),
         creationPrompt: z.string(),
+        text: z.string(),
       },
     },
     async (args) => {
@@ -101,10 +114,10 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         ? referenceProjects.filter((project) => parsedArgs.data.referenceProjectIds?.includes(project.projectId))
         : [];
       const existingManifest = await options.repository.readProjectManifestOptional(identity.projectId);
-
-      await options.repository.ensureProjectStructure(identity.projectId);
+      const existingState = await options.repository.readProjectStateOptional(identity.projectId);
 
       if (existingManifest === null) {
+        await options.repository.ensureProjectStructure(identity.projectId);
         await options.repository.writeProjectManifest(
           identity.projectId,
           createProjectBankManifest(
@@ -114,30 +127,36 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             projectContext.detectedStacks,
           ),
         );
-      } else {
-        await options.repository.writeProjectManifest(
-          identity.projectId,
-          updateProjectBankManifest(existingManifest, projectContext.detectedStacks),
-        );
       }
 
-      await options.repository.writeProjectState(identity.projectId, createProjectBankState("ready"));
+      const manifest = await options.repository.readManifest();
+
+      if (existingManifest === null) {
+        await options.repository.writeProjectState(
+          identity.projectId,
+          markProjectBankSynced(createProjectBankState("ready"), manifest.storageVersion),
+        );
+      }
 
       const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
       const rulesDirectory = options.repository.paths.projectRulesDirectory(identity.projectId);
       const skillsDirectory = options.repository.paths.projectSkillsDirectory(identity.projectId);
-      const creationPrompt = buildCreateBankPrompt({
-        projectName: identity.projectName,
-        projectPath: identity.projectPath,
-        projectBankPath,
-        rulesDirectory,
-        skillsDirectory,
-        detectedStacks: projectContext.detectedStacks,
-        selectedReferenceProjects,
-      });
+      const creationPrompt =
+        existingManifest === null
+          ? buildCreateBankPrompt({
+              projectName: identity.projectName,
+              projectPath: identity.projectPath,
+              projectBankPath,
+              rulesDirectory,
+              skillsDirectory,
+              detectedStacks: projectContext.detectedStacks,
+              selectedReferenceProjects,
+            })
+          : "";
 
       const payload = {
         status: existingManifest === null ? "created" : "already_exists",
+        syncRequired: existingManifest === null ? false : requiresSync(existingState, manifest.storageVersion),
         projectId: identity.projectId,
         projectName: identity.projectName,
         projectPath: identity.projectPath,
@@ -147,6 +166,12 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         detectedStacks: projectContext.detectedStacks,
         selectedReferenceProjects,
         creationPrompt,
+        text:
+          existingManifest === null
+            ? "Project Memory Bank scaffold created successfully."
+            : requiresSync(existingState, manifest.storageVersion)
+              ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it."
+              : "Project Memory Bank already exists for this repository and is ready for further updates through the normal Memory Bank mutation tools.",
       } as const;
 
       return {

@@ -3,12 +3,13 @@ import { z } from "zod";
 import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const DeleteEntryArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
     kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
-    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    projectPath: AbsoluteProjectPathSchema,
     path: z
       .string()
       .trim()
@@ -31,7 +32,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
         kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
-        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        projectPath: AbsoluteProjectPathSchema,
         path: z
           .string()
           .trim()

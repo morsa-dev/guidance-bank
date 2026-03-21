@@ -8,6 +8,7 @@ import { registerListEntriesTool } from "./tools/registerListEntriesTool.js";
 import { registerReadEntryTool } from "./tools/registerReadEntryTool.js";
 import { registerResolveContextTool } from "./tools/registerResolveContextTool.js";
 import { registerSetProjectStateTool } from "./tools/registerSetProjectStateTool.js";
+import { registerSyncBankTool } from "./tools/registerSyncBankTool.js";
 import { registerUpsertRuleTool } from "./tools/registerUpsertRuleTool.js";
 import { registerUpsertSkillTool } from "./tools/registerUpsertSkillTool.js";
 
@@ -19,6 +20,7 @@ export type ToolRegistrar = (server: McpServer, options: McpServerRuntimeOptions
 
 const toolRegistrars: ToolRegistrar[] = [
   registerResolveContextTool,
+  registerSyncBankTool,
   registerCreateBankTool,
   registerUpsertRuleTool,
   registerUpsertSkillTool,

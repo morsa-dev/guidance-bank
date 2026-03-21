@@ -10,9 +10,9 @@ export const MemoryBankManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
     storageVersion: z.literal(1),
-    bankId: z.string().uuid(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    bankId: z.uuid(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
     enabledProviders: z.array(ProviderIdSchema),
     defaultMcpTransport: z.literal("stdio"),
   })

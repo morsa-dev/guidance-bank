@@ -3,10 +3,11 @@ import { z } from "zod";
 import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const ResolveContextArgsSchema = z
   .object({
-    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    projectPath: AbsoluteProjectPathSchema,
   })
   .strict();
 
@@ -22,7 +23,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         destructiveHint: false,
       },
       inputSchema: {
-        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        projectPath: AbsoluteProjectPathSchema,
       },
       outputSchema: {
         text: z.string(),

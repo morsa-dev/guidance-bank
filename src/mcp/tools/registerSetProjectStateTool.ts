@@ -4,10 +4,11 @@ import { createProjectBankState, updateProjectBankState } from "../../core/bank/
 import { PROJECT_CREATION_STATES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const SetProjectStateArgsSchema = z
   .object({
-    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    projectPath: AbsoluteProjectPathSchema,
     creationState: z
       .enum(PROJECT_CREATION_STATES)
       .describe("Project Memory Bank creation state to persist for this repository."),
@@ -26,7 +27,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         destructiveHint: false,
       },
       inputSchema: {
-        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        projectPath: AbsoluteProjectPathSchema,
         creationState: z
           .enum(PROJECT_CREATION_STATES)
           .describe("Project Memory Bank creation state to persist for this repository."),

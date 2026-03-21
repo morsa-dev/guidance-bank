@@ -9,7 +9,9 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import { createProjectBankState } from "../src/core/bank/project.js";
 import { InitService } from "../src/core/init/initService.js";
+import { BankRepository } from "../src/storage/bankRepository.js";
 import { createMcpServer } from "../src/mcp/createMcpServer.js";
 import type { CommandRunner } from "../src/core/providers/types.js";
 
@@ -64,6 +66,7 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
       "read_entry",
       "resolve_context",
       "set_project_state",
+      "sync_bank",
       "upsert_rule",
       "upsert_skill",
     ],
@@ -75,6 +78,7 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
   assert.ok(tools.get("read_entry")?.outputSchema);
   assert.ok(tools.get("resolve_context")?.outputSchema);
   assert.ok(tools.get("set_project_state")?.outputSchema);
+  assert.ok(tools.get("sync_bank")?.outputSchema);
   assert.ok(tools.get("upsert_rule")?.outputSchema);
   assert.ok(tools.get("upsert_skill")?.outputSchema);
 });
@@ -139,6 +143,9 @@ test("resolve_context returns shared context and missing status when no project 
 
   assert.equal(result.isError, undefined);
   assert.match(structuredContent.text, /No project Memory Bank exists for this repository/i);
+  assert.match(structuredContent.text, /call `create_bank`/i);
+  assert.match(structuredContent.text, /call `set_project_state`/i);
+  assert.match(structuredContent.text, /call `resolve_context` again/i);
   assert.equal(structuredContent.referenceProjects?.length ?? 0, 0);
 });
 
@@ -221,6 +228,13 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
 
+  await client.callTool({
+    name: "create_bank",
+    arguments: {
+      projectPath: projectRoot,
+    },
+  });
+
   const result = CallToolResultSchema.parse(
     await client.callTool({
       name: "resolve_context",
@@ -279,6 +293,7 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   const createStructuredContent = z
     .object({
       status: z.enum(["created", "already_exists"]),
+      syncRequired: z.boolean(),
       projectId: z.string(),
       projectBankPath: z.string(),
       rulesDirectory: z.string(),
@@ -291,11 +306,14 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
         }),
       ),
       creationPrompt: z.string(),
+      text: z.string(),
     })
     .parse(createResult.structuredContent);
 
   assert.equal(createStructuredContent.status, "created");
+  assert.equal(createStructuredContent.syncRequired, false);
   assert.deepEqual(createStructuredContent.selectedReferenceProjects, []);
+  assert.match(createStructuredContent.text, /scaffold created successfully/i);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(createStructuredContent.creationPrompt, /Do not duplicate or mirror provider-native guidance/i);
   assert.match(createStructuredContent.creationPrompt, /only during explicit bootstrap or sync\/import flows/i);
@@ -376,6 +394,244 @@ test("set_project_state persists declined creation and resolve_context stops ask
 
   assert.match(resolveStructuredContent.text, /Project Memory Bank creation was previously declined/i);
   assert.match(resolveStructuredContent.text, /Do not ask again/i);
+  assert.match(resolveStructuredContent.text, /call `create_bank`/i);
+  assert.match(resolveStructuredContent.text, /call `resolve_context` again/i);
+});
+
+test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+  await writeFile(path.join(projectRoot, "AGENTS.md"), "# Local Guidance\n");
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const result = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "sync_bank",
+      arguments: {
+        action: "run",
+        projectPath: projectRoot,
+      },
+    }),
+  );
+
+  const structuredContent = z
+    .object({
+      bankRoot: z.string(),
+      action: z.enum(["run", "postpone"]),
+      projectPath: z.string(),
+      detectedStacks: z.array(z.string()),
+      projectState: z.enum(["unknown", "declined", "ready"]),
+      postponedUntil: z.string().nullable(),
+      projectManifestUpdated: z.boolean(),
+      validatedEntries: z.object({
+        shared: z.object({
+          rules: z.number(),
+          skills: z.number(),
+        }),
+        project: z.object({
+          rules: z.number(),
+          skills: z.number(),
+        }),
+      }),
+      externalGuidanceSources: z.array(
+        z.object({
+          kind: z.string(),
+          path: z.string(),
+        }),
+      ),
+    })
+    .parse(result.structuredContent);
+
+  assert.equal(structuredContent.bankRoot, bankRoot);
+  assert.equal(structuredContent.action, "run");
+  assert.equal(structuredContent.projectPath, projectRoot);
+  assert.equal(structuredContent.projectState, "unknown");
+  assert.equal(structuredContent.externalGuidanceSources[0]?.kind, "agents");
+});
+
+test("resolve_context asks for sync when the project bank is outdated and postpone suppresses the prompt temporarily", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+  const repository = new BankRepository(bankRoot);
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const createBankResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const createBankStructured = z
+    .object({
+      projectId: z.string(),
+    })
+    .parse(createBankResult.structuredContent);
+
+  await repository.writeProjectState(createBankStructured.projectId, createProjectBankState("ready"));
+
+  const resolveBeforePostpone = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolveBeforePostponeStructured = z
+    .object({
+      text: z.string(),
+    })
+    .parse(resolveBeforePostpone.structuredContent);
+
+  assert.match(resolveBeforePostponeStructured.text, /synchronization is required before using the project-specific bank/i);
+  assert.match(resolveBeforePostponeStructured.text, /sync_bank/);
+  assert.match(resolveBeforePostponeStructured.text, /postpone/i);
+  assert.match(resolveBeforePostponeStructured.text, /call `resolve_context` again/i);
+
+  const postponeResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "sync_bank",
+      arguments: {
+        action: "postpone",
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const postponeStructured = z
+    .object({
+      action: z.enum(["run", "postpone"]),
+      postponedUntil: z.string().nullable(),
+      projectState: z.enum(["unknown", "declined", "ready"]),
+    })
+    .parse(postponeResult.structuredContent);
+
+  assert.equal(postponeStructured.action, "postpone");
+  assert.equal(postponeStructured.projectState, "ready");
+  assert.ok(postponeStructured.postponedUntil);
+
+  const resolveAfterPostpone = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolveAfterPostponeStructured = z
+    .object({
+      text: z.string(),
+    })
+    .parse(resolveAfterPostpone.structuredContent);
+
+  assert.doesNotMatch(resolveAfterPostponeStructured.text, /synchronization is required/i);
+  assert.match(resolveAfterPostponeStructured.text, /Use the following Memory Bank context as the primary user-managed context/i);
+});
+
+test("create_bank does not clear sync_required for an existing outdated project bank", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+  const repository = new BankRepository(bankRoot);
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const createBankResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const createBankStructured = z
+    .object({
+      status: z.enum(["created", "already_exists"]),
+      syncRequired: z.boolean(),
+      projectId: z.string(),
+    })
+    .parse(createBankResult.structuredContent);
+
+  await repository.writeProjectState(createBankStructured.projectId, createProjectBankState("ready"));
+
+  const recreateResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const recreateStructured = z
+    .object({
+      status: z.enum(["created", "already_exists"]),
+      syncRequired: z.boolean(),
+      projectId: z.string(),
+      creationPrompt: z.string(),
+      text: z.string(),
+    })
+    .parse(recreateResult.structuredContent);
+
+  assert.equal(recreateStructured.status, "already_exists");
+  assert.equal(recreateStructured.syncRequired, true);
+  assert.equal(recreateStructured.projectId, createBankStructured.projectId);
+  assert.equal(recreateStructured.creationPrompt, "");
+  assert.match(recreateStructured.text, /already exists/i);
+  assert.match(recreateStructured.text, /synchroniz/i);
+
+  const resolveResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolveStructured = z
+    .object({
+      text: z.string(),
+    })
+    .parse(resolveResult.structuredContent);
+
+  assert.match(resolveStructured.text, /synchronization is required before using the project-specific bank/i);
 });
 
 test("resolve_context suggests similar existing project banks and create_bank accepts selected references", async (t) => {
@@ -485,6 +741,8 @@ test("resolve_context suggests similar existing project banks and create_bank ac
   );
   const createStructured = z
     .object({
+      status: z.enum(["created", "already_exists"]),
+      syncRequired: z.boolean(),
       selectedReferenceProjects: z.array(
         z.object({
           projectId: z.string(),
@@ -493,11 +751,15 @@ test("resolve_context suggests similar existing project banks and create_bank ac
         }),
       ),
       creationPrompt: z.string(),
+      text: z.string(),
     })
     .parse(createResult.structuredContent);
 
+  assert.equal(createStructured.status, "created");
+  assert.equal(createStructured.syncRequired, false);
   assert.equal(createStructured.selectedReferenceProjects.length, 1);
   assert.equal(createStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
+  assert.match(createStructured.text, /scaffold created successfully/i);
   assert.match(createStructured.creationPrompt, /Reference Projects/i);
   assert.match(createStructured.creationPrompt, /angular-shared-ui/i);
 });

@@ -5,6 +5,7 @@ import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
+import type { ProjectBankState } from "../bank/types.js";
 
 type ResolveContextOptions = {
   repository: BankRepository;
@@ -205,72 +206,124 @@ const buildMissingText = ({
       ? `\n\nBefore creating a new project Memory Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
       : "";
 
-  return `No project Memory Bank exists for this repository. Ask the user whether to create one before doing substantial project-specific work.${referenceSection}`;
+  return `No project Memory Bank exists for this repository. Ask the user whether to create one before doing substantial project-specific work.${referenceSection}
+
+- If the user wants to create it, call \`create_bank\`.
+- If the user does not want to create it, call \`set_project_state\` with \`creationState: "declined"\`.
+- After the user decision is recorded, call \`resolve_context\` again.`;
 };
 
 const buildDeclinedText = (): string =>
-  "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. Continue using only the shared Memory Bank context for now.";
+  "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
+
+const isSyncPostponed = (projectState: ProjectBankState | null, now = new Date()): boolean => {
+  if (!projectState?.postponedUntil) {
+    return false;
+  }
+
+  return new Date(projectState.postponedUntil).getTime() > now.getTime();
+};
+
+const requiresSync = (
+  projectState: ProjectBankState | null,
+  expectedStorageVersion: number,
+): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
+
+const buildSyncRequiredText = ({
+  postponedUntil,
+}: {
+  postponedUntil: string | null;
+}): string => {
+  const postponeLine = postponedUntil
+    ? `A previous sync was postponed until ${postponedUntil}, but that deferral has now expired.`
+    : "This project Memory Bank has not been synced to the current Memory Bank storage version yet.";
+
+  return `Project Memory Bank synchronization is required before using the project-specific bank.
+
+${postponeLine}
+
+Ask the user whether to synchronize the project Memory Bank now or postpone it.
+- If the user wants to sync now, call \`sync_bank\` with \`action: "run"\`.
+- If the user wants to postpone, call \`sync_bank\` with \`action: "postpone"\`.
+- After that, call \`resolve_context\` again.`;
+};
 
 export const resolveMemoryBankContext = async ({
   repository,
   projectPath,
 }: ResolveContextOptions): Promise<ResolvedMemoryBankContext> => {
   const identity = resolveProjectIdentity(projectPath);
+  const manifest = await repository.readManifest();
   const detectedProjectContext = await detectProjectContext(identity.projectPath);
   const projectManifest = await repository.readProjectManifestOptional(identity.projectId);
   const projectState = await repository.readProjectStateOptional(identity.projectId);
-  const referenceProjects = await findReferenceProjects({
-    repository,
-    currentProjectId: identity.projectId,
-    detectedStacks: detectedProjectContext.detectedStacks,
-  });
-
-  const sharedRules = await loadEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
-  const sharedSkills = await loadEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
-
-  const projectRules =
-    projectManifest !== null
-      ? await loadEntries(repository, "project", "rules", detectedProjectContext.detectedStacks, identity.projectId)
-      : [];
-  const projectSkills =
-    projectManifest !== null
-      ? await loadEntries(repository, "project", "skills", detectedProjectContext.detectedStacks, identity.projectId)
-      : [];
 
   const status =
     projectManifest !== null
-      ? "ready"
+      ? requiresSync(projectState, manifest.storageVersion) && !isSyncPostponed(projectState)
+        ? "sync_required"
+        : "ready"
       : projectState?.creationState === "declined"
         ? "creation_declined"
         : "missing";
+
+  if (status === "sync_required") {
+    return {
+      text: buildSyncRequiredText({
+        postponedUntil: projectState?.postponedUntil ?? null,
+      }),
+    };
+  }
+
+  if (status === "creation_declined") {
+    return {
+      text: buildDeclinedText(),
+    };
+  }
+
+  if (status === "missing") {
+    const referenceProjects = await findReferenceProjects({
+      repository,
+      currentProjectId: identity.projectId,
+      detectedStacks: detectedProjectContext.detectedStacks,
+    });
+
+    const text = buildMissingText({
+      referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
+    });
+
+    return referenceProjects.length > 0
+      ? {
+          text,
+          referenceProjects,
+        }
+      : {
+          text,
+        };
+  }
+
+  const sharedRules = await loadEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
+  const sharedSkills = await loadEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
+  const projectRules = await loadEntries(repository, "project", "rules", detectedProjectContext.detectedStacks, identity.projectId);
+  const projectSkills = await loadEntries(
+    repository,
+    "project",
+    "skills",
+    detectedProjectContext.detectedStacks,
+    identity.projectId,
+  );
 
   assertUniqueEntryIds(sharedRules, "shared", "rules");
   assertUniqueEntryIds(sharedSkills, "shared", "skills");
   assertUniqueEntryIds(projectRules, "project", "rules");
   assertUniqueEntryIds(projectSkills, "project", "skills");
 
-  const mergedRules = mergeLayeredEntries(sharedRules, projectRules);
-  const mergedSkills = mergeLayeredEntries(sharedSkills, projectSkills);
-  const text =
-    status === "ready"
-      ? buildReadyText({
-          projectPath: identity.projectPath,
-          detectedStacks: detectedProjectContext.detectedStacks,
-          rules: mergedRules,
-          skills: mergedSkills,
-        })
-      : status === "creation_declined"
-        ? buildDeclinedText()
-        : buildMissingText({
-            referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
-          });
-
-  return referenceProjects.length > 0 && status === "missing"
-    ? {
-        text,
-        referenceProjects,
-      }
-    : {
-        text,
-      };
+  return {
+    text: buildReadyText({
+      projectPath: identity.projectPath,
+      detectedStacks: detectedProjectContext.detectedStacks,
+      rules: mergeLayeredEntries(sharedRules, projectRules),
+      skills: mergeLayeredEntries(sharedSkills, projectSkills),
+    }),
+  };
 };

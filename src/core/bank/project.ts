@@ -18,8 +18,8 @@ export const ProjectBankManifestSchema = z
     projectName: z.string().min(1),
     projectPath: z.string().min(1),
     detectedStacks: z.array(DetectableStackSchema).default([]),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 
@@ -27,7 +27,10 @@ export const ProjectBankStateSchema = z
   .object({
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
-    updatedAt: z.string().datetime(),
+    postponedUntil: z.iso.datetime().nullable(),
+    lastSyncedAt: z.iso.datetime().nullable(),
+    lastSyncedStorageVersion: z.number().int().positive().nullable(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 
@@ -53,10 +56,18 @@ export const createProjectBankManifest = (
 
 export const createProjectBankState = (
   creationState: ProjectCreationState,
+  options?: {
+    postponedUntil?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncedStorageVersion?: number | null;
+  },
   now = new Date(),
 ): ProjectBankState => ({
   schemaVersion: 1,
   creationState,
+  postponedUntil: options?.postponedUntil ?? null,
+  lastSyncedAt: options?.lastSyncedAt ?? null,
+  lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
   updatedAt: now.toISOString(),
 });
 
@@ -69,6 +80,33 @@ export const updateProjectBankState = (
   creationState,
   updatedAt: now.toISOString(),
 });
+
+export const markProjectBankSynced = (
+  state: ProjectBankState,
+  storageVersion: number,
+  now = new Date(),
+): ProjectBankState => ({
+  ...state,
+  postponedUntil: null,
+  lastSyncedAt: now.toISOString(),
+  lastSyncedStorageVersion: storageVersion,
+  updatedAt: now.toISOString(),
+});
+
+export const postponeProjectBankSync = (
+  state: ProjectBankState,
+  postponeDays: number,
+  now = new Date(),
+): ProjectBankState => {
+  const postponedUntil = new Date(now);
+  postponedUntil.setDate(postponedUntil.getDate() + postponeDays);
+
+  return {
+    ...state,
+    postponedUntil: postponedUntil.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+};
 
 export const updateProjectBankManifest = (
   manifest: ProjectBankManifest,

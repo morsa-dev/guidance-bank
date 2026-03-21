@@ -3,11 +3,12 @@ import { z } from "zod";
 import { ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const UpsertRuleArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
-    projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+    projectPath: AbsoluteProjectPathSchema,
     path: z
       .string()
       .trim()
@@ -33,7 +34,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
-        projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
+        projectPath: AbsoluteProjectPathSchema,
         path: z
           .string()
           .trim()

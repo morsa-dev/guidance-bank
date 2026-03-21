@@ -19,9 +19,9 @@ export const registerBankManifestTool: ToolRegistrar = (server, options) => {
       outputSchema: {
         schemaVersion: z.literal(1),
         storageVersion: z.literal(1),
-        bankId: z.string().uuid(),
-        createdAt: z.string().datetime(),
-        updatedAt: z.string().datetime(),
+        bankId: z.uuid(),
+        createdAt: z.iso.datetime(),
+        updatedAt: z.iso.datetime(),
         enabledProviders: z.array(z.enum(PROVIDER_IDS)),
         defaultMcpTransport: z.literal("stdio"),
       },
