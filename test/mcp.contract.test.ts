@@ -400,6 +400,11 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
     [".cursor", "AGENTS.md"],
   );
   assert.match(reviewStructuredContent.prompt, /## Discovered Guidance Sources/);
+  assert.match(reviewStructuredContent.prompt, /For each meaningful source, ask the user to choose exactly one action/i);
+  assert.match(reviewStructuredContent.prompt, /`ignore`/);
+  assert.match(reviewStructuredContent.prompt, /`copy`/);
+  assert.match(reviewStructuredContent.prompt, /`move`/);
+  assert.match(reviewStructuredContent.prompt, /Never delete or rewrite any original source during this review step/i);
   assert.match(reviewStructuredContent.prompt, /\[agents\] AGENTS\.md \(file\)/);
   assert.match(reviewStructuredContent.prompt, /\[cursor\] \.cursor \(directory\)/);
   assert.deepEqual(reviewStructuredContent.projectEvidence.topLevelDirectories, []);
@@ -435,6 +440,7 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.equal(deriveProjectStructuredContent.iteration, 3);
   assert.match(deriveProjectStructuredContent.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructuredContent.prompt, /\[config\] package\.json/);
+  assert.match(deriveProjectStructuredContent.prompt, /If a candidate rule is high-impact and your confidence is low, ask the user before writing it/i);
 
   const deriveDocsResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -461,6 +467,44 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.match(deriveDocsStructuredContent.prompt, /## Recent Commits/);
   assert.match(deriveDocsStructuredContent.prompt, /No recent git commits were discovered automatically/i);
   assert.deepEqual(deriveDocsStructuredContent.recentCommits, []);
+
+  const importResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+        iteration: 2,
+      },
+    }),
+  );
+  const importStructuredContent = z
+    .object({
+      iteration: z.number(),
+      prompt: z.string(),
+    })
+    .parse(importResult.structuredContent);
+  assert.equal(importStructuredContent.iteration, 2);
+  assert.match(importStructuredContent.prompt, /Use MCP mutation tools for all canonical writes/i);
+  assert.match(importStructuredContent.prompt, /Do not delete, rewrite, or trim any original source unless the user explicitly chose `move`/i);
+
+  const finalizeResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+        iteration: 5,
+      },
+    }),
+  );
+  const finalizeStructuredContent = z
+    .object({
+      iteration: z.number(),
+      prompt: z.string(),
+    })
+    .parse(finalizeResult.structuredContent);
+  assert.equal(finalizeStructuredContent.iteration, 5);
+  assert.match(finalizeStructuredContent.prompt, /Final pass checklist/i);
+  assert.match(finalizeStructuredContent.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
 
   const resolveResult = CallToolResultSchema.parse(
     await client.callTool({
