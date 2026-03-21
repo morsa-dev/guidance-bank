@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import test from "node:test";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -22,6 +24,8 @@ const createSuccessfulCommandRunner = (): CommandRunner => async ({ command, arg
   stdout: "",
   stderr: "",
 });
+
+const execFileAsync = promisify(execFile);
 
 const createConnectedClient = async (bankRoot: string) => {
   const server = createMcpServer({ bankRoot });
@@ -314,6 +318,21 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
           relativePath: z.string(),
         }),
       ),
+      projectEvidence: z.object({
+        topLevelDirectories: z.array(z.string()),
+        evidenceFiles: z.array(
+          z.object({
+            kind: z.string(),
+            relativePath: z.string(),
+          }),
+        ),
+      }),
+      recentCommits: z.array(
+        z.object({
+          shortHash: z.string(),
+          subject: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -328,6 +347,12 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
     createStructuredContent.discoveredSources.map((source) => source.relativePath),
     [".cursor", "AGENTS.md"],
   );
+  assert.deepEqual(createStructuredContent.projectEvidence.topLevelDirectories, []);
+  assert.deepEqual(
+    createStructuredContent.projectEvidence.evidenceFiles.map((file) => file.relativePath),
+    ["package.json"],
+  );
+  assert.deepEqual(createStructuredContent.recentCommits, []);
   assert.match(createStructuredContent.text, /scaffold created successfully/i);
   assert.match(createStructuredContent.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
@@ -352,6 +377,20 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
           relativePath: z.string(),
         }),
       ),
+      projectEvidence: z.object({
+        topLevelDirectories: z.array(z.string()),
+        evidenceFiles: z.array(
+          z.object({
+            relativePath: z.string(),
+          }),
+        ),
+      }),
+      recentCommits: z.array(
+        z.object({
+          shortHash: z.string(),
+          subject: z.string(),
+        }),
+      ),
     })
     .parse(reviewResult.structuredContent);
 
@@ -363,6 +402,65 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.match(reviewStructuredContent.prompt, /## Discovered Guidance Sources/);
   assert.match(reviewStructuredContent.prompt, /\[agents\] AGENTS\.md \(file\)/);
   assert.match(reviewStructuredContent.prompt, /\[cursor\] \.cursor \(directory\)/);
+  assert.deepEqual(reviewStructuredContent.projectEvidence.topLevelDirectories, []);
+  assert.deepEqual(
+    reviewStructuredContent.projectEvidence.evidenceFiles.map((file) => file.relativePath),
+    ["package.json"],
+  );
+  assert.deepEqual(reviewStructuredContent.recentCommits, []);
+
+  const deriveProjectResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+        iteration: 3,
+      },
+    }),
+  );
+  const deriveProjectStructuredContent = z
+    .object({
+      iteration: z.number(),
+      prompt: z.string(),
+      projectEvidence: z.object({
+        topLevelDirectories: z.array(z.string()),
+        evidenceFiles: z.array(
+          z.object({
+            relativePath: z.string(),
+          }),
+        ),
+      }),
+    })
+    .parse(deriveProjectResult.structuredContent);
+  assert.equal(deriveProjectStructuredContent.iteration, 3);
+  assert.match(deriveProjectStructuredContent.prompt, /## Project Evidence/);
+  assert.match(deriveProjectStructuredContent.prompt, /\[config\] package\.json/);
+
+  const deriveDocsResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "create_bank",
+      arguments: {
+        projectPath: projectRoot,
+        iteration: 4,
+      },
+    }),
+  );
+  const deriveDocsStructuredContent = z
+    .object({
+      iteration: z.number(),
+      prompt: z.string(),
+      recentCommits: z.array(
+        z.object({
+          shortHash: z.string(),
+          subject: z.string(),
+        }),
+      ),
+    })
+    .parse(deriveDocsResult.structuredContent);
+  assert.equal(deriveDocsStructuredContent.iteration, 4);
+  assert.match(deriveDocsStructuredContent.prompt, /## Recent Commits/);
+  assert.match(deriveDocsStructuredContent.prompt, /No recent git commits were discovered automatically/i);
+  assert.deepEqual(deriveDocsStructuredContent.recentCommits, []);
 
   const resolveResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -657,6 +755,20 @@ test("create_bank does not clear sync_required for an existing outdated project 
           relativePath: z.string(),
         }),
       ),
+      projectEvidence: z.object({
+        topLevelDirectories: z.array(z.string()),
+        evidenceFiles: z.array(
+          z.object({
+            relativePath: z.string(),
+          }),
+        ),
+      }),
+      recentCommits: z.array(
+        z.object({
+          shortHash: z.string(),
+          subject: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -668,6 +780,8 @@ test("create_bank does not clear sync_required for an existing outdated project 
   assert.equal(recreateStructured.projectId, createBankStructured.projectId);
   assert.equal(recreateStructured.iteration, 0);
   assert.deepEqual(recreateStructured.discoveredSources, []);
+  assert.deepEqual(recreateStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath), ["package.json"]);
+  assert.deepEqual(recreateStructured.recentCommits, []);
   assert.match(recreateStructured.prompt, /requires synchronization before reuse/i);
   assert.match(recreateStructured.creationPrompt, /Create a project-specific Memory Bank/i);
   assert.match(recreateStructured.text, /already exists/i);
@@ -812,6 +926,20 @@ test("resolve_context suggests similar existing project banks and create_bank ac
           relativePath: z.string(),
         }),
       ),
+      projectEvidence: z.object({
+        topLevelDirectories: z.array(z.string()),
+        evidenceFiles: z.array(
+          z.object({
+            relativePath: z.string(),
+          }),
+        ),
+      }),
+      recentCommits: z.array(
+        z.object({
+          shortHash: z.string(),
+          subject: z.string(),
+        }),
+      ),
       prompt: z.string(),
       creationPrompt: z.string(),
       text: z.string(),
@@ -822,6 +950,11 @@ test("resolve_context suggests similar existing project banks and create_bank ac
   assert.equal(createStructured.syncRequired, false);
   assert.equal(createStructured.iteration, 0);
   assert.deepEqual(createStructured.discoveredSources, []);
+  assert.deepEqual(
+    createStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
+    ["package.json", "tsconfig.json"],
+  );
+  assert.deepEqual(createStructured.recentCommits, []);
   assert.equal(createStructured.selectedReferenceProjects.length, 1);
   assert.equal(createStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
   assert.match(createStructured.text, /scaffold created successfully/i);
@@ -845,6 +978,16 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
 
   await mkdir(projectRoot, { recursive: true });
   await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+  await mkdir(path.join(projectRoot, "docs"), { recursive: true });
+  await writeFile(path.join(projectRoot, "README.md"), "# Demo Project\n");
+  await writeFile(path.join(projectRoot, "docs", "architecture.md"), "# Architecture\n");
+  await mkdir(path.join(projectRoot, "src"), { recursive: true });
+
+  await execFileAsync("git", ["init"], { cwd: projectRoot });
+  await execFileAsync("git", ["config", "user.email", "mb-cli@example.com"], { cwd: projectRoot });
+  await execFileAsync("git", ["config", "user.name", "mb-cli"], { cwd: projectRoot });
+  await execFileAsync("git", ["add", "."], { cwd: projectRoot });
+  await execFileAsync("git", ["commit", "-m", "init project"], { cwd: projectRoot });
 
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
@@ -882,12 +1025,33 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
             relativePath: z.string(),
           }),
         ),
+        projectEvidence: z.object({
+          topLevelDirectories: z.array(z.string()),
+          evidenceFiles: z.array(
+            z.object({
+              relativePath: z.string(),
+            }),
+          ),
+        }),
+        recentCommits: z.array(
+          z.object({
+            shortHash: z.string(),
+            subject: z.string(),
+          }),
+        ),
       })
       .parse(advancedResult.structuredContent);
 
     assert.equal(advancedStructured.iteration, 3);
     assert.match(advancedStructured.prompt, /# Derive From Project/i);
     assert.deepEqual(advancedStructured.discoveredSources, []);
+    assert.deepEqual(advancedStructured.projectEvidence.topLevelDirectories, ["docs", "src"]);
+    assert.deepEqual(
+      advancedStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
+      ["docs/architecture.md", "package.json", "README.md"],
+    );
+    assert.equal(advancedStructured.recentCommits.length, 1);
+    assert.match(advancedStructured.recentCommits[0]?.subject ?? "", /init project/);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0] ?? "", /iteration mismatch/i);
 

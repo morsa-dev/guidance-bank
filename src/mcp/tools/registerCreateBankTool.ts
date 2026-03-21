@@ -9,6 +9,8 @@ import {
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
 import { discoverExistingGuidance } from "../../core/projects/discoverExistingGuidance.js";
+import { discoverProjectEvidence } from "../../core/projects/discoverProjectEvidence.js";
+import { discoverRecentCommits } from "../../core/projects/discoverRecentCommits.js";
 import { buildCreateBankIterationPrompt } from "../../core/projects/createBankIterationPrompt.js";
 import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
@@ -72,6 +74,21 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             relativePath: z.string(),
           }),
         ),
+        projectEvidence: z.object({
+          topLevelDirectories: z.array(z.string()),
+          evidenceFiles: z.array(
+            z.object({
+              kind: z.enum(["config", "doc"]),
+              relativePath: z.string(),
+            }),
+          ),
+        }),
+        recentCommits: z.array(
+          z.object({
+            shortHash: z.string(),
+            subject: z.string(),
+          }),
+        ),
         selectedReferenceProjects: z.array(
           z.object({
             projectId: z.string(),
@@ -105,6 +122,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
       const projectContext = await detectProjectContext(identity.projectPath);
       const discoveredSources = await discoverExistingGuidance(identity.projectPath);
+      const projectEvidence = await discoverProjectEvidence(identity.projectPath);
+      const recentCommits = await discoverRecentCommits(identity.projectPath);
       const referenceProjects = await findReferenceProjects({
         repository: options.repository,
         currentProjectId: identity.projectId,
@@ -195,6 +214,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             detectedStacks: projectContext.detectedStacks,
             selectedReferenceProjects,
             discoveredSources,
+            projectEvidence,
+            recentCommits,
           });
 
       const payload = {
@@ -209,6 +230,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         detectedStacks: projectContext.detectedStacks,
         iteration: requestedIteration,
         discoveredSources,
+        projectEvidence,
+        recentCommits,
         selectedReferenceProjects,
         prompt,
         creationPrompt,

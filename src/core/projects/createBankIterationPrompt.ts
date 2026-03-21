@@ -2,6 +2,8 @@ import type { DetectableStack, ReferenceProjectCandidate } from "../context/type
 
 import { buildCreateBankPrompt } from "./createBankPrompt.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
+import type { ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
+import type { RecentProjectCommit } from "./discoverRecentCommits.js";
 
 type BuildCreateBankIterationPromptInput = {
   iteration: number;
@@ -13,6 +15,8 @@ type BuildCreateBankIterationPromptInput = {
   detectedStacks: DetectableStack[];
   selectedReferenceProjects: ReferenceProjectCandidate[];
   discoveredSources: ExistingGuidanceSource[];
+  projectEvidence: ProjectEvidenceInventory;
+  recentCommits: RecentProjectCommit[];
 };
 
 const appendContinuationInstruction = (prompt: string, iteration: number): string => `${prompt}
@@ -33,6 +37,37 @@ No repository-local guidance sources were discovered for this project.`;
 ${discoveredSources
   .map((source) => `- [${source.kind}] ${source.relativePath} (${source.entryType})`)
   .join("\n")}`;
+};
+
+const renderProjectEvidenceSection = (projectEvidence: ProjectEvidenceInventory): string => {
+  const directoryLines =
+    projectEvidence.topLevelDirectories.length > 0
+      ? projectEvidence.topLevelDirectories.map((directoryName) => `- ${directoryName}`).join("\n")
+      : "- No common top-level project directories were auto-detected.";
+  const fileLines =
+    projectEvidence.evidenceFiles.length > 0
+      ? projectEvidence.evidenceFiles.map((file) => `- [${file.kind}] ${file.relativePath}`).join("\n")
+      : "- No project evidence files were auto-detected.";
+
+  return `## Project Evidence
+
+Top-level directories:
+${directoryLines}
+
+Evidence files:
+${fileLines}`;
+};
+
+const renderRecentCommitsSection = (recentCommits: readonly RecentProjectCommit[]): string => {
+  if (recentCommits.length === 0) {
+    return `## Recent Commits
+
+No recent git commits were discovered automatically for this project.`;
+  }
+
+  return `## Recent Commits
+
+${recentCommits.map((commit) => `- ${commit.shortHash} ${commit.subject}`).join("\n")}`;
 };
 
 const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
@@ -66,12 +101,14 @@ What to do:
 - Deduplicate against existing Memory Bank content before writing
 - If the user approved a move instead of a copy, delete the original source only after the canonical entry is written and the deletion is explicitly confirmed`;
 
-const buildDeriveFromProjectPrompt = (projectPath: string): string => `# Derive From Project
+const buildDeriveFromProjectPrompt = (projectPath: string, projectEvidence: ProjectEvidenceInventory): string => `# Derive From Project
 
 Derive additional Memory Bank entries from the real repository.
 
 Project path:
 - \`${projectPath}\`
+
+${renderProjectEvidenceSection(projectEvidence)}
 
 What to do:
 - Inspect project structure, configuration, source files, and recurring implementation patterns
@@ -79,9 +116,19 @@ What to do:
 - Prefer stable patterns over one-off details
 - Put reusable cross-project guidance into shared scope only when the evidence is strong`;
 
-const buildDeriveFromDocsAndCommitsPrompt = (): string => `# Derive From Docs And Commits
+const buildDeriveFromDocsAndCommitsPrompt = (
+  projectEvidence: ProjectEvidenceInventory,
+  recentCommits: readonly RecentProjectCommit[],
+): string => `# Derive From Docs And Commits
 
 Use repository documentation and recent change history as additional evidence.
+
+${renderProjectEvidenceSection({
+  ...projectEvidence,
+  topLevelDirectories: [],
+})}
+
+${renderRecentCommitsSection(recentCommits)}
 
 What to do:
 - Review README and any relevant docs folders or docs files
@@ -110,6 +157,8 @@ export const buildCreateBankIterationPrompt = ({
   detectedStacks,
   selectedReferenceProjects,
   discoveredSources,
+  projectEvidence,
+  recentCommits,
 }: BuildCreateBankIterationPromptInput): string => {
   if (iteration <= 0) {
     return appendContinuationInstruction(
@@ -135,11 +184,11 @@ export const buildCreateBankIterationPrompt = ({
   }
 
   if (iteration === 3) {
-    return appendContinuationInstruction(buildDeriveFromProjectPrompt(projectPath), 3);
+    return appendContinuationInstruction(buildDeriveFromProjectPrompt(projectPath, projectEvidence), 3);
   }
 
   if (iteration === 4) {
-    return appendContinuationInstruction(buildDeriveFromDocsAndCommitsPrompt(), 4);
+    return appendContinuationInstruction(buildDeriveFromDocsAndCommitsPrompt(projectEvidence, recentCommits), 4);
   }
 
   return buildFinalizePrompt();
