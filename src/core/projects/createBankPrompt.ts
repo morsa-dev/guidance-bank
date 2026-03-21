@@ -57,6 +57,8 @@ export const buildCreateBankPrompt = ({
 
 You are creating a canonical Memory Bank for the project \`${projectName}\`.
 
+This create flow is iterative. Use this first step to orient yourself, inspect the project, and prepare the canonical bank plan before continuing through the later review, import, derive, and finalize steps.
+
 Project path:
 - \`${projectPath}\`
 
@@ -88,8 +90,8 @@ Use these inputs together:
 Important:
 - Memory Bank is the canonical user-managed context for this project
 - Provider-native guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` is a separate repository-local layer
-- Do not duplicate or mirror provider-native guidance into the Memory Bank during normal project-bank creation
-- Provider-native guidance is accounted for only during explicit bootstrap or sync/import flows, not during regular \`resolve_context\` or \`create_bank\` usage
+- Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
+- Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`
 - Write the canonical bank only into the target Memory Bank through the MCP mutation tools
 
 ## Canonical Output Contract
@@ -139,6 +141,14 @@ If the right scope is unclear, ask the user explicitly whether the entry should 
 - Use real file paths from the repository in skill workflows
 - Keep rules and skills clearly separated
 
+## This Step
+
+During this initial step:
+- Inspect the repository and selected reference projects
+- Form a working plan for which canonical entries are likely needed first
+- Avoid importing or deleting repository-local guidance yet; that review happens in later iterations
+- Start writing canonical entries only when the evidence is already strong from the codebase, shared Memory Bank context, or selected reference projects
+
 ## Suggested Initial File Shapes
 
 Rules:
@@ -155,10 +165,10 @@ Skills:
 
 Create only the files justified by the project evidence.
 
-## Final Output
+## Step Output
 
-After creating or updating the project Memory Bank files, return only a concise completion report:
+After completing this initial step, keep your output concise:
 - one line per created or updated file
-- short purpose for each file
-- note any major uncertainties or skipped areas
+- short purpose for each file or planned file
+- note any major uncertainties or skipped areas that should be handled in later iterations
 `;

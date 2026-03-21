@@ -81,6 +81,10 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
     ["package.json"],
   );
   assert.deepEqual(structured.recentCommits, []);
+  assert.match(structured.prompt, /This create flow is iterative/i);
+  assert.match(structured.prompt, /review, import, derive, and finalize steps/i);
+  assert.match(structured.prompt, /may be reviewed explicitly in later `create_bank` iterations/i);
+  assert.doesNotMatch(structured.prompt, /only during explicit bootstrap or sync\/import flows/i);
   assert.match(structured.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
 });
 
