@@ -1,8 +1,6 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
-import {
-  parseCanonicalRuleDocumentOptional,
-  parseCanonicalSkillDocumentOptional,
-} from "../bank/canonicalEntry.js";
+import { parseCanonicalRuleDocument, parseCanonicalSkillDocument } from "../bank/canonicalEntry.js";
+import { ValidationError } from "../../shared/errors.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
@@ -18,10 +16,8 @@ type CandidateReason = {
   reason: string;
 };
 
-const normalizeEntryPath = (entryPath: string): string => entryPath.replaceAll("\\", "/");
-
 const isDocumentationFile = (entryPath: string): boolean => {
-  const normalizedEntryPath = normalizeEntryPath(entryPath).toLowerCase();
+  const normalizedEntryPath = entryPath.replaceAll("\\", "/").toLowerCase();
   return normalizedEntryPath.endsWith("/readme.md") || normalizedEntryPath === "readme.md";
 };
 
@@ -48,64 +44,22 @@ const matchesStacks = (entryStacks: readonly string[], detectedStacks: readonly 
   };
 };
 
-const explainRuleSelection = (entryPath: string, detectedStacks: readonly string[], content: string): CandidateReason => {
-  const normalizedEntryPath = normalizeEntryPath(entryPath);
-  const canonicalDocument = parseCanonicalRuleDocumentOptional(content);
-
-  if (canonicalDocument.document) {
-    return matchesStacks(canonicalDocument.document.frontmatter.stacks, detectedStacks);
+const parseRuleEntry = (layer: "shared" | "project", entryPath: string, content: string) => {
+  try {
+    return parseCanonicalRuleDocument(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown canonical rule parsing error.";
+    throw new ValidationError(`Invalid canonical rule at ${layer}/${entryPath}: ${message}`);
   }
-
-  if (!normalizedEntryPath.startsWith("stacks/")) {
-    return {
-      selected: true,
-      reason: "Always-on legacy shared or project rule.",
-    };
-  }
-
-  for (const stack of detectedStacks) {
-    if (normalizedEntryPath.startsWith(`stacks/${stack}/`)) {
-      return {
-        selected: true,
-        reason: `Matches detected stack: ${stack}.`,
-      };
-    }
-  }
-
-  return {
-    selected: false,
-    reason: "",
-  };
 };
 
-const explainSkillSelection = (entryPath: string, detectedStacks: readonly string[], content: string): CandidateReason => {
-  const normalizedEntryPath = normalizeEntryPath(entryPath);
-  const canonicalDocument = parseCanonicalSkillDocumentOptional(content);
-
-  if (canonicalDocument.document) {
-    return matchesStacks(canonicalDocument.document.frontmatter.stacks, detectedStacks);
+const parseSkillEntry = (layer: "shared" | "project", entryPath: string, content: string) => {
+  try {
+    return parseCanonicalSkillDocument(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown canonical skill parsing error.";
+    throw new ValidationError(`Invalid canonical skill at ${layer}/${entryPath}: ${message}`);
   }
-
-  if (!normalizedEntryPath.startsWith("stacks/")) {
-    return {
-      selected: true,
-      reason: "Always-on legacy shared or project workflow.",
-    };
-  }
-
-  for (const stack of detectedStacks) {
-    if (normalizedEntryPath.startsWith(`stacks/${stack}/`)) {
-      return {
-        selected: true,
-        reason: `Matches detected stack: ${stack}.`,
-      };
-    }
-  }
-
-  return {
-    selected: false,
-    reason: "",
-  };
 };
 
 const loadEntries = async (
@@ -124,29 +78,23 @@ const loadEntries = async (
     }
 
     const content = await repository.readLayerEntry(layer, kind, entry.path, projectId);
-    const selection =
+    const metadata =
       kind === "rules"
-        ? explainRuleSelection(entry.path, detectedStacks, content)
-        : explainSkillSelection(entry.path, detectedStacks, content);
+        ? parseRuleEntry(layer, entry.path, content).frontmatter
+        : parseSkillEntry(layer, entry.path, content).frontmatter;
+    const selection = matchesStacks(metadata.stacks, detectedStacks);
 
     if (!selection.selected) {
       continue;
     }
 
-    const metadata =
-      kind === "rules"
-        ? parseCanonicalRuleDocumentOptional(content).document?.frontmatter
-        : parseCanonicalSkillDocumentOptional(content).document?.frontmatter;
     const resolvedEntry: ResolvedContextEntry = {
       layer,
       path: entry.path,
       reason: selection.reason,
       content,
     };
-
-    if (metadata) {
-      resolvedEntry.metadata = metadata;
-    }
+    resolvedEntry.metadata = metadata;
 
     selectedEntries.push(resolvedEntry);
   }

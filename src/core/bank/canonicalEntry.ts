@@ -123,40 +123,6 @@ export const parseCanonicalSkillDocument = (content: string): CanonicalSkillDocu
   };
 };
 
-export const parseCanonicalRuleDocumentOptional = (
-  content: string,
-): { document: CanonicalRuleDocument | null; hasFrontmatter: boolean } => {
-  const hasFrontmatter = FRONTMATTER_PATTERN.test(content);
-  if (!hasFrontmatter) {
-    return {
-      document: null,
-      hasFrontmatter: false,
-    };
-  }
-
-  return {
-    document: parseCanonicalRuleDocument(content),
-    hasFrontmatter: true,
-  };
-};
-
-export const parseCanonicalSkillDocumentOptional = (
-  content: string,
-): { document: CanonicalSkillDocument | null; hasFrontmatter: boolean } => {
-  const hasFrontmatter = FRONTMATTER_PATTERN.test(content);
-  if (!hasFrontmatter) {
-    return {
-      document: null,
-      hasFrontmatter: false,
-    };
-  }
-
-  return {
-    document: parseCanonicalSkillDocument(content),
-    hasFrontmatter: true,
-  };
-};
-
 export const serializeCanonicalRuleFrontmatter = (frontmatter: CanonicalRuleFrontmatter): string => `---
 id: ${frontmatter.id}
 kind: rule

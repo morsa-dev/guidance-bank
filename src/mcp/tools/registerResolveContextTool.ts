@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
+import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
 
 const ResolveContextArgsSchema = z
@@ -53,20 +54,36 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         };
       }
 
-      const resolvedContext = await resolveMemoryBankContext({
-        repository: options.repository,
-        projectPath: parsedArgs.data.projectPath,
-      });
+      try {
+        const resolvedContext = await resolveMemoryBankContext({
+          repository: options.repository,
+          projectPath: parsedArgs.data.projectPath,
+        });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(resolvedContext, null, 2),
-          },
-        ],
-        structuredContent: resolvedContext,
-      };
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(resolvedContext, null, 2),
+            },
+          ],
+          structuredContent: resolvedContext,
+        };
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: error.message,
+              },
+            ],
+          };
+        }
+
+        throw error;
+      }
     },
   );
 };

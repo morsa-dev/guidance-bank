@@ -197,6 +197,44 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   assert.match(structuredContent.text, /Ты хорош/);
 });
 
+test("resolve_context returns a tool error for non-canonical bank entries", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(path.join(bankRoot, "shared", "rules", "preferences"), { recursive: true });
+  await writeFile(
+    path.join(bankRoot, "shared", "rules", "preferences", "legacy-rule.md"),
+    "# Legacy Rule\n\nThis file intentionally has no canonical frontmatter.\n",
+  );
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const result = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+
+  assert.equal(result.isError, true);
+  assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /Invalid canonical rule/i);
+  assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /shared\/preferences\/legacy-rule\.md/i);
+});
+
 test("create_bank scaffolds a project bank and resolve_context returns ready status", async (t) => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
