@@ -703,3 +703,86 @@ test("upsert tools can write shared and project entries, and delete_entry remove
   assert.doesNotMatch(resolvedDeletes.text, /### project\/topics\/admin-dashboard\.md/);
   assert.doesNotMatch(resolvedDeletes.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
 });
+
+test("project entries override shared entries by canonical id instead of path", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "angular-admin");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(
+    path.join(projectRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: "angular-admin",
+        dependencies: {
+          "@angular/core": "^19.0.0",
+        },
+        devDependencies: {
+          typescript: "^5.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(path.join(projectRoot, "tsconfig.json"), "{}\n");
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await client.callTool({
+    name: "create_bank",
+    arguments: {
+      projectPath: projectRoot,
+    },
+  });
+
+  await client.callTool({
+    name: "upsert_rule",
+    arguments: {
+      scope: "shared",
+      projectPath: projectRoot,
+      path: "topics/angular-architecture.md",
+      content:
+        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Shared baseline architecture rule.\n",
+    },
+  });
+
+  await client.callTool({
+    name: "upsert_rule",
+    arguments: {
+      scope: "project",
+      projectPath: projectRoot,
+      path: "topics/admin-architecture.md",
+      content:
+        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Project-specific architecture override.\n",
+    },
+  });
+
+  const resolveResult = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
+  );
+  const resolved = z
+    .object({
+      text: z.string(),
+    })
+    .parse(resolveResult.structuredContent);
+
+  assert.match(resolved.text, /Project-specific architecture override\./);
+  assert.match(resolved.text, /### project\/topics\/admin-architecture\.md/);
+  assert.doesNotMatch(resolved.text, /Shared baseline architecture rule\./);
+  assert.doesNotMatch(resolved.text, /### shared\/topics\/angular-architecture\.md/);
+});

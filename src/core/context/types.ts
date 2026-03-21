@@ -26,7 +26,7 @@ export type ResolvedContextEntry = {
   path: string;
   reason: string;
   content: string;
-  metadata?: CanonicalRuleFrontmatter | CanonicalSkillFrontmatter;
+  metadata: CanonicalRuleFrontmatter | CanonicalSkillFrontmatter;
 };
 
 export type ReferenceProjectCandidate = {

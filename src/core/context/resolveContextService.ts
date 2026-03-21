@@ -16,6 +16,8 @@ type CandidateReason = {
   reason: string;
 };
 
+type EntrySelectionKind = "rules" | "skills";
+
 const isDocumentationFile = (entryPath: string): boolean => {
   const normalizedEntryPath = entryPath.replaceAll("\\", "/").toLowerCase();
   return normalizedEntryPath.endsWith("/readme.md") || normalizedEntryPath === "readme.md";
@@ -93,13 +95,35 @@ const loadEntries = async (
       path: entry.path,
       reason: selection.reason,
       content,
+      metadata,
     };
-    resolvedEntry.metadata = metadata;
 
     selectedEntries.push(resolvedEntry);
   }
 
   return selectedEntries;
+};
+
+const assertUniqueEntryIds = (
+  entries: readonly ResolvedContextEntry[],
+  layer: "shared" | "project",
+  kind: EntrySelectionKind,
+): void => {
+  const pathsById = new Map<string, string[]>();
+
+  for (const entry of entries) {
+    const existingPaths = pathsById.get(entry.metadata.id) ?? [];
+    existingPaths.push(entry.path);
+    pathsById.set(entry.metadata.id, existingPaths);
+  }
+
+  for (const [entryId, entryPaths] of pathsById) {
+    if (entryPaths.length > 1) {
+      throw new ValidationError(
+        `Duplicate canonical ${kind.slice(0, -1)} id "${entryId}" in ${layer} layer: ${entryPaths.join(", ")}`,
+      );
+    }
+  }
 };
 
 const mergeLayeredEntries = (
@@ -109,14 +133,21 @@ const mergeLayeredEntries = (
   const mergedEntries = new Map<string, ResolvedContextEntry>();
 
   for (const entry of sharedEntries) {
-    mergedEntries.set(entry.path, entry);
+    mergedEntries.set(entry.metadata.id, entry);
   }
 
   for (const entry of projectEntries) {
-    mergedEntries.set(entry.path, entry);
+    mergedEntries.set(entry.metadata.id, entry);
   }
 
-  return [...mergedEntries.values()].sort((left, right) => left.path.localeCompare(right.path));
+  return [...mergedEntries.values()].sort((left, right) => {
+    const titleComparison = left.metadata.title.localeCompare(right.metadata.title);
+    if (titleComparison !== 0) {
+      return titleComparison;
+    }
+
+    return left.path.localeCompare(right.path);
+  });
 };
 
 const renderEntrySection = (title: string, entries: readonly ResolvedContextEntry[]): string => {
@@ -219,6 +250,11 @@ export const resolveMemoryBankContext = async ({
       : projectState?.creationState === "declined"
         ? "creation_declined"
         : "missing";
+
+  assertUniqueEntryIds(sharedRules, "shared", "rules");
+  assertUniqueEntryIds(sharedSkills, "shared", "skills");
+  assertUniqueEntryIds(projectRules, "project", "rules");
+  assertUniqueEntryIds(projectSkills, "project", "skills");
 
   const mergedRules = mergeLayeredEntries(sharedRules, projectRules);
   const mergedSkills = mergeLayeredEntries(sharedSkills, projectSkills);
