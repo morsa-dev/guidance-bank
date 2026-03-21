@@ -174,28 +174,21 @@ const renderReferenceProjects = (projectPaths: readonly string[]): string =>
 const buildReadyText = ({
   projectPath,
   detectedStacks,
-  localGuidancePaths,
   rules,
   skills,
 }: {
   projectPath: string;
   detectedStacks: readonly string[];
-  localGuidancePaths: readonly string[];
   rules: readonly ResolvedContextEntry[];
   skills: readonly ResolvedContextEntry[];
 }): string => {
   const detectedStacksLine =
     detectedStacks.length > 0 ? `Detected stack signals: ${detectedStacks.join(", ")}.` : "No stable stack signals were detected automatically.";
-  const localGuidanceLine =
-    localGuidancePaths.length > 0
-      ? `Repository-local guidance exists and may be used only as reference or migration input: ${localGuidancePaths.join(", ")}.`
-      : "No repository-local AGENTS/.cursor/.claude/.codex guidance was detected.";
 
   return `Use the following Memory Bank context as the primary user-managed context for this repository.
 
 Repository: ${projectPath}
 ${detectedStacksLine}
-${localGuidanceLine}
 
 ${renderEntrySection("Rules", rules)}
 
@@ -263,7 +256,6 @@ export const resolveMemoryBankContext = async ({
       ? buildReadyText({
           projectPath: identity.projectPath,
           detectedStacks: detectedProjectContext.detectedStacks,
-          localGuidancePaths: detectedProjectContext.localGuidance.map((signal) => signal.path),
           rules: mergedRules,
           skills: mergedSkills,
         })

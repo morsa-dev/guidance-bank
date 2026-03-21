@@ -261,6 +261,8 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
       2,
     ),
   );
+  await writeFile(path.join(projectRoot, "AGENTS.md"), "# Local Guidance\n");
+  await mkdir(path.join(projectRoot, ".cursor"), { recursive: true });
 
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
@@ -295,6 +297,8 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.equal(createStructuredContent.status, "created");
   assert.deepEqual(createStructuredContent.selectedReferenceProjects, []);
   assert.match(createStructuredContent.creationPrompt, /Create a project-specific Memory Bank/i);
+  assert.match(createStructuredContent.creationPrompt, /Do not duplicate or mirror provider-native guidance/i);
+  assert.match(createStructuredContent.creationPrompt, /only during explicit bootstrap or sync\/import flows/i);
 
   const resolveResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -315,6 +319,8 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
   assert.match(resolveStructuredContent.text, /Repository: .*demo-project/i);
   assert.match(resolveStructuredContent.text, /## Rules/i);
   assert.match(resolveStructuredContent.text, /## Skills/i);
+  assert.doesNotMatch(resolveStructuredContent.text, /AGENTS\.md/i);
+  assert.doesNotMatch(resolveStructuredContent.text, /\.cursor/i);
 });
 
 test("set_project_state persists declined creation and resolve_context stops asking again", async (t) => {

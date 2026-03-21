@@ -28,7 +28,7 @@ Use these signals as a starting point, but verify them against the codebase befo
 
 const renderReferenceProjectsSection = (selectedReferenceProjects: readonly ReferenceProjectCandidate[]): string => {
   if (selectedReferenceProjects.length === 0) {
-    return "No reference project banks were selected. Create the project bank from the real codebase, shared Memory Bank context, and any local repository guidance.";
+    return "No reference project banks were selected. Create the project bank from the real codebase and the shared Memory Bank context.";
   }
 
   const projectLines = selectedReferenceProjects
@@ -83,13 +83,14 @@ Use these inputs together:
 - Real project code and configuration from the repository
 - Existing shared Memory Bank rules and skills already returned by \`resolve_context\`
 - Any selected reference project banks listed above
-- Any existing repo-local agent guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` as migration/reference input
 - Any additional user instructions from the current chat
 
 Important:
 - Memory Bank is the canonical user-managed context for this project
-- Existing repo-local agent files are source material, not the final destination
-- Extract durable patterns from them when useful, but write the canonical bank only into the target Memory Bank through the MCP mutation tools
+- Provider-native guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` is a separate repository-local layer
+- Do not duplicate or mirror provider-native guidance into the Memory Bank during normal project-bank creation
+- Provider-native guidance is accounted for only during explicit bootstrap or sync/import flows, not during regular \`resolve_context\` or \`create_bank\` usage
+- Write the canonical bank only into the target Memory Bank through the MCP mutation tools
 
 ## Canonical Output Contract
 

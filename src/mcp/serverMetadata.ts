@@ -13,4 +13,4 @@ export const PROJECT_NAME = packageJson.name;
 export const PROJECT_VERSION = packageJson.version;
 export const PROJECT_DESCRIPTION = packageJson.description ?? "Bootstrap CLI and local runtime for Memory Bank.";
 export const MCP_SERVER_INSTRUCTIONS =
-  "At the start of each new project session, call resolve_context with the absolute project path and follow its returned text exactly. Memory Bank is the primary user-managed context layer for agent rules and skills outside the repository.";
+  "At the start of each new project session, call resolve_context with the absolute project path and follow its returned text exactly. Memory Bank is the primary user-managed context layer for agent rules and skills outside the repository, and it coexists with provider-native repository guidance without duplicating it during normal runtime.";
