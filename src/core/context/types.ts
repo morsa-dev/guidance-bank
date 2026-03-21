@@ -1,3 +1,5 @@
+import type { CanonicalRuleFrontmatter, CanonicalSkillFrontmatter } from "../bank/types.js";
+
 export const DETECTABLE_STACKS = ["nodejs", "typescript", "react", "nextjs", "angular"] as const;
 export type DetectableStack = (typeof DETECTABLE_STACKS)[number];
 
@@ -24,6 +26,7 @@ export type ResolvedContextEntry = {
   path: string;
   reason: string;
   content: string;
+  metadata?: CanonicalRuleFrontmatter | CanonicalSkillFrontmatter;
 };
 
 export type ReferenceProjectCandidate = {

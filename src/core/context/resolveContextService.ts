@@ -1,4 +1,8 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
+import {
+  parseCanonicalRuleDocumentOptional,
+  parseCanonicalSkillDocumentOptional,
+} from "../bank/canonicalEntry.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
@@ -21,13 +25,41 @@ const isDocumentationFile = (entryPath: string): boolean => {
   return normalizedEntryPath.endsWith("/readme.md") || normalizedEntryPath === "readme.md";
 };
 
-const explainRuleSelection = (entryPath: string, detectedStacks: readonly string[]): CandidateReason => {
+const matchesStacks = (entryStacks: readonly string[], detectedStacks: readonly string[]): CandidateReason => {
+  if (entryStacks.length === 0) {
+    return {
+      selected: true,
+      reason: "Always-on canonical entry.",
+    };
+  }
+
+  for (const stack of entryStacks) {
+    if (detectedStacks.includes(stack)) {
+      return {
+        selected: true,
+        reason: `Matches canonical stack metadata: ${stack}.`,
+      };
+    }
+  }
+
+  return {
+    selected: false,
+    reason: "",
+  };
+};
+
+const explainRuleSelection = (entryPath: string, detectedStacks: readonly string[], content: string): CandidateReason => {
   const normalizedEntryPath = normalizeEntryPath(entryPath);
+  const canonicalDocument = parseCanonicalRuleDocumentOptional(content);
+
+  if (canonicalDocument.document) {
+    return matchesStacks(canonicalDocument.document.frontmatter.stacks, detectedStacks);
+  }
 
   if (!normalizedEntryPath.startsWith("stacks/")) {
     return {
       selected: true,
-      reason: "Always-on shared or project rule.",
+      reason: "Always-on legacy shared or project rule.",
     };
   }
 
@@ -46,13 +78,18 @@ const explainRuleSelection = (entryPath: string, detectedStacks: readonly string
   };
 };
 
-const explainSkillSelection = (entryPath: string, detectedStacks: readonly string[]): CandidateReason => {
+const explainSkillSelection = (entryPath: string, detectedStacks: readonly string[], content: string): CandidateReason => {
   const normalizedEntryPath = normalizeEntryPath(entryPath);
+  const canonicalDocument = parseCanonicalSkillDocumentOptional(content);
+
+  if (canonicalDocument.document) {
+    return matchesStacks(canonicalDocument.document.frontmatter.stacks, detectedStacks);
+  }
 
   if (!normalizedEntryPath.startsWith("stacks/")) {
     return {
       selected: true,
-      reason: "Always-on shared or project workflow.",
+      reason: "Always-on legacy shared or project workflow.",
     };
   }
 
@@ -86,19 +123,32 @@ const loadEntries = async (
       continue;
     }
 
-    const selection = kind === "rules" ? explainRuleSelection(entry.path, detectedStacks) : explainSkillSelection(entry.path, detectedStacks);
+    const content = await repository.readLayerEntry(layer, kind, entry.path, projectId);
+    const selection =
+      kind === "rules"
+        ? explainRuleSelection(entry.path, detectedStacks, content)
+        : explainSkillSelection(entry.path, detectedStacks, content);
 
     if (!selection.selected) {
       continue;
     }
 
-    const content = await repository.readLayerEntry(layer, kind, entry.path, projectId);
-    selectedEntries.push({
+    const metadata =
+      kind === "rules"
+        ? parseCanonicalRuleDocumentOptional(content).document?.frontmatter
+        : parseCanonicalSkillDocumentOptional(content).document?.frontmatter;
+    const resolvedEntry: ResolvedContextEntry = {
       layer,
       path: entry.path,
       reason: selection.reason,
       content,
-    });
+    };
+
+    if (metadata) {
+      resolvedEntry.metadata = metadata;
+    }
+
+    selectedEntries.push(resolvedEntry);
   }
 
   return selectedEntries;

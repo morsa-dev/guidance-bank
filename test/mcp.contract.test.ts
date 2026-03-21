@@ -173,7 +173,8 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
       scope: "shared",
       projectPath: projectRoot,
       path: "preferences/user-praise.md",
-      content: "# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
+      content:
+        "---\nid: shared-user-praise\nkind: rule\ntitle: User Praise\nstacks: []\ntopics: [preferences]\n---\n\n# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
     },
   });
 
@@ -505,7 +506,8 @@ test("upsert tools can write shared and project entries, and delete_entry remove
         scope: "shared",
         projectPath: projectRoot,
         path: "topics/angular-architecture.md",
-        content: "# Angular Architecture\n\n- Keep route containers thin.\n",
+        content:
+          "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
       },
     }),
   );
@@ -527,7 +529,8 @@ test("upsert tools can write shared and project entries, and delete_entry remove
         scope: "project",
         projectPath: projectRoot,
         path: "topics/admin-dashboard.md",
-        content: "# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+        content:
+          "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstacks: [angular]\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
       },
     }),
   );
@@ -549,7 +552,7 @@ test("upsert tools can write shared and project entries, and delete_entry remove
         projectPath: projectRoot,
         path: "stacks/angular/component-audit",
         content:
-          "---\nname: component-audit\ndescription: Review Angular components before editing.\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+          "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
       },
     }),
   );
@@ -573,7 +576,7 @@ test("upsert tools can write shared and project entries, and delete_entry remove
         projectPath: projectRoot,
         path: "stacks/angular/adding-admin-widget",
         content:
-          "---\nname: adding-admin-widget\ndescription: Add a new admin widget in this repository.\n---\n\n# Adding Admin Widget\n\n1. Start from the existing dashboard feature shell.\n",
+          "---\nid: project-adding-admin-widget\nkind: skill\ntitle: Adding Admin Widget\nname: adding-admin-widget\ndescription: Add a new admin widget in this repository.\nstacks: [angular]\ntopics: [widgets]\n---\n\n# Adding Admin Widget\n\n1. Start from the existing dashboard feature shell.\n",
       },
     }),
   );

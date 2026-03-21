@@ -13,7 +13,10 @@ const UpsertRuleArgsSchema = z
       .trim()
       .min(1)
       .describe("Rule file path relative to the selected rules root, for example topics/architecture.md."),
-    content: z.string().min(1).describe("Full markdown content for the thematic rule file."),
+    content: z
+      .string()
+      .min(1)
+      .describe("Full markdown content for the thematic rule file, including canonical frontmatter."),
   })
   .strict();
 
@@ -36,7 +39,10 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
           .trim()
           .min(1)
           .describe("Rule file path relative to the selected rules root, for example topics/architecture.md."),
-        content: z.string().min(1).describe("Full markdown content for the thematic rule file."),
+        content: z
+          .string()
+          .min(1)
+          .describe("Full markdown content for the thematic rule file, including canonical frontmatter."),
       },
       outputSchema: {
         status: z.enum(["created", "updated"]),

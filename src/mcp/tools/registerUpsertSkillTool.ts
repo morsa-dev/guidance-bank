@@ -13,7 +13,10 @@ const UpsertSkillArgsSchema = z
       .trim()
       .min(1)
       .describe("Skill folder path relative to the selected skills root, for example adding-feature or stacks/angular/adding-feature."),
-    content: z.string().min(1).describe("Full markdown content for the skill SKILL.md file."),
+    content: z
+      .string()
+      .min(1)
+      .describe("Full markdown content for the skill SKILL.md file, including canonical frontmatter."),
   })
   .strict();
 
@@ -36,7 +39,10 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
           .trim()
           .min(1)
           .describe("Skill folder path relative to the selected skills root, for example adding-feature or stacks/angular/adding-feature."),
-        content: z.string().min(1).describe("Full markdown content for the skill SKILL.md file."),
+        content: z
+          .string()
+          .min(1)
+          .describe("Full markdown content for the skill SKILL.md file, including canonical frontmatter."),
       },
       outputSchema: {
         status: z.enum(["created", "updated"]),

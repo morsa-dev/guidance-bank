@@ -51,7 +51,15 @@ Store shared, provider-agnostic rules here.
   },
   {
     filePath: path.join(paths.sharedRulesDirectory, "core", "general.md"),
-    content: `# General Behavior
+    content: `---
+id: shared-general-behavior
+kind: rule
+title: General Behavior
+stacks: []
+topics: [general]
+---
+
+# General Behavior
 
 - Apply these rules as user-level guidance across repositories unless the local project clearly conflicts.
 - Keep changes tightly scoped and prefer existing project patterns over generic rewrites.
@@ -73,7 +81,15 @@ Examples:
   },
   {
     filePath: path.join(paths.sharedRulesDirectory, "stacks", "nodejs", "runtime.md"),
-    content: `# Node.js Runtime
+    content: `---
+id: shared-nodejs-runtime
+kind: rule
+title: Node.js Runtime
+stacks: [nodejs]
+topics: [runtime]
+---
+
+# Node.js Runtime
 
 - Respect the existing package manager and lockfile already present in the repository.
 - Prefer stable CLI scripts from package.json over ad-hoc commands when available.
@@ -82,7 +98,15 @@ Examples:
   },
   {
     filePath: path.join(paths.sharedRulesDirectory, "stacks", "typescript", "strict-mode.md"),
-    content: `# TypeScript Strict Mode
+    content: `---
+id: shared-typescript-strict-mode
+kind: rule
+title: TypeScript Strict Mode
+stacks: [typescript]
+topics: [typing]
+---
+
+# TypeScript Strict Mode
 
 - Preserve strict typing and avoid weakening types with \`any\`, broad casts, or unchecked fallbacks.
 - Prefer narrowing and explicit domain types when changing shared interfaces or data contracts.
@@ -127,8 +151,13 @@ Examples:
   {
     filePath: path.join(paths.sharedSkillsDirectory, "shared", "task-based-reading", "SKILL.md"),
     content: `---
+id: shared-task-based-reading
+kind: skill
+title: Task-Based Reading
 name: task-based-reading
 description: Use when starting work in an unfamiliar repository and you need to identify the minimum relevant files quickly.
+stacks: []
+topics: [reading, discovery]
 ---
 
 # Task-Based Reading

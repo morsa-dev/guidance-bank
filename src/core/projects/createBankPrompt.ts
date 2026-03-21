@@ -104,12 +104,14 @@ Rules:
 - Rules live under \`${rulesDirectory}\`
 - Rules are grouped by topic or stack in folders
 - Each rule file contains a set of related rules united by one theme
+- Each rule file must start with canonical frontmatter including at least \`id\`, \`kind: rule\`, and \`title\`
 - Keep rule files short, focused, and evidence-based
 
 Skills:
 - Skills live under \`${skillsDirectory}\`
 - Each skill has its own folder
 - Each skill folder contains exactly one \`SKILL.md\`
+- Each skill file must start with canonical frontmatter including at least \`id\`, \`kind: skill\`, \`title\`, and \`description\`
 - Skills describe reusable workflows, not static constraints
 
 ## Project vs Shared Split

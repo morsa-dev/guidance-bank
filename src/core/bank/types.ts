@@ -1,3 +1,5 @@
+import type { DetectableStack } from "../context/types.js";
+
 export const PROVIDER_IDS = ["codex", "cursor", "claude-code"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
@@ -55,4 +57,31 @@ export type ProviderIntegrationDescriptor = {
 
 export type ListedEntry = {
   path: string;
+};
+
+export type CanonicalEntryFrontmatterBase = {
+  id: string;
+  title: string;
+  stacks: DetectableStack[];
+  topics: string[];
+};
+
+export type CanonicalRuleFrontmatter = CanonicalEntryFrontmatterBase & {
+  kind: "rule";
+};
+
+export type CanonicalSkillFrontmatter = CanonicalEntryFrontmatterBase & {
+  kind: "skill";
+  description: string;
+  name?: string | undefined;
+};
+
+export type CanonicalRuleDocument = {
+  frontmatter: CanonicalRuleFrontmatter;
+  body: string;
+};
+
+export type CanonicalSkillDocument = {
+  frontmatter: CanonicalSkillFrontmatter;
+  body: string;
 };

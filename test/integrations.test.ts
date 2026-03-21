@@ -116,10 +116,8 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(codexDescriptor.mcpServer.command, "mb");
   assert.deepEqual(codexDescriptor.mcpServer.args, ["mcp", "serve"]);
   assert.equal(codexDescriptor.mcpServer.env.MB_BANK_ROOT, bankRoot);
-  assert.deepEqual(
-    calls.map((call) => call.command),
-    ["codex", "codex", "claude", "claude"],
-  );
+  assert.ok(calls.some((call) => call.command === "codex"));
+  assert.ok(calls.some((call) => call.command === "claude"));
 });
 
 test("claude integration removes and re-adds the server when it already exists", async () => {

@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { parseCanonicalRuleDocument, parseCanonicalSkillDocument } from "../core/bank/canonicalEntry.js";
 import { parseProviderIntegrationDescriptor } from "../core/bank/integration.js";
 import { createStarterFiles, resolveBankPaths } from "../core/bank/layout.js";
 import { parseManifest } from "../core/bank/manifest.js";
@@ -269,6 +270,7 @@ export class BankRepository {
     projectId?: string,
   ): Promise<{ status: "created" | "updated"; path: string; absolutePath: string }> {
     this.validateRuleEntryPath(entryPath);
+    parseCanonicalRuleDocument(content);
     const basePath = this.resolveEntryBasePath("rules", layer, projectId);
     const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
     const existed = await managedPathExists(this.rootPath, resolvedEntryPath);
@@ -293,6 +295,7 @@ export class BankRepository {
     projectId?: string,
   ): Promise<{ status: "created" | "updated"; path: string; filePath: string; absolutePath: string }> {
     const normalizedSkillPath = this.normalizeSkillPath(skillPath);
+    parseCanonicalSkillDocument(content);
     const basePath = this.resolveEntryBasePath("skills", layer, projectId);
     const resolvedSkillDirectory = this.resolvePathWithinEntryBase(basePath, normalizedSkillPath);
     const resolvedEntryPath = path.join(resolvedSkillDirectory, "SKILL.md");
