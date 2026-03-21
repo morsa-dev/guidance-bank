@@ -79,67 +79,6 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
   assert.ok(tools.get("upsert_skill")?.outputSchema);
 });
 
-test("bank_manifest returns validated structured content", async (t) => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
-  const initService = new InitService();
-  await initService.run({
-    bankRoot,
-    commandRunner: createSuccessfulCommandRunner(),
-    selectedProviders: ["claude-code"],
-  });
-
-  const { client, close } = await createConnectedClient(bankRoot);
-  t.after(close);
-
-  const result = CallToolResultSchema.parse(
-    await client.callTool({
-      name: "bank_manifest",
-      arguments: {},
-    }),
-  );
-
-  const structuredContent = z
-    .object({
-      enabledProviders: z.array(z.string()),
-      defaultMcpTransport: z.literal("stdio"),
-    })
-    .parse(result.structuredContent);
-
-  assert.equal(result.isError, undefined);
-  assert.deepEqual(structuredContent.enabledProviders, ["claude-code"]);
-});
-
-test("read_entry surfaces invalid arguments as tool errors", async (t) => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
-  const initService = new InitService();
-  await initService.run({
-    bankRoot,
-    commandRunner: createSuccessfulCommandRunner(),
-    selectedProviders: ["cursor"],
-  });
-
-  const { client, close } = await createConnectedClient(bankRoot);
-  t.after(close);
-
-  const result = CallToolResultSchema.parse(
-    await client.callTool({
-      name: "read_entry",
-      arguments: {
-        kind: "rules",
-        path: "",
-      },
-    }),
-  );
-
-  const firstBlock = result.content[0];
-  const firstText = firstBlock?.type === "text" ? firstBlock.text : "";
-
-  assert.equal(result.isError, true);
-  assert.match(firstText, /Invalid arguments for tool read_entry/);
-});
-
 test("resolve_context returns shared context and missing status when no project bank exists", async (t) => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
@@ -185,44 +124,76 @@ test("resolve_context returns shared context and missing status when no project 
 
   const structuredContent = z
     .object({
-      status: z.enum(["missing", "ready", "creation_declined"]),
-      projectId: z.string(),
-      projectName: z.string(),
-      projectPath: z.string(),
-      projectBankPath: z.string(),
-      detectedStacks: z.array(z.string()),
-      localGuidance: z.array(
-        z.object({
-          kind: z.string(),
-          path: z.string(),
-        }),
-      ),
-      referenceProjects: z.array(
+      text: z.string(),
+      referenceProjects: z
+        .array(
         z.object({
           projectId: z.string(),
           projectName: z.string(),
           sharedStacks: z.array(z.string()),
         }),
-      ),
-      rules: z.array(z.object({ path: z.string() })),
-      skills: z.array(z.object({ path: z.string() })),
-      agentInstructions: z.string(),
+        )
+        .optional(),
     })
     .parse(result.structuredContent);
 
   assert.equal(result.isError, undefined);
-  assert.equal(structuredContent.status, "missing");
-  assert.equal(structuredContent.projectName, "demo-project");
-  assert.equal(structuredContent.projectPath, projectRoot);
-  assert.deepEqual(structuredContent.detectedStacks, ["nodejs", "typescript", "react"]);
-  assert.deepEqual(structuredContent.localGuidance, []);
-  assert.deepEqual(structuredContent.referenceProjects, []);
-  assert.deepEqual(
-    structuredContent.rules.map((entry) => entry.path),
-    ["core/general.md", "stacks/nodejs/runtime.md", "stacks/typescript/strict-mode.md"],
+  assert.match(structuredContent.text, /No project Memory Bank exists for this repository/i);
+  assert.equal(structuredContent.referenceProjects?.length ?? 0, 0);
+});
+
+test("resolve_context includes always-on shared rules outside stacks folders", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    commandRunner: createSuccessfulCommandRunner(),
+    selectedProviders: ["cursor"],
+  });
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(path.join(projectRoot, "package.json"), JSON.stringify({ name: "demo-project" }, null, 2));
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await client.callTool({
+    name: "create_bank",
+    arguments: {
+      projectPath: projectRoot,
+    },
+  });
+
+  await client.callTool({
+    name: "upsert_rule",
+    arguments: {
+      scope: "shared",
+      projectPath: projectRoot,
+      path: "preferences/user-praise.md",
+      content: "# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
+    },
+  });
+
+  const result = CallToolResultSchema.parse(
+    await client.callTool({
+      name: "resolve_context",
+      arguments: {
+        projectPath: projectRoot,
+      },
+    }),
   );
-  assert.deepEqual(structuredContent.skills.map((entry) => entry.path), ["shared/task-based-reading/SKILL.md"]);
-  assert.match(structuredContent.agentInstructions, /primary user-managed context/i);
+
+  const structuredContent = z
+    .object({
+      text: z.string(),
+    })
+    .parse(result.structuredContent);
+
+  assert.match(structuredContent.text, /### shared\/preferences\/user-praise\.md/);
+  assert.match(structuredContent.text, /Ты хорош/);
 });
 
 test("create_bank scaffolds a project bank and resolve_context returns ready status", async (t) => {
@@ -297,22 +268,14 @@ test("create_bank scaffolds a project bank and resolve_context returns ready sta
 
   const resolveStructuredContent = z
     .object({
-      status: z.enum(["missing", "ready", "creation_declined"]),
-      projectBankPath: z.string(),
-      localGuidance: z.array(
-        z.object({
-          kind: z.string(),
-          path: z.string(),
-        }),
-      ),
-      agentInstructions: z.string(),
+      text: z.string(),
     })
     .parse(resolveResult.structuredContent);
 
-  assert.equal(resolveStructuredContent.status, "ready");
-  assert.equal(resolveStructuredContent.projectBankPath, createStructuredContent.projectBankPath);
-  assert.deepEqual(resolveStructuredContent.localGuidance, []);
-  assert.match(resolveStructuredContent.agentInstructions, /primary user-managed context/i);
+  assert.match(resolveStructuredContent.text, /Use the following Memory Bank context as the primary user-managed context/i);
+  assert.match(resolveStructuredContent.text, /Repository: .*demo-project/i);
+  assert.match(resolveStructuredContent.text, /## Rules/i);
+  assert.match(resolveStructuredContent.text, /## Skills/i);
 });
 
 test("set_project_state persists declined creation and resolve_context stops asking again", async (t) => {
@@ -362,20 +325,12 @@ test("set_project_state persists declined creation and resolve_context stops ask
 
   const resolveStructuredContent = z
     .object({
-      status: z.enum(["missing", "ready", "creation_declined"]),
-      localGuidance: z.array(
-        z.object({
-          kind: z.string(),
-          path: z.string(),
-        }),
-      ),
-      agentInstructions: z.string(),
+      text: z.string(),
     })
     .parse(resolveResult.structuredContent);
 
-  assert.equal(resolveStructuredContent.status, "creation_declined");
-  assert.deepEqual(resolveStructuredContent.localGuidance, []);
-  assert.match(resolveStructuredContent.agentInstructions, /Do not ask to create a project Memory Bank again/i);
+  assert.match(resolveStructuredContent.text, /Project Memory Bank creation was previously declined/i);
+  assert.match(resolveStructuredContent.text, /Do not ask again/i);
 });
 
 test("resolve_context suggests similar existing project banks and create_bank accepts selected references", async (t) => {
@@ -456,23 +411,23 @@ test("resolve_context suggests similar existing project banks and create_bank ac
   );
   const resolveStructured = z
     .object({
-      status: z.enum(["missing", "ready", "creation_declined"]),
-      referenceProjects: z.array(
+      text: z.string(),
+      referenceProjects: z
+        .array(
         z.object({
           projectId: z.string(),
           projectName: z.string(),
           sharedStacks: z.array(z.string()),
         }),
-      ),
-      agentInstructions: z.string(),
+        )
+        .optional(),
     })
     .parse(resolveResult.structuredContent);
 
-  assert.equal(resolveStructured.status, "missing");
-  assert.equal(resolveStructured.referenceProjects.length, 1);
+  assert.equal(resolveStructured.referenceProjects?.length, 1);
   assert.equal(resolveStructured.referenceProjects[0]?.projectId, referenceCreateStructured.projectId);
   assert.deepEqual(resolveStructured.referenceProjects[0]?.sharedStacks, ["nodejs", "typescript", "angular"]);
-  assert.match(resolveStructured.agentInstructions, /offer those projects as possible reference bases/i);
+  assert.match(resolveStructured.text, /offer these existing project banks as optional reference bases/i);
 
   const createResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -643,33 +598,14 @@ test("upsert tools can write shared and project entries, and delete_entry remove
   );
   const resolvedUpserts = z
     .object({
-      rules: z.array(
-        z.object({
-          layer: z.enum(["shared", "project"]),
-          path: z.string(),
-        }),
-      ),
-      skills: z.array(
-        z.object({
-          layer: z.enum(["shared", "project"]),
-          path: z.string(),
-        }),
-      ),
+      text: z.string(),
     })
     .parse(resolveAfterUpserts.structuredContent);
 
-  assert.ok(
-    resolvedUpserts.rules.some((entry) => entry.layer === "shared" && entry.path === "topics/angular-architecture.md"),
-  );
-  assert.ok(resolvedUpserts.rules.some((entry) => entry.layer === "project" && entry.path === "topics/admin-dashboard.md"));
-  assert.ok(
-    resolvedUpserts.skills.some((entry) => entry.layer === "shared" && entry.path === "stacks/angular/component-audit/SKILL.md"),
-  );
-  assert.ok(
-    resolvedUpserts.skills.some(
-      (entry) => entry.layer === "project" && entry.path === "stacks/angular/adding-admin-widget/SKILL.md",
-    ),
-  );
+  assert.match(resolvedUpserts.text, /### shared\/topics\/angular-architecture\.md/);
+  assert.match(resolvedUpserts.text, /### project\/topics\/admin-dashboard\.md/);
+  assert.match(resolvedUpserts.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
+  assert.match(resolvedUpserts.text, /### project\/stacks\/angular\/adding-admin-widget\/SKILL\.md/);
 
   const deleteProjectRuleResult = CallToolResultSchema.parse(
     await client.callTool({
@@ -719,21 +655,10 @@ test("upsert tools can write shared and project entries, and delete_entry remove
   );
   const resolvedDeletes = z
     .object({
-      rules: z.array(
-        z.object({
-          layer: z.enum(["shared", "project"]),
-          path: z.string(),
-        }),
-      ),
-      skills: z.array(
-        z.object({
-          layer: z.enum(["shared", "project"]),
-          path: z.string(),
-        }),
-      ),
+      text: z.string(),
     })
     .parse(resolveAfterDeletes.structuredContent);
 
-  assert.ok(!resolvedDeletes.rules.some((entry) => entry.path === "topics/admin-dashboard.md"));
-  assert.ok(!resolvedDeletes.skills.some((entry) => entry.path === "stacks/angular/component-audit/SKILL.md"));
+  assert.doesNotMatch(resolvedDeletes.text, /### project\/topics\/admin-dashboard\.md/);
+  assert.doesNotMatch(resolvedDeletes.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
 });

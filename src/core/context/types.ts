@@ -35,15 +35,7 @@ export type ReferenceProjectCandidate = {
   sharedStacks: DetectableStack[];
 };
 
-export type ResolvedMemoryBankStatus = "missing" | "ready" | "creation_declined";
-
-export type ResolvedMemoryBankContext = ProjectContext & {
-  status: ResolvedMemoryBankStatus;
-  message: string;
-  projectId: string;
-  projectBankPath: string;
-  referenceProjects: ReferenceProjectCandidate[];
-  rules: ResolvedContextEntry[];
-  skills: ResolvedContextEntry[];
-  agentInstructions: string;
+export type ResolvedMemoryBankContext = {
+  text: string;
+  referenceProjects?: ReferenceProjectCandidate[];
 };

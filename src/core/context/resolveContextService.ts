@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import type { BankRepository } from "../../storage/bankRepository.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
@@ -26,17 +24,10 @@ const isDocumentationFile = (entryPath: string): boolean => {
 const explainRuleSelection = (entryPath: string, detectedStacks: readonly string[]): CandidateReason => {
   const normalizedEntryPath = normalizeEntryPath(entryPath);
 
-  if (normalizedEntryPath.startsWith("core/")) {
+  if (!normalizedEntryPath.startsWith("stacks/")) {
     return {
       selected: true,
-      reason: "Always-on core rule.",
-    };
-  }
-
-  if (normalizedEntryPath.startsWith("topics/")) {
-    return {
-      selected: true,
-      reason: "Shared topic rule available to all projects unless overridden locally.",
+      reason: "Always-on shared or project rule.",
     };
   }
 
@@ -58,10 +49,10 @@ const explainRuleSelection = (entryPath: string, detectedStacks: readonly string
 const explainSkillSelection = (entryPath: string, detectedStacks: readonly string[]): CandidateReason => {
   const normalizedEntryPath = normalizeEntryPath(entryPath);
 
-  if (normalizedEntryPath.startsWith("shared/")) {
+  if (!normalizedEntryPath.startsWith("stacks/")) {
     return {
       selected: true,
-      reason: "Shared reusable workflow.",
+      reason: "Always-on shared or project workflow.",
     };
   }
 
@@ -130,6 +121,74 @@ const mergeLayeredEntries = (
   return [...mergedEntries.values()].sort((left, right) => left.path.localeCompare(right.path));
 };
 
+const renderEntrySection = (title: string, entries: readonly ResolvedContextEntry[]): string => {
+  if (entries.length === 0) {
+    return `## ${title}
+
+No ${title.toLowerCase()} matched for this repository.`;
+  }
+
+  const blocks = entries.map(
+    (entry) => `### ${entry.layer}/${entry.path}
+
+${entry.content.trim()}`,
+  );
+
+  return `## ${title}
+
+${blocks.join("\n\n")}`;
+};
+
+const renderReferenceProjects = (projectPaths: readonly string[]): string =>
+  projectPaths.map((projectPath, index) => `${index + 1}. ${projectPath}`).join("\n");
+
+const buildReadyText = ({
+  projectPath,
+  detectedStacks,
+  localGuidancePaths,
+  rules,
+  skills,
+}: {
+  projectPath: string;
+  detectedStacks: readonly string[];
+  localGuidancePaths: readonly string[];
+  rules: readonly ResolvedContextEntry[];
+  skills: readonly ResolvedContextEntry[];
+}): string => {
+  const detectedStacksLine =
+    detectedStacks.length > 0 ? `Detected stack signals: ${detectedStacks.join(", ")}.` : "No stable stack signals were detected automatically.";
+  const localGuidanceLine =
+    localGuidancePaths.length > 0
+      ? `Repository-local guidance exists and may be used only as reference or migration input: ${localGuidancePaths.join(", ")}.`
+      : "No repository-local AGENTS/.cursor/.claude/.codex guidance was detected.";
+
+  return `Use the following Memory Bank context as the primary user-managed context for this repository.
+
+Repository: ${projectPath}
+${detectedStacksLine}
+${localGuidanceLine}
+
+${renderEntrySection("Rules", rules)}
+
+${renderEntrySection("Skills", skills)}`;
+};
+
+const buildMissingText = ({
+  referenceProjectPaths,
+}: {
+  referenceProjectPaths: readonly string[];
+}): string => {
+  const referenceSection =
+    referenceProjectPaths.length > 0
+      ? `\n\nBefore creating a new project Memory Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
+      : "";
+
+  return `No project Memory Bank exists for this repository. Ask the user whether to create one before doing substantial project-specific work.${referenceSection}`;
+};
+
+const buildDeclinedText = (): string =>
+  "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. Continue using only the shared Memory Bank context for now.";
+
 export const resolveMemoryBankContext = async ({
   repository,
   projectPath,
@@ -163,35 +222,29 @@ export const resolveMemoryBankContext = async ({
         ? "creation_declined"
         : "missing";
 
-  const message =
+  const mergedRules = mergeLayeredEntries(sharedRules, projectRules);
+  const mergedSkills = mergeLayeredEntries(sharedSkills, projectSkills);
+  const text =
     status === "ready"
-      ? "Project Memory Bank found. Use the resolved Memory Bank context below as the primary agent context for this repository."
+      ? buildReadyText({
+          projectPath: identity.projectPath,
+          detectedStacks: detectedProjectContext.detectedStacks,
+          localGuidancePaths: detectedProjectContext.localGuidance.map((signal) => signal.path),
+          rules: mergedRules,
+          skills: mergedSkills,
+        })
       : status === "creation_declined"
-        ? "No project Memory Bank exists for this repository, and the user previously declined creation."
-        : "No project Memory Bank exists for this repository yet.";
+        ? buildDeclinedText()
+        : buildMissingText({
+            referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
+          });
 
-  const agentInstructions =
-    status === "ready"
-      ? "Use the resolved Memory Bank rules and skills as the primary user-managed context for this repository. Apply project-layer entries as overrides over shared guidance. When changing the Memory Bank, write through upsert_rule, upsert_skill, and delete_entry. Put reusable cross-project or stack guidance into the shared layer, and keep repository-specific guidance in the project layer. If the correct scope is ambiguous, ask the user whether the change should apply only to this project or to the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, treat them as repository-local reference or migration input rather than the canonical Memory Bank source."
-      : status === "creation_declined"
-        ? "Use only the shared Memory Bank context for now as the primary user-managed context. Do not ask to create a project Memory Bank again unless the user explicitly requests it. Reusable updates can still be written to the shared layer through upsert_rule or upsert_skill. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can still be used as repository-local reference."
-        : referenceProjects.length > 0
-          ? "Use the shared Memory Bank context for now as the primary user-managed context. Before project-specific work becomes substantial, ask the user whether to create a project Memory Bank. Similar existing project banks were found; offer those projects as possible reference bases before calling create_bank. If the user agrees, call create_bank and pass any selected reference project ids. If the user declines, persist that choice through set_project_state. If you discover guidance that is clearly reusable across repositories or across a shared stack, it can still be written into the shared layer through upsert_rule or upsert_skill. If the right scope is unclear, ask the user whether the new entry should live only in this project or in the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can be used as migration/reference input for the new Memory Bank."
-          : "Use the shared Memory Bank context for now as the primary user-managed context. Before project-specific work becomes substantial, ask the user whether to create a project Memory Bank. If the user agrees, call create_bank. If the user declines, persist that choice through set_project_state. If you discover guidance that is clearly reusable across repositories or across a shared stack, it can still be written into the shared layer through upsert_rule or upsert_skill. If the right scope is unclear, ask the user whether the new entry should live only in this project or in the shared layer. If local AGENTS.md, .cursor, .claude, or .codex files exist, they can be used as migration/reference input for the new Memory Bank.";
-
-  return {
-    projectId: identity.projectId,
-    projectName: detectedProjectContext.projectName,
-    projectPath: identity.projectPath,
-    detectedStacks: detectedProjectContext.detectedStacks,
-    detectedSignals: detectedProjectContext.detectedSignals,
-    localGuidance: detectedProjectContext.localGuidance,
-    status,
-    message,
-    projectBankPath: path.join(repository.paths.projectsDirectory, identity.projectId),
-    referenceProjects,
-    rules: mergeLayeredEntries(sharedRules, projectRules),
-    skills: mergeLayeredEntries(sharedSkills, projectSkills),
-    agentInstructions,
-  };
+  return referenceProjects.length > 0 && status === "missing"
+    ? {
+        text,
+        referenceProjects,
+      }
+    : {
+        text,
+      };
 };

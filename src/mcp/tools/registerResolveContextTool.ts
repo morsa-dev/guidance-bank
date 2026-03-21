@@ -24,26 +24,9 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         projectPath: z.string().trim().min(1).describe("Absolute path to the current repository or working directory."),
       },
       outputSchema: {
-        status: z.enum(["missing", "ready", "creation_declined"]),
-        message: z.string(),
-        projectId: z.string(),
-        projectName: z.string(),
-        projectPath: z.string(),
-        projectBankPath: z.string(),
-        detectedStacks: z.array(z.string()),
-        detectedSignals: z.array(
-          z.object({
-            name: z.string(),
-            source: z.string(),
-          }),
-        ),
-        localGuidance: z.array(
-          z.object({
-            kind: z.enum(["agents", "cursor", "claude", "codex"]),
-            path: z.string(),
-          }),
-        ),
-        referenceProjects: z.array(
+        text: z.string(),
+        referenceProjects: z
+          .array(
           z.object({
             projectId: z.string(),
             projectName: z.string(),
@@ -52,24 +35,8 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
             detectedStacks: z.array(z.string()),
             sharedStacks: z.array(z.string()),
           }),
-        ),
-        rules: z.array(
-          z.object({
-            layer: z.enum(["shared", "project"]),
-            path: z.string(),
-            reason: z.string(),
-            content: z.string(),
-          }),
-        ),
-        skills: z.array(
-          z.object({
-            layer: z.enum(["shared", "project"]),
-            path: z.string(),
-            reason: z.string(),
-            content: z.string(),
-          }),
-        ),
-        agentInstructions: z.string(),
+          )
+          .optional(),
       },
     },
     async (args) => {
