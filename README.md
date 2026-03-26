@@ -1,65 +1,103 @@
 # mb-cli
 
-`mb-cli` is a bootstrap CLI and local MCP runtime for Memory Bank.
+`mb-cli` is the bootstrap CLI and local MCP runtime for Memory Bank.
 
-The package is intended to be installed globally and expose the `mb` command:
+It is meant to be installed globally and expose the `mb` command:
 
 ```bash
 npm install -g mb-cli
 ```
 
-After installation, agent providers can launch the local MCP runtime through:
+## Public CLI
 
-```bash
-mb mcp serve
-```
-
-The MCP runtime exposes a `resolve_context` tool so agents can ask Memory Bank for the applicable user-level rules and skills for the current repository without writing project-local rule files.
-
-The current MVP intentionally focuses on one primary workflow:
+The current public CLI intentionally stays small:
 
 ```bash
 mb init
+mb mcp serve
 ```
 
-`init` creates a local Memory Bank, prepares a local MCP runtime config, and generates provider-specific integration descriptors for the selected agent providers:
+- `mb init` bootstraps the local Memory Bank under `~/.memory-bank`, writes the MCP server config, and installs provider-specific integration descriptors.
+- `mb mcp serve` starts the local stdio MCP runtime backed by the managed Memory Bank.
+
+The current MVP supports these provider integrations:
 
 - Codex
 - Cursor
 - Claude Code
 
+## Init Notes
+
+`mb init` currently requires an interactive terminal.
+
+Before running it:
+
+- install at least one supported provider CLI
+- make sure that provider CLI is available on `PATH`
+
+During `mb init`, the CLI asks which available providers should be connected.
+
 ## Storage Model
 
-The local bank is stored under `~/.memory-bank` and separates `rules` from `skills`.
+The local bank is stored under `~/.memory-bank` and uses layered storage:
 
-- `rules/` are clustered by topic, stack, or provider.
-- `skills/` are stored as individual files.
-- `manifest.json` stores metadata only.
+- `shared/` for reusable cross-project canonical entries
+- `projects/<project-id>/` for project-specific canonical entries
+
+Canonical entry model:
+
+- `rules/` are thematic Markdown files grouped by topic, stack, or provider
+- `skills/` are one folder per skill, each containing a single `SKILL.md`
+- canonical frontmatter is required for both rules and skills
+- `manifest.json` stores Memory Bank metadata
+
+## MCP Runtime
+
+The local runtime is the main agent interface for Memory Bank.
+
+Current MCP tools include:
+
+- `resolve_context`
+- `create_bank`
+- `sync_bank`
+- `set_project_state`
+- `upsert_rule`
+- `upsert_skill`
+- `delete_entry`
+- `list_entries`
+- `read_entry`
+- manifest/read tools for managed storage
+
+`resolve_context` is the normal runtime entrypoint. It returns either ready context or a short next-step instruction when project setup is still missing or requires sync.
+
+`create_bank` is iterative. The server returns the prompt for the current step, and the agent continues by calling `create_bank` again with the next `iteration`.
+
+## Alpha Runbook
+
+Minimal first-run flow:
+
+1. Install `mb-cli` globally.
+2. Run `mb init` in an interactive terminal and connect at least one available provider.
+3. Start or let the provider start `mb mcp serve`.
+4. In a project session, the agent calls `resolve_context` with the absolute project path.
+5. If the project bank is missing, the agent calls `create_bank` and follows the iterative flow.
+6. If the bank requires storage-version reconciliation, the agent calls `sync_bank`.
+7. The agent writes canonical rules and skills through MCP mutation tools only.
 
 ## Development
 
 ```bash
 npm install
 npm run build
-npm test
-npm run typecheck
 npm run lint
+npm run typecheck
+npm test
 ```
-
-## MCP Runtime
-
-The CLI exposes an internal runtime entrypoint:
-
-```bash
-mb mcp serve
-```
-
-This starts a local stdio MCP server backed by the managed Memory Bank.
 
 ## Publish Notes
 
-The published package includes only the compiled `dist/` output plus top-level project metadata.
+The published package includes the compiled `dist/` output plus top-level project metadata.
 
-- `mb` is exposed through the package `bin` field.
-- `prepack` runs `npm run build` before packing or publishing.
-- Provider integrations assume `mb` is available globally on `PATH`.
+- `mb` is exposed through the package `bin` field
+- `prepack` runs `npm run build` before packing or publishing
+- provider integrations assume `mb` is available globally on `PATH`

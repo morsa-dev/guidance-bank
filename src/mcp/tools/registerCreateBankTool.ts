@@ -35,6 +35,21 @@ const requiresSync = (
   expectedStorageVersion: number,
 ): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
 
+const shouldWarnAboutIterationMismatch = (
+  storedIteration: number | null,
+  requestedIteration: number,
+): boolean => {
+  if (storedIteration === null) {
+    return false;
+  }
+
+  if (requestedIteration === storedIteration || requestedIteration === storedIteration + 1) {
+    return false;
+  }
+
+  return true;
+};
+
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "create_bank",
@@ -154,8 +169,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
 
       if (
         existingState !== null &&
-        existingState.createIteration !== null &&
-        existingState.createIteration !== requestedIteration
+        shouldWarnAboutIterationMismatch(existingState.createIteration, requestedIteration)
       ) {
         console.warn(
           `create_bank iteration mismatch for project ${identity.projectId}: stored=${existingState.createIteration}, requested=${requestedIteration}. Overwriting stored iteration.`,
