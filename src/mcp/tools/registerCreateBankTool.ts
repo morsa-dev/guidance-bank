@@ -232,23 +232,27 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         selectedReferenceProjects,
       });
       const syncRequired = existingManifest === null ? false : requiresSync(existingState, manifest.storageVersion);
-      const prompt = syncRequired
-        ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
-        : buildCreateBankIterationPrompt({
-            iteration: requestedIteration,
-            projectName: identity.projectName,
-            projectPath: identity.projectPath,
-            projectBankPath,
-            rulesDirectory,
-            skillsDirectory,
-            detectedStacks: projectContext.detectedStacks,
-            selectedReferenceProjects,
-            discoveredSources,
-            projectEvidence,
-            recentCommits,
-          });
       const mustContinue = !syncRequired && nextState.creationState === "creating";
       const nextIteration = mustContinue ? getNextCreateFlowIteration(requestedIteration) : null;
+      const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
+      const prompt =
+        syncRequired
+          ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
+          : mustContinue || completedFlowThisCall
+            ? buildCreateBankIterationPrompt({
+                iteration: requestedIteration,
+                projectName: identity.projectName,
+                projectPath: identity.projectPath,
+                projectBankPath,
+                rulesDirectory,
+                skillsDirectory,
+                detectedStacks: projectContext.detectedStacks,
+                selectedReferenceProjects,
+                discoveredSources,
+                projectEvidence,
+                recentCommits,
+              })
+            : "Project Memory Bank already exists for this repository and is ready.";
 
       const payload = {
         status: existingManifest === null ? "created" : "already_exists",
@@ -275,7 +279,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             ? "Call sync_bank."
             : mustContinue && nextIteration !== null
               ? `Call create_bank with iteration: ${nextIteration}.`
-              : requestedIteration > 0 && isFlowComplete
+              : completedFlowThisCall
                 ? "Create flow complete. Tell the user the project bank is ready."
                 : "Project Memory Bank is ready.",
       } as const;

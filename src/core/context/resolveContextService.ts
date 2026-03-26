@@ -289,7 +289,6 @@ export const resolveMemoryBankContext = async ({
     return {
       text: buildDeclinedText(),
       creationState: "declined",
-      requiredAction: "create_bank",
     };
   }
 

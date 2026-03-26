@@ -150,6 +150,7 @@ test("set_project_state persists declined creation and resolve_context stops ask
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(resolveStructured.creationState, "declined");
+  assert.equal(resolveStructured.requiredAction, undefined);
   assert.match(resolveStructured.text, /Project Memory Bank creation was previously declined/i);
   assert.match(resolveStructured.text, /Do not ask again/i);
 });

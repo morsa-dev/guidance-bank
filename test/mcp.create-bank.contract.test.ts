@@ -257,6 +257,8 @@ test("later create_bank reruns do not reopen an already-ready bank as creating",
   assert.equal(rerunStructured.creationState, "ready");
   assert.equal(rerunStructured.mustContinue, false);
   assert.equal(rerunStructured.nextIteration, null);
+  assert.equal(rerunStructured.text, "Project Memory Bank is ready.");
+  assert.equal(rerunStructured.prompt, "Project Memory Bank already exists for this repository and is ready.");
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "ready");
