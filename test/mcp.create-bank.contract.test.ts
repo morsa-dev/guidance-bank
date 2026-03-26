@@ -147,6 +147,16 @@ test("create_bank later iterations expose review import derive and finalize prom
   );
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
+
+  const completedStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 6 },
+    CreateBankSchema,
+  );
+  assert.match(completedStructured.prompt, /Create Flow Completed/i);
+  assert.match(completedStructured.prompt, /Do not continue the create flow automatically/i);
+  assert.doesNotMatch(completedStructured.prompt, /iteration: 7/i);
 });
 
 test("resolve_context returns ready context after create_bank without exposing repo-local guidance", async (t) => {

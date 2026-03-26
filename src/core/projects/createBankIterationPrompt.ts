@@ -185,6 +185,15 @@ Final pass checklist:
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties`;
 
+const buildCompletedPrompt = (): string => `# Create Flow Completed
+
+The iterative project Memory Bank creation flow is complete.
+
+What to do:
+- Do not continue the create flow automatically
+- Re-enter the flow only if the user explicitly asks for another create pass or wants to restart parts of the review
+- Continue normal Memory Bank work through the standard mutation tools when the user asks for targeted updates`;
+
 export const buildCreateBankIterationPrompt = ({
   iteration,
   projectName,
@@ -229,5 +238,9 @@ export const buildCreateBankIterationPrompt = ({
     return appendContinuationInstruction(buildDeriveFromDocsAndCommitsPrompt(projectEvidence, recentCommits), 4);
   }
 
-  return buildFinalizePrompt();
+  if (iteration === 5) {
+    return buildFinalizePrompt();
+  }
+
+  return buildCompletedPrompt();
 };
