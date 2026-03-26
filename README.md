@@ -1,59 +1,107 @@
 # mb-cli
 
-`mb-cli` is the bootstrap CLI and local MCP runtime for Memory Bank.
+`mb-cli` is a local Memory Bank runtime and bootstrap package for coding agents.
 
-It is meant to be installed globally and expose the `mb` command:
+It gives the agent one managed, canonical place for reusable rules and skills outside the repository, while still allowing repository-local guidance such as `AGENTS.md`, `.cursor`, `.claude`, or `.codex` to coexist separately.
+
+## What The Product Does
+
+Memory Bank solves one practical problem: project guidance is usually scattered.
+
+Some instructions live in provider-specific files inside repositories. Some are reusable across many repositories. Some are stable project conventions that should survive across sessions. `mb-cli` gives the agent a local MCP-backed Memory Bank for that durable guidance.
+
+In practice, it provides:
+
+- a local managed storage under `~/.memory-bank`
+- a local MCP server that agents can call during work
+- a bootstrap flow for connecting supported agent providers
+- a canonical model for `rules` and `skills`
+
+## How It Works
+
+At runtime, the normal flow looks like this:
+
+1. Your agent calls `resolve_context` with the absolute project path.
+2. Memory Bank checks whether a project-specific bank already exists.
+3. If it exists and is ready, Memory Bank returns the applicable canonical rules and skills.
+4. If it does not exist yet, Memory Bank tells the agent to start `create_bank`.
+5. The agent goes through the iterative `create_bank` flow, reviews existing guidance, derives stable rules from the project, and writes canonical entries through MCP tools.
+
+Important boundaries:
+
+- Memory Bank is the primary user-managed context layer.
+- Repository-local provider guidance is not the same thing as Memory Bank.
+- Repository-local guidance may be reviewed during project-bank creation, but it is not injected into normal runtime context automatically.
+
+## Installation
+
+Install the package globally so the `mb` command is available on your `PATH`:
 
 ```bash
 npm install -g mb-cli
 ```
 
-## Public CLI
-
-The current public CLI intentionally stays small:
+After installation, the public CLI is:
 
 ```bash
 mb init
 mb mcp serve
 ```
 
-- `mb init` bootstraps the local Memory Bank under `~/.memory-bank`, writes the MCP server config, and installs provider-specific integration descriptors.
-- `mb mcp serve` starts the local stdio MCP runtime backed by the managed Memory Bank.
+## First Setup
 
-The current MVP supports these provider integrations:
+Run:
+
+```bash
+mb init
+```
+
+What it does:
+
+- creates the local Memory Bank under `~/.memory-bank`
+- writes the MCP server config used by providers
+- installs provider-specific integration descriptors
+
+Current provider integrations:
 
 - Codex
 - Cursor
 - Claude Code
 
-## Init Notes
+Current MVP note:
 
-`mb init` currently requires an interactive terminal.
+- `mb init` requires an interactive terminal
+- at least one supported provider CLI must already be installed and available on `PATH`
 
-Before running it:
+## First Project Run
 
-- install at least one supported provider CLI
-- make sure that provider CLI is available on `PATH`
+Minimal alpha flow:
 
-During `mb init`, the CLI asks which available providers should be connected.
+1. Run `mb init`.
+2. Start or let your provider start `mb mcp serve`.
+3. Open a project in the agent.
+4. The agent calls `resolve_context` with the absolute project path.
+5. If the project bank is missing, the agent calls `create_bank` and follows the iterative creation flow.
+6. The agent writes canonical Memory Bank entries through MCP mutation tools.
 
-## Storage Model
+## Canonical Storage Model
 
-The local bank is stored under `~/.memory-bank` and uses layered storage:
+Memory Bank uses layered storage:
 
-- `shared/` for reusable cross-project canonical entries
-- `projects/<project-id>/` for project-specific canonical entries
+- `~/.memory-bank/shared/...`
+- `~/.memory-bank/projects/<project-id>/...`
 
 Canonical entry model:
 
 - `rules/` are thematic Markdown files grouped by topic, stack, or provider
 - `skills/` are one folder per skill, each containing a single `SKILL.md`
 - canonical frontmatter is required for both rules and skills
-- `manifest.json` stores Memory Bank metadata
+
+This means Memory Bank is not a dump of arbitrary notes. It is managed canonical context with a strict shape.
 
 ## MCP Runtime
 
-The local runtime is the main agent interface for Memory Bank.
+`mb mcp serve` starts the local stdio MCP server.
 
 Current MCP tools include:
 
@@ -66,23 +114,12 @@ Current MCP tools include:
 - `delete_entry`
 - `list_entries`
 - `read_entry`
-- manifest/read tools for managed storage
 
-`resolve_context` is the normal runtime entrypoint. It returns either ready context or a short next-step instruction when project setup is still missing or requires sync.
+The important ones for normal agent work are:
 
-`create_bank` is iterative. The server returns the prompt for the current step, and the agent continues by calling `create_bank` again with the next `iteration`.
-
-## Alpha Runbook
-
-Minimal first-run flow:
-
-1. Install `mb-cli` globally.
-2. Run `mb init` in an interactive terminal and connect at least one available provider.
-3. Start or let the provider start `mb mcp serve`.
-4. In a project session, the agent calls `resolve_context` with the absolute project path.
-5. If the project bank is missing, the agent calls `create_bank` and follows the iterative flow.
-6. If the bank requires storage-version reconciliation, the agent calls `sync_bank`.
-7. The agent writes canonical rules and skills through MCP mutation tools only.
+- `resolve_context` for runtime context resolution
+- `create_bank` for iterative project-bank creation
+- `upsert_rule` and `upsert_skill` for canonical writes
 
 ## Development
 
