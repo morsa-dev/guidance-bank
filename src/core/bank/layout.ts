@@ -5,6 +5,8 @@ import type { ProviderId } from "./types.js";
 export type BankPaths = {
   root: string;
   manifestFile: string;
+  auditDirectory: string;
+  auditEventsFile: string;
   sharedDirectory: string;
   sharedRulesDirectory: string;
   sharedSkillsDirectory: string;
@@ -23,6 +25,8 @@ export type BankPaths = {
 export const resolveBankPaths = (root: string): BankPaths => ({
   root,
   manifestFile: path.join(root, "manifest.json"),
+  auditDirectory: path.join(root, "audit"),
+  auditEventsFile: path.join(root, "audit", "events.ndjson"),
   sharedDirectory: path.join(root, "shared"),
   sharedRulesDirectory: path.join(root, "shared", "rules"),
   sharedSkillsDirectory: path.join(root, "shared", "skills"),

@@ -41,8 +41,8 @@ export const createInitializedBank = async () => {
   };
 };
 
-export const createConnectedClient = async (bankRoot: string) => {
-  const server = createMcpServer({ bankRoot });
+export const createConnectedClient = async (bankRoot: string, options: { provider?: "codex" | "cursor" | "claude-code" } = {}) => {
+  const server = createMcpServer({ bankRoot, provider: options.provider ?? null });
   const client = new Client({
     name: "mb-cli-test-client",
     version: "0.0.0",

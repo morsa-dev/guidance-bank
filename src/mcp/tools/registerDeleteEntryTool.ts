@@ -4,12 +4,14 @@ import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { toSkillDocumentPath, writeEntryAuditEvent } from "./auditUtils.js";
 
 const DeleteEntryArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
     kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
     path: z
       .string()
       .trim()
@@ -33,6 +35,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
         kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
         path: z
           .string()
           .trim()
@@ -64,6 +67,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
       }
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
+      const projectId = parsedArgs.data.scope === "project" ? identity.projectId : undefined;
       if (parsedArgs.data.scope === "project") {
         const projectManifest = await options.repository.readProjectManifestOptional(identity.projectId);
         if (projectManifest === null) {
@@ -79,18 +83,41 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         }
       }
 
+      const beforeContent = await options.repository.readLayerEntryOptional(
+        parsedArgs.data.scope,
+        parsedArgs.data.kind,
+        parsedArgs.data.kind === "skills" ? toSkillDocumentPath(parsedArgs.data.path) : parsedArgs.data.path,
+        projectId,
+      );
+
       const result =
         parsedArgs.data.kind === "rules"
           ? await options.repository.deleteRule(
               parsedArgs.data.scope,
               parsedArgs.data.path,
-              parsedArgs.data.scope === "project" ? identity.projectId : undefined,
+              projectId,
             )
           : await options.repository.deleteSkill(
               parsedArgs.data.scope,
               parsedArgs.data.path,
-              parsedArgs.data.scope === "project" ? identity.projectId : undefined,
+              projectId,
             );
+
+      if (result.status === "deleted") {
+        await writeEntryAuditEvent({
+          auditLogger: options.auditLogger,
+          sessionRef: parsedArgs.data.sessionRef ?? null,
+          tool: "delete_entry",
+          action: "delete",
+          scope: parsedArgs.data.scope,
+          kind: parsedArgs.data.kind,
+          projectId: identity.projectId,
+          projectPath: identity.projectPath,
+          path: result.path,
+          beforeContent,
+          afterContent: null,
+        });
+      }
 
       const payload = {
         status: result.status,

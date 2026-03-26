@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import type { ProviderId } from "../core/bank/types.js";
 import type { BankRepository } from "../storage/bankRepository.js";
+import type { AuditLogger } from "../storage/auditLogger.js";
 import { registerBankManifestTool } from "./tools/registerBankManifestTool.js";
 import { registerCreateBankTool } from "./tools/registerCreateBankTool.js";
 import { registerDeleteEntryTool } from "./tools/registerDeleteEntryTool.js";
@@ -14,6 +16,8 @@ import { registerUpsertSkillTool } from "./tools/registerUpsertSkillTool.js";
 
 export type McpServerRuntimeOptions = {
   repository: BankRepository;
+  provider: ProviderId | null;
+  auditLogger: AuditLogger;
 };
 
 export type ToolRegistrar = (server: McpServer, options: McpServerRuntimeOptions) => void;

@@ -27,7 +27,8 @@ const isExpectedCodexServer = (rawOutput: string, bankRoot: string): boolean => 
     parsed.data.transport.args.length === 2 &&
     parsed.data.transport.args[0] === "mcp" &&
     parsed.data.transport.args[1] === "serve" &&
-    parsed.data.transport.env.MB_BANK_ROOT === bankRoot
+    parsed.data.transport.env.MB_BANK_ROOT === bankRoot &&
+    parsed.data.transport.env.MB_PROVIDER_ID === "codex"
   );
 };
 
@@ -50,7 +51,19 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
 
   const command = {
     command: "codex",
-    args: ["mcp", "add", MEMORY_BANK_SERVER_NAME, "--env", `MB_BANK_ROOT=${context.bankRoot}`, "--", "mb", "mcp", "serve"],
+    args: [
+      "mcp",
+      "add",
+      MEMORY_BANK_SERVER_NAME,
+      "--env",
+      `MB_BANK_ROOT=${context.bankRoot}`,
+      "--env",
+      "MB_PROVIDER_ID=codex",
+      "--",
+      "mb",
+      "mcp",
+      "serve",
+    ],
   };
   const result = await context.commandRunner(command);
 

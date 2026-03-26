@@ -10,6 +10,7 @@ const encodeCursorPayload = (bankRoot: string): string => {
     args: ["mcp", "serve"],
     env: {
       MB_BANK_ROOT: bankRoot.replaceAll("'", "\\u0027"),
+      MB_PROVIDER_ID: "cursor",
     },
   });
 
@@ -24,7 +25,8 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
       existingConfig.args.length === 2 &&
       existingConfig.args[0] === "mcp" &&
       existingConfig.args[1] === "serve" &&
-      existingConfig.env.MB_BANK_ROOT === context.bankRoot;
+      existingConfig.env.MB_BANK_ROOT === context.bankRoot &&
+      existingConfig.env.MB_PROVIDER_ID === "cursor";
 
     if (matchesExistingConfig) {
       return {

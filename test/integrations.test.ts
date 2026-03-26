@@ -116,6 +116,8 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(codexDescriptor.mcpServer.command, "mb");
   assert.deepEqual(codexDescriptor.mcpServer.args, ["mcp", "serve"]);
   assert.equal(codexDescriptor.mcpServer.env.MB_BANK_ROOT, bankRoot);
+  assert.equal(codexDescriptor.mcpServer.env.MB_PROVIDER_ID, "codex");
+  assert.equal(claudeDescriptor.mcpServer.env.MB_PROVIDER_ID, "claude-code");
   assert.ok(calls.some((call) => call.command === "codex"));
   assert.ok(calls.some((call) => call.command === "claude"));
 });
@@ -186,6 +188,7 @@ test("init skips re-adding global integrations that are already configured", asy
             args: ["mcp", "serve"],
             env: {
               MB_BANK_ROOT: bankRoot,
+              MB_PROVIDER_ID: "codex",
             },
           },
         }),
@@ -206,6 +209,7 @@ test("init skips re-adding global integrations that are already configured", asy
   Args: mcp serve
   Environment:
     MB_BANK_ROOT=${bankRoot}
+    MB_PROVIDER_ID=claude-code
 `,
         stderr: "",
       };

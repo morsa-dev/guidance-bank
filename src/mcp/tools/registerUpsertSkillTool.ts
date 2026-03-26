@@ -4,11 +4,13 @@ import { ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { toSkillDocumentPath, writeEntryAuditEvent } from "./auditUtils.js";
 
 const UpsertSkillArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level skills or project-specific skills."),
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
     path: z
       .string()
       .trim()
@@ -35,6 +37,7 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level skills or project-specific skills."),
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
         path: z
           .string()
           .trim()
@@ -71,6 +74,7 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
       }
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
+      const projectId = parsedArgs.data.scope === "project" ? identity.projectId : undefined;
       if (parsedArgs.data.scope === "project") {
         const projectManifest = await options.repository.readProjectManifestOptional(identity.projectId);
         if (projectManifest === null) {
@@ -86,12 +90,33 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
         }
       }
 
+      const beforeContent = await options.repository.readLayerEntryOptional(
+        parsedArgs.data.scope,
+        "skills",
+        toSkillDocumentPath(parsedArgs.data.path),
+        projectId,
+      );
+
       const result = await options.repository.upsertSkill(
         parsedArgs.data.scope,
         parsedArgs.data.path,
         parsedArgs.data.content,
-        parsedArgs.data.scope === "project" ? identity.projectId : undefined,
+        projectId,
       );
+
+      await writeEntryAuditEvent({
+        auditLogger: options.auditLogger,
+        sessionRef: parsedArgs.data.sessionRef ?? null,
+        tool: "upsert_skill",
+        action: "upsert",
+        scope: parsedArgs.data.scope,
+        kind: "skills",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        path: result.path,
+        beforeContent,
+        afterContent: parsedArgs.data.content,
+      });
 
       const payload = {
         status: result.status,

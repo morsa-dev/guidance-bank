@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { z } from "zod";
@@ -41,7 +42,7 @@ const setupAngularProject = async () => {
     "tsconfig.json": "{}\n",
   });
 
-  const { client, close } = await createConnectedClient(bankRoot);
+  const { client, close } = await createConnectedClient(bankRoot, { provider: "cursor" });
   await callToolStructured(
     client,
     "create_bank",
@@ -49,7 +50,7 @@ const setupAngularProject = async () => {
     z.object({ projectId: z.string() }),
   );
 
-  return { projectRoot, client, close };
+  return { projectRoot, bankRoot, client, close };
 };
 
 test("upsert tools write shared and project entries that resolve_context exposes", async (t) => {
@@ -202,4 +203,132 @@ test("project entries override shared entries by canonical id instead of path", 
   const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.match(resolved.text, /Project-specific architecture override\./);
   assert.doesNotMatch(resolved.text, /Shared baseline architecture rule\./);
+});
+
+test("entry mutations append audit events with provider and sessionRef metadata", async (t) => {
+  const { projectRoot, bankRoot, client, close } = await setupAngularProject();
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "upsert_rule",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-123",
+      path: "topics/angular-architecture.md",
+      content:
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
+    },
+    EntryMutationSchema,
+  );
+  await callToolStructured(
+    client,
+    "upsert_rule",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-123",
+      path: "topics/angular-architecture.md",
+      content:
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n- Keep reusable layout rules centralized.\n",
+    },
+    EntryMutationSchema,
+  );
+  await callToolStructured(
+    client,
+    "delete_entry",
+    {
+      scope: "shared",
+      kind: "rules",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-123",
+      path: "topics/angular-architecture.md",
+    },
+    DeleteEntrySchema,
+  );
+
+  const auditLogContent = await readFile(path.join(bankRoot, "audit", "events.ndjson"), "utf8");
+  const events = auditLogContent
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+  assert.equal(events.length, 3);
+  assert.deepEqual(
+    events.map((event) => event.tool),
+    ["upsert_rule", "upsert_rule", "delete_entry"],
+  );
+  assert.deepEqual(
+    events.map((event) => event.provider),
+    ["cursor", "cursor", "cursor"],
+  );
+  assert.deepEqual(
+    events.map((event) => event.sessionRef),
+    ["cursor:thread-123", "cursor:thread-123", "cursor:thread-123"],
+  );
+  assert.equal(events[0]?.path, "topics/angular-architecture.md");
+  assert.ok(typeof events[0]?.deltaChars === "number" && (events[0].deltaChars as number) > 0);
+  assert.ok(typeof events[1]?.deltaChars === "number" && (events[1].deltaChars as number) > 0);
+  assert.ok(typeof events[2]?.deltaChars === "number" && (events[2].deltaChars as number) < 0);
+  assert.equal((events[0]?.before as { exists?: boolean })?.exists, false);
+  assert.equal((events[1]?.before as { entryId?: string | null })?.entryId, "shared-angular-architecture");
+  assert.equal((events[2]?.after as { exists?: boolean })?.exists, false);
+});
+
+test("skill audit snapshots resolve existing entries when the tool path ends with skill.md in any case", async (t) => {
+  const { projectRoot, bankRoot, client, close } = await setupAngularProject();
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "upsert_skill",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-skill-audit",
+      path: "stacks/angular/component-audit/skill.md",
+      content:
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+    },
+    EntryMutationSchema,
+  );
+  await callToolStructured(
+    client,
+    "upsert_skill",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-skill-audit",
+      path: "stacks/angular/component-audit/Skill.md",
+      content:
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n2. Check template dependencies.\n",
+    },
+    EntryMutationSchema,
+  );
+  await callToolStructured(
+    client,
+    "delete_entry",
+    {
+      scope: "shared",
+      kind: "skills",
+      projectPath: projectRoot,
+      sessionRef: "cursor:thread-skill-audit",
+      path: "stacks/angular/component-audit/skill.md",
+    },
+    DeleteEntrySchema,
+  );
+
+  const events = (await readFile(path.join(bankRoot, "audit", "events.ndjson"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((event) => event.sessionRef === "cursor:thread-skill-audit");
+
+  assert.equal(events.length, 3);
+  assert.equal((events[0]?.before as { exists?: boolean })?.exists, false);
+  assert.equal((events[1]?.before as { exists?: boolean })?.exists, true);
+  assert.equal((events[1]?.before as { entryId?: string | null })?.entryId, "shared-component-audit");
+  assert.equal((events[2]?.before as { exists?: boolean })?.exists, true);
+  assert.equal((events[2]?.after as { exists?: boolean })?.exists, false);
 });

@@ -102,6 +102,30 @@ export const writeManagedTextFile = async (rootPath: string, filePath: string, c
   await atomicWriteFile(managedPaths.targetPath, content);
 };
 
+export const appendManagedTextFile = async (rootPath: string, filePath: string, content: string): Promise<void> => {
+  const managedPaths = assertPathInsideRoot(rootPath, filePath);
+  await ensureManagedDirectory(managedPaths.rootPath, path.dirname(managedPaths.targetPath));
+  await assertExistingSegmentsAreSafe(managedPaths.rootPath, managedPaths.targetPath);
+
+  if (await pathExists(managedPaths.targetPath)) {
+    const stats = await fs.lstat(managedPaths.targetPath);
+    if (stats.isSymbolicLink()) {
+      throw new ValidationError(`Managed file cannot be a symbolic link: ${managedPaths.targetPath}`);
+    }
+    if (!stats.isFile()) {
+      throw new ValidationError(`Expected file but found non-file path: ${managedPaths.targetPath}`);
+    }
+  }
+
+  const handle = await fs.open(managedPaths.targetPath, "a", 0o600);
+  try {
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+};
+
 export const writeManagedJsonFile = async (rootPath: string, filePath: string, value: unknown): Promise<void> => {
   await writeManagedTextFile(rootPath, filePath, `${JSON.stringify(value, null, 2)}\n`);
 };

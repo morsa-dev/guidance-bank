@@ -213,6 +213,22 @@ export class BankRepository {
     return readManagedTextFile(this.rootPath, resolvedEntryPath);
   }
 
+  async readLayerEntryOptional(
+    layer: EntryScope,
+    kind: EntryKind,
+    entryPath: string,
+    projectId?: string,
+  ): Promise<string | null> {
+    const basePath = this.resolveEntryBasePath(kind, layer, projectId);
+    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
+
+    if (!(await managedPathExists(this.rootPath, resolvedEntryPath))) {
+      return null;
+    }
+
+    return readManagedTextFile(this.rootPath, resolvedEntryPath);
+  }
+
   private async touchManifest(): Promise<void> {
     const manifest = await this.readManifestOptional();
     if (manifest === null) {

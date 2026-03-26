@@ -10,6 +10,7 @@ const buildAddCommand = (bankRoot: string): CommandSpec => ({
     "--scope",
     USER_SCOPE,
     `--env=MB_BANK_ROOT=${bankRoot}`,
+    "--env=MB_PROVIDER_ID=claude-code",
     MEMORY_BANK_SERVER_NAME,
     "--",
     "mb",
@@ -27,7 +28,8 @@ const isExpectedClaudeServer = (rawOutput: string, bankRoot: string): boolean =>
   rawOutput.includes("Scope: User config") &&
   rawOutput.includes("Command: mb") &&
   rawOutput.includes("Args: mcp serve") &&
-  rawOutput.includes(`MB_BANK_ROOT=${bankRoot}`);
+  rawOutput.includes(`MB_BANK_ROOT=${bankRoot}`) &&
+  rawOutput.includes("MB_PROVIDER_ID=claude-code");
 
 export const installClaudeCodeIntegration = async (
   context: ProviderInstallerContext,
