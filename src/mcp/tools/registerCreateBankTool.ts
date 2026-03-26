@@ -11,7 +11,11 @@ import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
 import { discoverExistingGuidance } from "../../core/projects/discoverExistingGuidance.js";
 import { discoverProjectEvidence } from "../../core/projects/discoverProjectEvidence.js";
 import { discoverRecentCommits } from "../../core/projects/discoverRecentCommits.js";
-import { buildCreateBankIterationPrompt } from "../../core/projects/createBankIterationPrompt.js";
+import {
+  buildCreateBankIterationPrompt,
+  getNextCreateFlowIteration,
+  isCreateFlowComplete,
+} from "../../core/projects/createBankIterationPrompt.js";
 import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ProjectBankState } from "../../core/bank/types.js";
@@ -114,6 +118,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             sharedStacks: z.array(z.string()),
           }),
         ),
+        creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+        mustContinue: z.boolean(),
+        nextIteration: z.number().int().nonnegative().nullable(),
         prompt: z.string(),
         creationPrompt: z.string(),
         text: z.string(),
@@ -191,13 +198,22 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
 
       const manifest = await options.repository.readManifest();
       let nextState = existingState;
+      const isFlowComplete = isCreateFlowComplete(requestedIteration);
+      const shouldTrackCreateFlow =
+        existingManifest === null ||
+        existingState?.creationState === "creating" ||
+        existingState?.creationState === "declined";
+      const nextCreationState = shouldTrackCreateFlow ? (isFlowComplete ? "ready" : "creating") : "ready";
 
       if (existingManifest === null) {
-        nextState = markProjectBankSynced(createProjectBankState("ready"), manifest.storageVersion);
-      }
-
-      if (nextState === null) {
-        nextState = createProjectBankState("ready");
+        nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifest.storageVersion);
+      } else if (nextState === null) {
+        nextState = createProjectBankState(nextCreationState);
+      } else if (shouldTrackCreateFlow) {
+        nextState = {
+          ...nextState,
+          creationState: nextCreationState,
+        };
       }
 
       nextState = setProjectBankCreateIteration(nextState, requestedIteration);
@@ -231,6 +247,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             projectEvidence,
             recentCommits,
           });
+      const mustContinue = !syncRequired && nextState.creationState === "creating";
+      const nextIteration = mustContinue ? getNextCreateFlowIteration(requestedIteration) : null;
 
       const payload = {
         status: existingManifest === null ? "created" : "already_exists",
@@ -247,14 +265,19 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         projectEvidence,
         recentCommits,
         selectedReferenceProjects,
+        creationState: nextState.creationState,
+        mustContinue,
+        nextIteration,
         prompt,
         creationPrompt,
         text:
-          existingManifest === null
-            ? "Project Memory Bank scaffold created successfully."
-            : syncRequired
-              ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it."
-              : "Project Memory Bank already exists for this repository and is ready for further updates through the normal Memory Bank mutation tools.",
+          syncRequired
+            ? "Call sync_bank."
+            : mustContinue && nextIteration !== null
+              ? `Call create_bank with iteration: ${nextIteration}.`
+              : requestedIteration > 0 && isFlowComplete
+                ? "Create flow complete. Tell the user the project bank is ready."
+                : "Project Memory Bank is ready.",
       } as const;
 
       return {

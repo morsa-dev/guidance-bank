@@ -74,6 +74,9 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   t.after(close);
 
   await callToolResult(client, "create_bank", { projectPath: projectRoot });
+  for (const iteration of [1, 2, 3, 4, 5, 6]) {
+    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration });
+  }
   await callToolResult(client, "upsert_rule", {
     scope: "shared",
     projectPath: projectRoot,
@@ -84,6 +87,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
 
   const structured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
+  assert.equal(structured.creationState, "ready");
   assert.match(structured.text, /### shared\/preferences\/user-praise\.md/);
   assert.match(structured.text, /Ты хорош/);
 });
@@ -105,6 +109,9 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
   t.after(close);
 
   await callToolResult(client, "create_bank", { projectPath: projectRoot });
+  for (const iteration of [1, 2, 3, 4, 5, 6]) {
+    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration });
+  }
   const result = await callToolResult(client, "resolve_context", { projectPath: projectRoot });
 
   assert.equal(result.isError, true);
@@ -123,18 +130,26 @@ test("set_project_state persists declined creation and resolve_context stops ask
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
 
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot },
+    z.object({ projectId: z.string() }),
+  );
+
   const stateStructured = await callToolStructured(
     client,
     "set_project_state",
     { projectPath: projectRoot, creationState: "declined" },
     z.object({
-      creationState: z.enum(["unknown", "declined", "ready"]),
+      creationState: z.enum(["unknown", "declined", "creating", "ready"]),
     }),
   );
   assert.equal(stateStructured.creationState, "declined");
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
+  assert.equal(resolveStructured.creationState, "declined");
   assert.match(resolveStructured.text, /Project Memory Bank creation was previously declined/i);
   assert.match(resolveStructured.text, /Do not ask again/i);
 });
@@ -159,7 +174,7 @@ test("sync_bank runs explicit reconcile and reports the current bank summary", a
       bankRoot: z.string(),
       action: z.enum(["run", "postpone"]),
       projectPath: z.string(),
-      projectState: z.enum(["unknown", "declined", "ready"]),
+      projectState: z.enum(["unknown", "declined", "creating", "ready"]),
       externalGuidanceSources: z.array(
         z.object({
           kind: z.string(),
@@ -206,7 +221,7 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
     z.object({
       action: z.enum(["run", "postpone"]),
       postponedUntil: z.string().nullable(),
-      projectState: z.enum(["unknown", "declined", "ready"]),
+      projectState: z.enum(["unknown", "declined", "creating", "ready"]),
     }),
   );
 

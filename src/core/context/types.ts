@@ -1,3 +1,4 @@
+import type { ProjectCreationState } from "../bank/types.js";
 import type { CanonicalRuleFrontmatter, CanonicalSkillFrontmatter } from "../bank/types.js";
 
 export const DETECTABLE_STACKS = ["nodejs", "typescript", "react", "nextjs", "angular"] as const;
@@ -40,5 +41,8 @@ export type ReferenceProjectCandidate = {
 
 export type ResolvedMemoryBankContext = {
   text: string;
+  creationState?: ProjectCreationState;
+  requiredAction?: "create_bank" | "continue_create_bank" | "sync_bank";
+  nextIteration?: number;
   referenceProjects?: ReferenceProjectCandidate[];
 };

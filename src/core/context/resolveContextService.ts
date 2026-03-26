@@ -213,6 +213,12 @@ const buildMissingText = ({
 - After the user decision is recorded, call \`resolve_context\` again.`;
 };
 
+const buildCreatingText = ({
+  nextIteration,
+}: {
+  nextIteration: number;
+}): string => `Call \`create_bank\` with \`iteration: ${nextIteration}\`.`;
+
 const buildDeclinedText = (): string =>
   "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
 
@@ -259,25 +265,31 @@ export const resolveMemoryBankContext = async ({
   const projectState = await repository.readProjectStateOptional(identity.projectId);
 
   const status =
-    projectManifest !== null
-      ? requiresSync(projectState, manifest.storageVersion) && !isSyncPostponed(projectState)
-        ? "sync_required"
-        : "ready"
-      : projectState?.creationState === "declined"
-        ? "creation_declined"
-        : "missing";
+    projectState?.creationState === "declined"
+      ? "creation_declined"
+      : projectManifest !== null
+      ? projectState?.creationState === "creating"
+        ? "creation_in_progress"
+        : requiresSync(projectState, manifest.storageVersion) && !isSyncPostponed(projectState)
+          ? "sync_required"
+          : "ready"
+      : "missing";
 
   if (status === "sync_required") {
     return {
       text: buildSyncRequiredText({
         postponedUntil: projectState?.postponedUntil ?? null,
       }),
+      creationState: projectState?.creationState ?? "ready",
+      requiredAction: "sync_bank",
     };
   }
 
   if (status === "creation_declined") {
     return {
       text: buildDeclinedText(),
+      creationState: "declined",
+      requiredAction: "create_bank",
     };
   }
 
@@ -295,11 +307,28 @@ export const resolveMemoryBankContext = async ({
     return referenceProjects.length > 0
       ? {
           text,
+          creationState: projectState?.creationState ?? "unknown",
+          requiredAction: "create_bank",
           referenceProjects,
         }
       : {
           text,
+          creationState: projectState?.creationState ?? "unknown",
+          requiredAction: "create_bank",
         };
+  }
+
+  if (status === "creation_in_progress") {
+    const nextIteration = (projectState?.createIteration ?? 0) + 1;
+
+    return {
+      text: buildCreatingText({
+        nextIteration,
+      }),
+      creationState: "creating",
+      requiredAction: "continue_create_bank",
+      nextIteration,
+    };
   }
 
   const sharedRules = await loadEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
@@ -325,5 +354,6 @@ export const resolveMemoryBankContext = async ({
       rules: mergeLayeredEntries(sharedRules, projectRules),
       skills: mergeLayeredEntries(sharedSkills, projectSkills),
     }),
+    creationState: "ready",
   };
 };

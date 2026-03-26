@@ -19,6 +19,8 @@ type BuildCreateBankIterationPromptInput = {
   recentCommits: RecentProjectCommit[];
 };
 
+type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
+
 const appendContinuationInstruction = (prompt: string, iteration: number): string => `${prompt}
 
 ## Continuation
@@ -194,6 +196,40 @@ What to do:
 - Re-enter the flow only if the user explicitly asks for another create pass or wants to restart parts of the review
 - Continue normal Memory Bank work through the standard mutation tools when the user asks for targeted updates`;
 
+const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
+  ({
+    projectName,
+    projectPath,
+    projectBankPath,
+    rulesDirectory,
+    skillsDirectory,
+    detectedStacks,
+    selectedReferenceProjects,
+  }) =>
+    buildCreateBankPrompt({
+      projectName,
+      projectPath,
+      projectBankPath,
+      rulesDirectory,
+      skillsDirectory,
+      detectedStacks,
+      selectedReferenceProjects,
+    }),
+  ({ projectPath, discoveredSources }) => buildReviewExistingPrompt(projectPath, discoveredSources),
+  ({ discoveredSources }) => buildImportSelectedPrompt(discoveredSources),
+  ({ projectPath, projectEvidence }) => buildDeriveFromProjectPrompt(projectPath, projectEvidence),
+  ({ projectEvidence, recentCommits }) => buildDeriveFromDocsAndCommitsPrompt(projectEvidence, recentCommits),
+  () => buildFinalizePrompt(),
+  () => buildCompletedPrompt(),
+] as const;
+
+export const CREATE_FLOW_COMPLETED_ITERATION = CREATE_FLOW_PROMPT_BUILDERS.length - 1;
+
+export const getNextCreateFlowIteration = (iteration: number): number | null =>
+  iteration < CREATE_FLOW_COMPLETED_ITERATION ? iteration + 1 : null;
+
+export const isCreateFlowComplete = (iteration: number): boolean => iteration >= CREATE_FLOW_COMPLETED_ITERATION;
+
 export const buildCreateBankIterationPrompt = ({
   iteration,
   projectName,
@@ -207,40 +243,23 @@ export const buildCreateBankIterationPrompt = ({
   projectEvidence,
   recentCommits,
 }: BuildCreateBankIterationPromptInput): string => {
-  if (iteration <= 0) {
-    return appendContinuationInstruction(
-      buildCreateBankPrompt({
-        projectName,
-        projectPath,
-        projectBankPath,
-        rulesDirectory,
-        skillsDirectory,
-        detectedStacks,
-        selectedReferenceProjects,
-      }),
-      0,
-    );
-  }
+  const normalizedIteration = Math.min(Math.max(iteration, 0), CREATE_FLOW_COMPLETED_ITERATION);
+  const buildPrompt = CREATE_FLOW_PROMPT_BUILDERS[normalizedIteration]!;
+  const prompt = buildPrompt({
+    iteration,
+    projectName,
+    projectPath,
+    projectBankPath,
+    rulesDirectory,
+    skillsDirectory,
+    detectedStacks,
+    selectedReferenceProjects,
+    discoveredSources,
+    projectEvidence,
+    recentCommits,
+  });
 
-  if (iteration === 1) {
-    return appendContinuationInstruction(buildReviewExistingPrompt(projectPath, discoveredSources), 1);
-  }
-
-  if (iteration === 2) {
-    return appendContinuationInstruction(buildImportSelectedPrompt(discoveredSources), 2);
-  }
-
-  if (iteration === 3) {
-    return appendContinuationInstruction(buildDeriveFromProjectPrompt(projectPath, projectEvidence), 3);
-  }
-
-  if (iteration === 4) {
-    return appendContinuationInstruction(buildDeriveFromDocsAndCommitsPrompt(projectEvidence, recentCommits), 4);
-  }
-
-  if (iteration === 5) {
-    return buildFinalizePrompt();
-  }
-
-  return buildCompletedPrompt();
+  return normalizedIteration < CREATE_FLOW_COMPLETED_ITERATION
+    ? appendContinuationInstruction(prompt, normalizedIteration)
+    : prompt;
 };

@@ -91,4 +91,7 @@ export const callToolStructured = async <TSchema extends z.ZodTypeAny>(
 
 export const TextPayloadSchema = z.object({
   text: z.string(),
+  creationState: z.enum(["unknown", "declined", "creating", "ready"]).optional(),
+  requiredAction: z.enum(["create_bank", "continue_create_bank", "sync_bank"]).optional(),
+  nextIteration: z.number().int().nonnegative().optional(),
 });
