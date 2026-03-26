@@ -16,6 +16,7 @@
     "node": ">=22.9.0"
   },
   "scripts": {
+    "dev": "tsc -p tsconfig.json --watch",
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test --test-concurrency=1 test/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
