@@ -51,7 +51,7 @@ const createClaudeReconfigureRunner = () => {
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: memory-bank",
+        stderr: "No MCP server found with name: memory-bank-local",
       };
     }
 
@@ -64,7 +64,7 @@ const createClaudeReconfigureRunner = () => {
           args,
           exitCode: 1,
           stdout: "",
-          stderr: "MCP server memory-bank already exists in user config",
+          stderr: "MCP server memory-bank-local already exists in user config",
         };
       }
     }
@@ -137,7 +137,7 @@ test("claude integration removes and re-adds the server when it already exists",
   assert.equal(result.integrations[0]?.action, "reconfigured");
   assert.deepEqual(
     calls.map((call) => `${call.command} ${call.args.slice(0, 3).join(" ")}`),
-    ["claude mcp get memory-bank", "claude mcp add --scope", "claude mcp remove --scope", "claude mcp add --scope"],
+    ["claude mcp get memory-bank-local", "claude mcp add --scope", "claude mcp remove --scope", "claude mcp add --scope"],
   );
 });
 
@@ -201,7 +201,7 @@ test("init skips re-adding global integrations that are already configured", asy
         command,
         args,
         exitCode: 0,
-        stdout: `memory-bank:
+        stdout: `memory-bank-local:
   Scope: User config (available in all your projects)
   Status: ✓ Connected
   Type: stdio

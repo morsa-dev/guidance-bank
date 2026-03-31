@@ -1,6 +1,6 @@
 import type { McpServerConfig, ProviderId, ProviderIntegrationDescriptor } from "../core/bank/types.js";
 
-export const MEMORY_BANK_SERVER_NAME = "memory-bank";
+export const MEMORY_BANK_SERVER_NAME = "memory-bank-local";
 export const USER_SCOPE = "user";
 
 const withProviderEnv = (provider: ProviderId, mcpServer: McpServerConfig): McpServerConfig => ({
