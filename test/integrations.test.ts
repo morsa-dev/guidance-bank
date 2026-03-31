@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { InitService } from "../src/core/init/initService.js";
@@ -87,11 +87,13 @@ const createClaudeReconfigureRunner = () => {
 test("init writes provider integration descriptors", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
 
   await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner,
     selectedProviders: ["codex", "claude-code"],
   });
@@ -125,11 +127,13 @@ test("init writes provider integration descriptors", async () => {
 test("claude integration removes and re-adds the server when it already exists", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeReconfigureRunner();
 
   const result = await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner,
     selectedProviders: ["claude-code"],
   });
@@ -144,6 +148,7 @@ test("claude integration removes and re-adds the server when it already exists",
 test("init skips re-adding global integrations that are already configured", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   const firstRunner: CommandRunner = async ({ command, args }) => {
@@ -168,8 +173,9 @@ test("init skips re-adding global integrations that are already configured", asy
 
   await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: firstRunner,
-    selectedProviders: ["codex", "cursor", "claude-code"],
+    selectedProviders: ["codex", "claude-code"],
   });
 
   const secondCalls: Array<{ command: string; args: string[] }> = [];
@@ -226,16 +232,252 @@ test("init skips re-adding global integrations that are already configured", asy
 
   const result = await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: secondRunner,
-    selectedProviders: ["codex", "cursor", "claude-code"],
+    selectedProviders: ["codex", "claude-code"],
   });
 
   assert.deepEqual(
     result.integrations.map((integration) => integration.action),
-    ["skipped", "skipped", "skipped"],
+    ["skipped", "skipped"],
   );
   assert.deepEqual(
     secondCalls.map((call) => `${call.command} ${call.args[0]} ${call.args[1] ?? ""}`.trim()),
     ["codex mcp get", "claude mcp get"],
   );
+});
+
+test("repeat init re-applies missing codex and claude MCP registrations", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner: createRecordingCommandRunner().commandRunner,
+    selectedProviders: ["codex", "claude-code"],
+  });
+
+  const secondCalls: Array<{ command: string; args: string[] }> = [];
+  const secondRunner: CommandRunner = async ({ command, args }) => {
+    secondCalls.push({ command, args });
+
+    if (command === "codex" && args[0] === "mcp" && args[1] === "get") {
+      return {
+        command,
+        args,
+        exitCode: 1,
+        stdout: "",
+        stderr: "No MCP server found with name: memory-bank-local",
+      };
+    }
+
+    if (command === "claude" && args[0] === "mcp" && args[1] === "get") {
+      return {
+        command,
+        args,
+        exitCode: 1,
+        stdout: "",
+        stderr: "No MCP server found with name: memory-bank-local",
+      };
+    }
+
+    return {
+      command,
+      args,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    };
+  };
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner: secondRunner,
+    selectedProviders: ["codex"],
+  });
+
+  assert.deepEqual(
+    result.integrations.map((integration) => integration.action),
+    ["installed", "installed"],
+  );
+  assert.deepEqual(
+    secondCalls.map((call) => `${call.command} ${call.args[0]} ${call.args[1] ?? ""}`.trim()),
+    ["codex mcp get", "codex mcp add", "claude mcp get", "claude mcp add"],
+  );
+});
+
+test("cursor integration writes the MCP config file and persists a config-file descriptor", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+  const { calls, commandRunner } = createRecordingCommandRunner();
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  const cursorDescriptor = JSON.parse(
+    await readFile(path.join(bankRoot, "integrations", "cursor.json"), "utf8"),
+  ) as {
+    installationMethod: string;
+    serverName: string;
+  };
+  const cursorConfig = JSON.parse(await readFile(path.join(cursorConfigRoot, "mcp.json"), "utf8")) as {
+    mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
+  };
+
+  assert.equal(result.integrations[0]?.action, "installed");
+  assert.equal(result.integrations[0]?.command, null);
+  assert.equal(cursorDescriptor.installationMethod, "config-file");
+  assert.equal(cursorDescriptor.serverName, "memory-bank-local");
+  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], {
+    command: "mb",
+    args: ["mcp", "serve"],
+    env: {
+      MB_BANK_ROOT: bankRoot,
+      MB_PROVIDER_ID: "cursor",
+    },
+  });
+  assert.ok(!calls.some((call) => call.command === "cursor"));
+});
+
+test("repeat init skips cursor when the expected MCP config already exists", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+  const { commandRunner } = createRecordingCommandRunner();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  assert.equal(result.integrations[0]?.action, "skipped");
+});
+
+test("repeat init reconfigures cursor when the MCP config entry exists but does not match", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+  const { commandRunner } = createRecordingCommandRunner();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  await writeFile(
+    path.join(cursorConfigRoot, "mcp.json"),
+    `${JSON.stringify(
+      {
+        mcpServers: {
+          "memory-bank-local": {
+            command: "mb",
+            args: ["mcp", "serve"],
+            env: {
+              MB_BANK_ROOT: "/wrong/path",
+              MB_PROVIDER_ID: "cursor",
+            },
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  const cursorConfig = JSON.parse(await readFile(path.join(cursorConfigRoot, "mcp.json"), "utf8")) as {
+    mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
+  };
+
+  assert.equal(result.integrations[0]?.action, "reconfigured");
+  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], {
+    command: "mb",
+    args: ["mcp", "serve"],
+    env: {
+      MB_BANK_ROOT: bankRoot,
+      MB_PROVIDER_ID: "cursor",
+    },
+  });
+});
+
+test("repeat init reconfigures cursor even if a stale descriptor exists but the MCP config file is missing", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+  const { commandRunner } = createRecordingCommandRunner();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  await writeFile(
+    path.join(bankRoot, "integrations", "cursor.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        provider: "cursor",
+        displayName: "Cursor",
+        serverName: "memory-bank-local",
+        installationMethod: "config-file",
+        scope: "user",
+        mcpServer: {
+          schemaVersion: 1,
+          transport: "stdio",
+          command: "mb",
+          args: ["mcp", "serve"],
+          env: {
+            MB_BANK_ROOT: bankRoot,
+            MB_PROVIDER_ID: "cursor",
+          },
+        },
+        instructions: [],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  await writeFile(path.join(cursorConfigRoot, "mcp.json"), `${JSON.stringify({ mcpServers: {} }, null, 2)}\n`);
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  assert.equal(result.integrations[0]?.action, "installed");
 });

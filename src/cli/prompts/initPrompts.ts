@@ -44,7 +44,8 @@ const parseSelection = (value: string, availableProviders: readonly ProviderAvai
 
     if (providerByIndex) {
       if (!availableProviderIds.has(providerByIndex.id)) {
-        throw new UserInputError(`${providerByIndex.displayName} CLI was not found on PATH.`);
+        const unavailableProvider = availableProviders.find((provider) => provider.id === providerByIndex.id);
+        throw new UserInputError(unavailableProvider?.unavailableMessage ?? `${providerByIndex.displayName} is not available.`);
       }
 
       selectedProviders.add(providerByIndex.id);
@@ -58,7 +59,8 @@ const parseSelection = (value: string, availableProviders: readonly ProviderAvai
 
     if (providerByName) {
       if (!availableProviderIds.has(providerByName.id)) {
-        throw new UserInputError(`${providerByName.displayName} CLI was not found on PATH.`);
+        const unavailableProvider = availableProviders.find((provider) => provider.id === providerByName.id);
+        throw new UserInputError(unavailableProvider?.unavailableMessage ?? `${providerByName.displayName} is not available.`);
       }
 
       selectedProviders.add(providerByName.id);

@@ -18,10 +18,12 @@ const createSuccessfulCommandRunner = (): CommandRunner => async ({ command, arg
 test("init creates the bank structure and writes the manifest", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-init-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   const result = await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["codex", "cursor"],
   });
@@ -38,6 +40,7 @@ test("init creates the bank structure and writes the manifest", async () => {
 test("init is idempotent and merges selected providers into the existing manifest", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-init-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   await initService.run({
@@ -48,6 +51,7 @@ test("init is idempotent and merges selected providers into the existing manifes
 
   const result = await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
   });

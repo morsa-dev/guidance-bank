@@ -53,7 +53,7 @@ export type ProviderIntegrationDescriptor = {
   provider: ProviderId;
   displayName: string;
   serverName: string;
-  installationMethod: "provider-cli";
+  installationMethod: "provider-cli" | "config-file";
   scope: "user";
   mcpServer: McpServerConfig;
   instructions: string[];

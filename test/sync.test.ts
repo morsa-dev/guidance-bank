@@ -22,6 +22,7 @@ const createSuccessfulCommandRunner = (): CommandRunner => async ({ command, arg
 test("sync validates the canonical bank, refreshes project stacks, and reports external guidance sources", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-sync-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const projectRoot = path.join(tempDirectoryPath, "angular-admin");
   const initService = new InitService();
   const syncService = new SyncService();
@@ -29,6 +30,7 @@ test("sync validates the canonical bank, refreshes project stacks, and reports e
 
   await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
   });
@@ -78,12 +80,14 @@ test("sync validates the canonical bank, refreshes project stacks, and reports e
 test("sync fails when the bank contains non-canonical entries", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-sync-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const initService = new InitService();
   const syncService = new SyncService();
 
   await initService.run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
   });

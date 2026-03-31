@@ -18,11 +18,12 @@ export type ProviderInstallerContext = {
   commandRunner: CommandRunner;
   existingDescriptor: ProviderIntegrationDescriptor | null;
   mcpServerConfig: McpServerConfig;
+  cursorConfigRoot?: string;
 };
 
 export type ProviderInstallResult = {
   descriptor: ProviderIntegrationDescriptor;
-  command: CommandSpec;
+  command: CommandSpec | null;
   action: "installed" | "skipped" | "reconfigured";
 };
 
@@ -30,5 +31,7 @@ export type ProviderDefinition = {
   id: ProviderId;
   displayName: string;
   cliCommand: string;
+  unavailableMessage: string;
+  isAvailable?: () => Promise<boolean>;
   install: (context: ProviderInstallerContext) => Promise<ProviderInstallResult>;
 };

@@ -9,7 +9,7 @@ export const ProviderIntegrationDescriptorSchema = z
     provider: z.enum(PROVIDER_IDS),
     displayName: z.string().min(1),
     serverName: z.string().min(1),
-    installationMethod: z.literal("provider-cli"),
+    installationMethod: z.enum(["provider-cli", "config-file"]),
     scope: z.literal("user"),
     mcpServer: McpServerConfigSchema,
     instructions: z.array(z.string()),

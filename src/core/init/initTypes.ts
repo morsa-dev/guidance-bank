@@ -4,6 +4,7 @@ import type { CommandRunner, ProviderInstallResult } from "../providers/types.js
 export type InitOptions = {
   bankRoot?: string;
   commandRunner?: CommandRunner;
+  cursorConfigRoot?: string;
   selectedProviders: ProviderId[];
 };
 

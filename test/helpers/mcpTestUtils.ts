@@ -27,9 +27,11 @@ export const createSuccessfulCommandRunner = (): CommandRunner => async ({ comma
 export const createInitializedBank = async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
 
   await new InitService().run({
     bankRoot,
+    cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
   });

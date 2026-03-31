@@ -50,6 +50,7 @@ export class InitService {
         commandRunner,
         existingDescriptor,
         mcpServerConfig,
+        ...(options.cursorConfigRoot ? { cursorConfigRoot: options.cursorConfigRoot } : {}),
       });
       integrations.push(integration);
     }

@@ -11,6 +11,7 @@ export type ProviderAvailability = {
   displayName: string;
   id: ProviderId;
   available: boolean;
+  unavailableMessage: string;
 };
 
 const isExecutableAvailable = async (command: string): Promise<boolean> => {
@@ -42,6 +43,7 @@ export const getProviderAvailability = async (): Promise<ProviderAvailability[]>
       id: provider.id,
       displayName: provider.displayName,
       cliCommand: provider.cliCommand,
-      available: await isExecutableAvailable(provider.cliCommand),
+      available: provider.isAvailable ? await provider.isAvailable() : await isExecutableAvailable(provider.cliCommand),
+      unavailableMessage: provider.unavailableMessage,
     })),
   );
