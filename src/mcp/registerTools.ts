@@ -4,6 +4,7 @@ import type { ProviderId } from "../core/bank/types.js";
 import type { BankRepository } from "../storage/bankRepository.js";
 import type { AuditLogger } from "../storage/auditLogger.js";
 import { registerBankManifestTool } from "./tools/registerBankManifestTool.js";
+import { registerClearProjectBankTool } from "./tools/registerClearProjectBankTool.js";
 import { registerCreateBankTool } from "./tools/registerCreateBankTool.js";
 import { registerDeleteEntryTool } from "./tools/registerDeleteEntryTool.js";
 import { registerListEntriesTool } from "./tools/registerListEntriesTool.js";
@@ -26,6 +27,7 @@ const toolRegistrars: ToolRegistrar[] = [
   registerResolveContextTool,
   registerSyncBankTool,
   registerCreateBankTool,
+  registerClearProjectBankTool,
   registerUpsertRuleTool,
   registerUpsertSkillTool,
   registerDeleteEntryTool,

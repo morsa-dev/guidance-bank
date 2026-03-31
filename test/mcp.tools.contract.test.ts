@@ -15,6 +15,7 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
     [...tools.keys()].sort(),
     [
       "bank_manifest",
+      "clear_project_bank",
       "create_bank",
       "delete_entry",
       "list_entries",

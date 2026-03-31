@@ -25,6 +25,12 @@ const DeleteEntrySchema = z.object({
   path: z.string(),
 });
 
+const ClearProjectBankSchema = z.object({
+  status: z.enum(["cleared", "not_found"]),
+  projectId: z.string(),
+  projectBankPath: z.string(),
+});
+
 const setupAngularProject = async () => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "angular-admin");
@@ -177,6 +183,69 @@ test("delete_entry removes previously written entries", async (t) => {
   const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.doesNotMatch(resolved.text, /### project\/topics\/admin-dashboard\.md/);
   assert.doesNotMatch(resolved.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
+});
+
+test("clear_project_bank removes only the current project bank and allows recreate from scratch", async (t) => {
+  const { projectRoot, client, close } = await setupAngularProject();
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "upsert_rule",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      path: "topics/angular-architecture.md",
+      content:
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
+    },
+    EntryMutationSchema,
+  );
+  await callToolStructured(
+    client,
+    "upsert_rule",
+    {
+      scope: "project",
+      projectPath: projectRoot,
+      path: "topics/admin-dashboard.md",
+      content:
+        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstacks: [angular]\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+    },
+    EntryMutationSchema,
+  );
+
+  const cleared = await callToolStructured(
+    client,
+    "clear_project_bank",
+    { projectPath: projectRoot },
+    ClearProjectBankSchema,
+  );
+  assert.equal(cleared.status, "cleared");
+
+  const resolvedAfterClear = await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot },
+    TextPayloadSchema,
+  );
+  assert.equal(resolvedAfterClear.creationState, "unknown");
+  assert.match(resolvedAfterClear.text, /No project Memory Bank exists for this repository/i);
+
+  const sharedRule = await callToolStructured(
+    client,
+    "read_entry",
+    { kind: "rules", path: "topics/angular-architecture.md" },
+    z.object({ path: z.string(), content: z.string() }),
+  );
+  assert.match(sharedRule.content, /Keep route containers thin\./);
+
+  const recreated = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot },
+    z.object({ status: z.enum(["created", "already_exists"]) }),
+  );
+  assert.equal(recreated.status, "created");
 });
 
 test("project entries override shared entries by canonical id instead of path", async (t) => {

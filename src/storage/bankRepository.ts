@@ -156,6 +156,16 @@ export class BankRepository {
     return parseProjectBankState(state);
   }
 
+  async deleteProjectBank(projectId: string): Promise<boolean> {
+    const deleted = await deleteManagedDirectory(this.rootPath, this.paths.projectDirectory(projectId));
+
+    if (deleted) {
+      await this.touchManifest();
+    }
+
+    return deleted;
+  }
+
   private resolveEntryBasePath(kind: EntryKind, layer: EntryScope, projectId?: string): string {
     if (layer === "shared") {
       return kind === "rules" ? this.paths.sharedRulesDirectory : this.paths.sharedSkillsDirectory;

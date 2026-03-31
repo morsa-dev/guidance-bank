@@ -107,6 +107,7 @@ Current MCP tools include:
 
 - `resolve_context`
 - `create_bank`
+- `clear_project_bank`
 - `sync_bank`
 - `set_project_state`
 - `upsert_rule`
