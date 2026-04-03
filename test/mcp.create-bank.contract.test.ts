@@ -101,6 +101,8 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(structured.prompt, /review, import, derive, and finalize steps/i);
   assert.match(structured.prompt, /may be reviewed explicitly in later `create_bank` iterations/i);
   assert.doesNotMatch(structured.prompt, /only during explicit bootstrap or sync\/import flows/i);
+  assert.match(structured.prompt, /Expected Bank Density/i);
+  assert.match(structured.prompt, /2-6 focused rule files/i);
   assert.match(structured.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
 });
 
@@ -146,6 +148,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   );
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
+  assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
+  assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
 
   const finalizeStructured = await callToolStructured(
     client,

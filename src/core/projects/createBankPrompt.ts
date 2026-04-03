@@ -142,6 +142,49 @@ If the right scope is unclear, ask the user explicitly whether the entry should 
 - Use real file paths from the repository in skill workflows
 - Keep rules and skills clearly separated
 
+## Rule and Skill Quality Contract
+
+Before writing or updating entries:
+- Prefer project evidence over assumptions
+- Generate project-specific rules, not generic philosophy
+- Do not duplicate what formatter or linter configuration already enforces fully
+- Keep one clear formulation per rule after deduplication
+
+Create or keep a rule only when at least one is true:
+- The pattern appears repeatedly in the codebase
+- The pattern is encoded in configuration or tooling
+- The pattern is documented and reflected in project structure
+- The pattern is clearly part of the intended architecture
+
+For each candidate rule, decide explicitly:
+- keep: clear evidence and practical value
+- skip: weak evidence or low value
+- \`[VERIFY: ...]\`: partial evidence and the decision can affect workflow
+
+Generate a skill only when it is a reusable multi-step workflow with clear project evidence.
+
+Each skill should include:
+- When to use
+- Prerequisites
+- Step-by-step workflow with real project paths
+- Do not / anti-patterns when relevant
+
+## Expected Bank Density
+
+Aim for a right-sized bank, not a minimal placeholder:
+- 2-6 focused rule files when project evidence supports them
+- 2-5 focused skills when reusable workflows are clearly present
+- for small or low-confidence projects, prefer fewer high-value entries over quota-filling
+
+High-value starting points when evidence supports them:
+- \`${rulesDirectory}/core/general.md\`
+- \`${rulesDirectory}/topics/architecture.md\`
+- one stack- or workflow-specific topic file
+- \`${skillsDirectory}/adding-feature/SKILL.md\`
+- \`${skillsDirectory}/adding-service/SKILL.md\`
+- \`${skillsDirectory}/code-review/SKILL.md\`
+- \`${skillsDirectory}/task-based-reading/SKILL.md\` or a troubleshooting skill
+
 ## This Step
 
 During this initial step:

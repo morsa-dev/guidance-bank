@@ -1,5 +1,6 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
+import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance.js";
 import { buildCreateBankPrompt } from "./createBankPrompt.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
@@ -128,7 +129,11 @@ Safety rules:
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination`;
 
-const buildDeriveFromProjectPrompt = (projectPath: string, projectEvidence: ProjectEvidenceInventory): string => `# Derive From Project
+const buildDeriveFromProjectPrompt = (
+  projectPath: string,
+  projectEvidence: ProjectEvidenceInventory,
+  detectedStacks: readonly DetectableStack[],
+): string => `# Derive From Project
 
 Derive additional Memory Bank entries from the real repository.
 
@@ -147,7 +152,9 @@ Quality rules:
 - Use the discovered project evidence as starting points, not as a checklist
 - Prefer patterns confirmed by multiple files, configuration, or stable architecture boundaries
 - Skip temporary, noisy, or accidental implementation details
-- If a candidate rule is high-impact and your confidence is low, ask the user before writing it`;
+- If a candidate rule is high-impact and your confidence is low, ask the user before writing it
+
+${renderCreateDeriveGuidance(detectedStacks)}`;
 
 const buildFinalizePrompt = (): string => `# Finalize Memory Bank
 
@@ -197,7 +204,8 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
     }),
   ({ projectPath, discoveredSources }) => buildReviewExistingPrompt(projectPath, discoveredSources),
   ({ discoveredSources }) => buildImportSelectedPrompt(discoveredSources),
-  ({ projectPath, projectEvidence }) => buildDeriveFromProjectPrompt(projectPath, projectEvidence),
+  ({ projectPath, projectEvidence, detectedStacks }) =>
+    buildDeriveFromProjectPrompt(projectPath, projectEvidence, detectedStacks),
   () => buildFinalizePrompt(),
   () => buildCompletedPrompt(),
 ] as const;
