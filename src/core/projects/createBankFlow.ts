@@ -3,16 +3,16 @@ import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../b
 import type { ProjectCreationState } from "../bank/types.js";
 import { detectProjectContext } from "../context/detectProjectContext.js";
 import { getNextCreateFlowIteration, isCreateFlowComplete } from "./createBankIterationPrompt.js";
+import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { discoverProjectEvidence, type ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
-import { discoverRecentCommits, type RecentProjectCommit } from "./discoverRecentCommits.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
 import { resolveProjectIdentity } from "./identity.js";
 
 type CreateBankExtendedContext = {
   discoveredSources: ExistingGuidanceSource[];
   projectEvidence: ProjectEvidenceInventory;
-  recentCommits: RecentProjectCommit[];
+  currentBankSnapshot: CurrentProjectBankSnapshot;
 };
 
 type ResolveCreateBankFlowContextOptions = {
@@ -51,7 +51,10 @@ const EMPTY_PROJECT_EVIDENCE: ProjectEvidenceInventory = {
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   discoveredSources: [],
   projectEvidence: EMPTY_PROJECT_EVIDENCE,
-  recentCommits: [],
+  currentBankSnapshot: {
+    exists: false,
+    entries: [],
+  },
 };
 
 const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
@@ -69,23 +72,29 @@ const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number |
 };
 
 const loadExtendedCreateBankContext = async (
+  repository: BankRepository,
+  projectId: string,
+  hasExistingProjectBank: boolean,
   projectPath: string,
   shouldLoad: boolean,
 ): Promise<CreateBankExtendedContext> => {
   if (!shouldLoad) {
-    return EMPTY_EXTENDED_CONTEXT;
+    return {
+      ...EMPTY_EXTENDED_CONTEXT,
+      currentBankSnapshot: await discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
+    };
   }
 
-  const [discoveredSources, projectEvidence, recentCommits] = await Promise.all([
+  const [discoveredSources, projectEvidence, currentBankSnapshot] = await Promise.all([
     discoverExistingGuidance(projectPath),
     discoverProjectEvidence(projectPath),
-    discoverRecentCommits(projectPath),
+    discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
   ]);
 
   return {
     discoveredSources,
     projectEvidence,
-    recentCommits,
+    currentBankSnapshot,
   };
 };
 
@@ -145,6 +154,9 @@ export const resolveCreateBankFlowContext = async ({
         : null;
   const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
   const extendedContext = await loadExtendedCreateBankContext(
+    repository,
+    identity.projectId,
+    existingManifest !== null,
     identity.projectPath,
     mustContinue || completedFlowThisCall,
   );

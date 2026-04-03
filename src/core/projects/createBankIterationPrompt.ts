@@ -1,9 +1,9 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
 import { buildCreateBankPrompt } from "./createBankPrompt.js";
+import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import type { ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
-import type { RecentProjectCommit } from "./discoverRecentCommits.js";
 
 type BuildCreateBankIterationPromptInput = {
   iteration: number;
@@ -16,21 +16,26 @@ type BuildCreateBankIterationPromptInput = {
   selectedReferenceProjects: ReferenceProjectCandidate[];
   discoveredSources: ExistingGuidanceSource[];
   projectEvidence: ProjectEvidenceInventory;
-  recentCommits: RecentProjectCommit[];
+  currentBankSnapshot: CurrentProjectBankSnapshot;
   hasExistingProjectBank?: boolean;
 };
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
 
-const renderExistingBankBaselineSection = (hasExistingProjectBank: boolean): string =>
+const renderExistingBankBaselineSection = (
+  hasExistingProjectBank: boolean,
+  currentBankSnapshot: CurrentProjectBankSnapshot,
+): string =>
   hasExistingProjectBank
     ? `## Current Bank Baseline
 
 A project Memory Bank already exists for this repository. Treat the current project bank as the canonical baseline and improve it instead of recreating it blindly.
 
+- Current project bank inventory: ${currentBankSnapshot.entries.length} entr${currentBankSnapshot.entries.length === 1 ? "y" : "ies"}.
 - Reuse strong existing entries
 - Prefer updating or replacing weak entries over duplicating them
 - Remove stale or overlapping entries only when there is clear evidence and the user approves destructive changes
+- Use \`list_entries\` and \`read_entry\` with \`scope: "project"\` and the current \`projectPath\` when you need the full text of an existing project-bank entry
 `
     : "";
 
@@ -71,18 +76,6 @@ ${directoryLines}
 
 Evidence files:
 ${fileLines}`;
-};
-
-const renderRecentCommitsSection = (recentCommits: readonly RecentProjectCommit[]): string => {
-  if (recentCommits.length === 0) {
-    return `## Recent Commits
-
-No recent git commits were discovered automatically for this project.`;
-  }
-
-  return `## Recent Commits
-
-${recentCommits.map((commit) => `- ${commit.shortHash} ${commit.subject}`).join("\n")}`;
 };
 
 const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
@@ -156,32 +149,6 @@ Quality rules:
 - Skip temporary, noisy, or accidental implementation details
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it`;
 
-const buildDeriveFromDocsAndCommitsPrompt = (
-  projectEvidence: ProjectEvidenceInventory,
-  recentCommits: readonly RecentProjectCommit[],
-): string => `# Derive From Docs And Commits
-
-Use repository documentation and recent change history as additional evidence.
-
-${renderProjectEvidenceSection({
-  ...projectEvidence,
-  topLevelDirectories: [],
-})}
-
-${renderRecentCommitsSection(recentCommits)}
-
-What to do:
-- Review README and any relevant docs folders or docs files
-- Review the latest 5 commits for repeated corrections, constraints, or workflow expectations
-- Convert only stable, evidence-backed patterns into canonical Memory Bank entries
-- Skip noisy or temporary details
-
-Evidence rules:
-- Treat docs and commits as supporting evidence, not automatic truth
-- Promote a pattern into Memory Bank only when it looks stable and likely to matter for future work
-- If commits show repeated fixes around the same issue, consider extracting one concise rule instead of several narrow ones
-- If documentation conflicts with the current codebase, prefer the codebase and mention the conflict to the user if it matters`;
-
 const buildFinalizePrompt = (): string => `# Finalize Memory Bank
 
 Finish the project Memory Bank creation flow.
@@ -231,7 +198,6 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
   ({ projectPath, discoveredSources }) => buildReviewExistingPrompt(projectPath, discoveredSources),
   ({ discoveredSources }) => buildImportSelectedPrompt(discoveredSources),
   ({ projectPath, projectEvidence }) => buildDeriveFromProjectPrompt(projectPath, projectEvidence),
-  ({ projectEvidence, recentCommits }) => buildDeriveFromDocsAndCommitsPrompt(projectEvidence, recentCommits),
   () => buildFinalizePrompt(),
   () => buildCompletedPrompt(),
 ] as const;
@@ -278,7 +244,7 @@ export const buildCreateBankIterationPrompt = ({
   selectedReferenceProjects,
   discoveredSources,
   projectEvidence,
-  recentCommits,
+  currentBankSnapshot,
   hasExistingProjectBank = false,
 }: BuildCreateBankIterationPromptInput): string => {
   const normalizedIteration = Math.min(Math.max(iteration, 0), CREATE_FLOW_COMPLETED_ITERATION);
@@ -294,13 +260,13 @@ export const buildCreateBankIterationPrompt = ({
     selectedReferenceProjects,
     discoveredSources,
     projectEvidence,
-    recentCommits,
+    currentBankSnapshot,
     hasExistingProjectBank,
   });
 
   const promptWithBaseline =
     hasExistingProjectBank && normalizedIteration > 0 && normalizedIteration < CREATE_FLOW_COMPLETED_ITERATION
-      ? `${renderExistingBankBaselineSection(true)}\n${prompt}`
+      ? `${renderExistingBankBaselineSection(true, currentBankSnapshot)}\n${prompt}`
       : prompt;
 
   return normalizedIteration < CREATE_FLOW_COMPLETED_ITERATION

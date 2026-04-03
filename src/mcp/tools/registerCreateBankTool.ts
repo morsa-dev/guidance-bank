@@ -94,12 +94,18 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
             }),
           ),
         }),
-        recentCommits: z.array(
-          z.object({
-            shortHash: z.string(),
-            subject: z.string(),
-          }),
-        ),
+        currentBankSnapshot: z.object({
+          exists: z.boolean(),
+          entries: z.array(
+            z.object({
+              kind: z.enum(["rules", "skills"]),
+              scope: z.literal("project"),
+              path: z.string(),
+              id: z.string(),
+              sha256: z.string(),
+            }),
+          ),
+        }),
         selectedReferenceProjects: z.array(
           z.object({
             projectId: z.string(),
@@ -213,6 +219,13 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
       const rulesDirectory = options.repository.paths.projectRulesDirectory(identity.projectId);
       const skillsDirectory = options.repository.paths.projectSkillsDirectory(identity.projectId);
+      const currentBankSnapshot =
+        existingManifest === null
+          ? {
+              ...extendedContext.currentBankSnapshot,
+              exists: true,
+            }
+          : extendedContext.currentBankSnapshot;
       const creationPrompt = buildCreateBankPrompt({
         projectName: identity.projectName,
         projectPath: identity.projectPath,
@@ -242,7 +255,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
                 selectedReferenceProjects,
                 discoveredSources: extendedContext.discoveredSources,
                 projectEvidence: extendedContext.projectEvidence,
-                recentCommits: extendedContext.recentCommits,
+                currentBankSnapshot,
                 hasExistingProjectBank: existingManifest !== null,
               })
             : "Project Memory Bank already exists for this repository and is ready.";
@@ -260,7 +273,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         iteration: requestedIteration,
         discoveredSources: extendedContext.discoveredSources,
         projectEvidence: extendedContext.projectEvidence,
-        recentCommits: extendedContext.recentCommits,
+        currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,
         mustContinue,

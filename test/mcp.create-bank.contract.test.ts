@@ -40,12 +40,18 @@ const CreateBankSchema = z.object({
       }),
     ),
   }),
-  recentCommits: z.array(
-    z.object({
-      shortHash: z.string(),
-      subject: z.string(),
-    }),
-  ),
+  currentBankSnapshot: z.object({
+    exists: z.boolean(),
+    entries: z.array(
+      z.object({
+        kind: z.enum(["rules", "skills"]),
+        scope: z.literal("project"),
+        path: z.string(),
+        id: z.string(),
+        sha256: z.string(),
+      }),
+    ),
+  }),
   selectedReferenceProjects: z.array(
     z.object({
       projectId: z.string(),
@@ -89,7 +95,8 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
     structured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
     ["package.json"],
   );
-  assert.deepEqual(structured.recentCommits, []);
+  assert.equal(structured.currentBankSnapshot.exists, true);
+  assert.deepEqual(structured.currentBankSnapshot.entries, []);
   assert.match(structured.prompt, /This create flow is iterative/i);
   assert.match(structured.prompt, /review, import, derive, and finalize steps/i);
   assert.match(structured.prompt, /may be reviewed explicitly in later `create_bank` iterations/i);
@@ -140,32 +147,24 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
 
-  const deriveDocsStructured = await callToolStructured(
+  const finalizeStructured = await callToolStructured(
     client,
     "create_bank",
     { projectPath: projectRoot, iteration: 4 },
     CreateBankSchema,
   );
-  assert.match(deriveDocsStructured.prompt, /## Recent Commits/);
-
-  const finalizeStructured = await callToolStructured(
-    client,
-    "create_bank",
-    { projectPath: projectRoot, iteration: 5 },
-    CreateBankSchema,
-  );
   assert.equal(finalizeStructured.creationState, "creating");
   assert.equal(finalizeStructured.mustContinue, true);
-  assert.equal(finalizeStructured.nextIteration, 6);
-  assert.equal(finalizeStructured.text, "Call create_bank with iteration: 6.");
+  assert.equal(finalizeStructured.nextIteration, 5);
+  assert.equal(finalizeStructured.text, "Call create_bank with iteration: 5.");
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
-  assert.match(finalizeStructured.prompt, /After completing this step, call `create_bank` again with `iteration: 6`/i);
+  assert.match(finalizeStructured.prompt, /After completing this step, call `create_bank` again with `iteration: 5`/i);
 
   const completedStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 6 },
+    { projectPath: projectRoot, iteration: 5 },
     CreateBankSchema,
   );
   assert.equal(completedStructured.creationState, "ready");
@@ -173,7 +172,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(completedStructured.nextIteration, null);
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
   assert.match(completedStructured.prompt, /Do not continue the create flow automatically/i);
-  assert.doesNotMatch(completedStructured.prompt, /iteration: 7/i);
+  assert.doesNotMatch(completedStructured.prompt, /iteration: 6/i);
 });
 
 test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {
@@ -199,7 +198,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
 
-  for (const iteration of [1, 2, 3, 4, 5, 6]) {
+  for (const iteration of [1, 2, 3, 4, 5]) {
     await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration }, CreateBankSchema);
   }
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
@@ -245,7 +244,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   t.after(close);
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
-  for (const iteration of [1, 2, 3, 4, 5, 6]) {
+  for (const iteration of [1, 2, 3, 4, 5]) {
     await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration }, CreateBankSchema);
   }
 
@@ -269,7 +268,8 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.deepEqual(rerunStructured.discoveredSources, []);
   assert.deepEqual(rerunStructured.projectEvidence.topLevelDirectories, []);
   assert.deepEqual(rerunStructured.projectEvidence.evidenceFiles, []);
-  assert.deepEqual(rerunStructured.recentCommits, []);
+  assert.equal(rerunStructured.currentBankSnapshot.exists, true);
+  assert.deepEqual(rerunStructured.currentBankSnapshot.entries, []);
 
   const improveStructured = await callToolStructured(
     client,
@@ -393,8 +393,6 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
       advancedStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
       ["docs/architecture.md", "package.json", "README.md"],
     );
-    assert.equal(advancedStructured.recentCommits.length, 1);
-    assert.match(advancedStructured.recentCommits[0]?.subject ?? "", /init project/);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0] ?? "", /iteration mismatch/i);
 
@@ -403,4 +401,70 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
   } finally {
     console.warn = originalWarn;
   }
+});
+
+test("create_bank returns compact current project bank snapshot and project entries are readable by path", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1 }, CreateBankSchema);
+
+  await callToolStructured(
+    client,
+    "upsert_rule",
+    {
+      scope: "project",
+      projectPath: projectRoot,
+      path: "topics/architecture.md",
+      content:
+        "---\nid: project-architecture\nkind: rule\ntitle: Project Architecture\nstacks: []\ntopics: [architecture]\n---\n\n# Project Architecture\n\n- Keep project layers explicit.\n",
+    },
+    z.object({ status: z.enum(["created", "updated"]) }),
+  );
+
+  const snapshotStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2 },
+    CreateBankSchema,
+  );
+  assert.equal(snapshotStructured.currentBankSnapshot.exists, true);
+  assert.equal(snapshotStructured.currentBankSnapshot.entries.length, 1);
+  assert.equal(snapshotStructured.currentBankSnapshot.entries[0]?.path, "topics/architecture.md");
+  assert.equal(snapshotStructured.currentBankSnapshot.entries[0]?.id, "project-architecture");
+
+  const listed = await callToolStructured(
+    client,
+    "list_entries",
+    { scope: "project", projectPath: projectRoot, kind: "rules" },
+    z.object({
+      scope: z.literal("project"),
+      kind: z.literal("rules"),
+      projectPath: z.string(),
+      entries: z.array(z.object({ path: z.string() })),
+    }),
+  );
+  assert.deepEqual(listed.entries.map((entry) => entry.path), ["topics/architecture.md"]);
+
+  const read = await callToolStructured(
+    client,
+    "read_entry",
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "topics/architecture.md" },
+    z.object({
+      scope: z.literal("project"),
+      kind: z.literal("rules"),
+      projectPath: z.string(),
+      path: z.string(),
+      content: z.string(),
+    }),
+  );
+  assert.match(read.content, /Keep project layers explicit\./);
 });

@@ -93,6 +93,7 @@ Important:
 - Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
 - Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`
 - Write the canonical bank only into the target Memory Bank through the MCP mutation tools
+- When you need the full text of an existing Memory Bank entry, inspect it through \`list_entries\` and \`read_entry\` instead of inferring content from file names alone
 
 ## Canonical Output Contract
 
