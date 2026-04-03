@@ -1,6 +1,6 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
-import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance.js";
+import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import { buildCreateBankPrompt } from "./createBankPrompt.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";

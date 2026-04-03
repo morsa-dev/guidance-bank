@@ -9,7 +9,10 @@ type PackageJson = {
 };
 
 const stackOrder = new Map<DetectableStack, number>(
-  ["nodejs", "typescript", "react", "nextjs", "angular"].map((stack, index) => [stack as DetectableStack, index]),
+  ["nodejs", "typescript", "react", "nextjs", "angular", "ios"].map((stack, index) => [
+    stack as DetectableStack,
+    index,
+  ]),
 );
 
 const pathExists = async (targetPath: string): Promise<boolean> => {
@@ -28,6 +31,14 @@ const readJsonFileIfExists = async <T>(filePath: string): Promise<T | null> => {
 
   const content = await fs.readFile(filePath, "utf8");
   return JSON.parse(content) as T;
+};
+
+const directoryEntriesIfExists = async (directoryPath: string): Promise<string[]> => {
+  try {
+    return await fs.readdir(directoryPath);
+  } catch {
+    return [];
+  }
 };
 
 const addStack = (stacks: Set<DetectableStack>, signals: DetectedSignal[], stack: DetectableStack, source: string): void => {
@@ -55,6 +66,11 @@ export const detectProjectContext = async (cwd: string): Promise<ProjectContext>
     (await pathExists(path.join(resolvedCwd, "next.config.js"))) ||
     (await pathExists(path.join(resolvedCwd, "next.config.mjs"))) ||
     (await pathExists(path.join(resolvedCwd, "next.config.ts")));
+  const packageSwiftExists = await pathExists(path.join(resolvedCwd, "Package.swift"));
+  const podfileExists = await pathExists(path.join(resolvedCwd, "Podfile"));
+  const rootDirectoryEntries = await directoryEntriesIfExists(resolvedCwd);
+  const xcodeProjectExists = rootDirectoryEntries.some((entry) => entry.endsWith(".xcodeproj"));
+  const xcodeWorkspaceExists = rootDirectoryEntries.some((entry) => entry.endsWith(".xcworkspace"));
 
   const dependencies = {
     ...(packageJson?.dependencies ?? {}),
@@ -84,6 +100,17 @@ export const detectProjectContext = async (cwd: string): Promise<ProjectContext>
   if ("react" in dependencies) {
     addStack(stacks, signals, "react", "package.json");
     addStack(stacks, signals, "nodejs", "package.json");
+  }
+
+  if (packageSwiftExists || podfileExists || xcodeProjectExists || xcodeWorkspaceExists) {
+    const iosSource = packageSwiftExists
+      ? "Package.swift"
+      : podfileExists
+        ? "Podfile"
+        : xcodeProjectExists
+          ? "*.xcodeproj"
+          : "*.xcworkspace";
+    addStack(stacks, signals, "ios", iosSource);
   }
 
   const localGuidanceCandidates: Array<{ kind: LocalGuidanceSignal["kind"]; relativePath: string }> = [
