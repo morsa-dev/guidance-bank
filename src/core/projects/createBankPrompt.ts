@@ -1,4 +1,4 @@
-import type { DetectableStack } from "../context/types.js";
+import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
 import type { ReferenceProjectCandidate } from "../context/types.js";
 
 type CreateBankPromptInput = {
@@ -12,10 +12,10 @@ type CreateBankPromptInput = {
 };
 
 const renderStackSection = (detectedStacks: readonly DetectableStack[]): string => {
-  if (detectedStacks.length === 0) {
+  if (detectedStacks.length === 1 && detectedStacks[0] === "other") {
     return `## Detected Stack
 
-No stable stack signals were detected automatically. Infer the stack from the codebase before creating project-specific rules or skills.`;
+No specific stack signals were detected confidently. Use \`other\` as the conservative fallback stack and infer only project-supported patterns from the codebase.`;
   }
 
   return `## Detected Stack
@@ -25,6 +25,13 @@ ${detectedStacks.map((stack) => `- ${stack}`).join("\n")}
 
 Use these signals as a starting point, but verify them against the codebase before generating project-specific Memory Bank entries.`;
 };
+
+const renderSupportedStackIdsSection = (): string => `## Supported Stack Ids
+
+Use only these canonical stack ids in Memory Bank stack metadata and create-flow reasoning:
+${DETECTABLE_STACKS.map((stack) => `- ${stack}`).join("\n")}
+
+If no specific stack fits confidently, use \`other\` instead of inventing a new stack id.`;
 
 const renderReferenceProjectsSection = (selectedReferenceProjects: readonly ReferenceProjectCandidate[]): string => {
   if (selectedReferenceProjects.length === 0) {
@@ -70,6 +77,8 @@ Target directories:
 - Skills: \`${skillsDirectory}\`
 
 ${renderStackSection(detectedStacks)}
+
+${renderSupportedStackIdsSection()}
 
 ## Reference Projects
 

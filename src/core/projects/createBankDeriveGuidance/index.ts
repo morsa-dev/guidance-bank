@@ -21,6 +21,7 @@ const STACK_GUIDANCE_MODULES: readonly StackGuidanceModule[] = [
   { stack: "angular", prompt: ANGULAR_DERIVE_GUIDANCE },
   { stack: "nodejs", prompt: NODEJS_DERIVE_GUIDANCE },
   { stack: "ios", prompt: IOS_DERIVE_GUIDANCE },
+  { stack: "other", prompt: OTHER_DERIVE_GUIDANCE },
 ] as const;
 
 const RECOMMENDED_OUTPUT_SHAPE = `## Recommended Output Shape
@@ -46,10 +47,6 @@ export const renderCreateDeriveGuidance = (detectedStacks: readonly DetectableSt
     if (detectedStacks.includes(module.stack)) {
       sections.push(module.prompt);
     }
-  }
-
-  if (sections.length === 1) {
-    sections.push(OTHER_DERIVE_GUIDANCE);
   }
 
   sections.push(RECOMMENDED_OUTPUT_SHAPE);

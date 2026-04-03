@@ -23,3 +23,20 @@ test("detectProjectContext detects ios projects from common native project files
     ["ios"],
   );
 });
+
+test("detectProjectContext falls back to other when no specific stack signals are found", async () => {
+  const { tempDirectoryPath } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "misc-project");
+
+  await writeProjectFiles(projectRoot, {
+    "README.md": "# Misc Project\n",
+  });
+
+  const context = await detectProjectContext(projectRoot);
+
+  assert.deepEqual(context.detectedStacks, ["other"]);
+  assert.deepEqual(
+    context.detectedSignals.map((signal) => ({ name: signal.name, source: signal.source })),
+    [{ name: "other", source: "fallback" }],
+  );
+});

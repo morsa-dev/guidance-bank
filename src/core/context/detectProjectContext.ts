@@ -9,7 +9,7 @@ type PackageJson = {
 };
 
 const stackOrder = new Map<DetectableStack, number>(
-  ["nodejs", "typescript", "react", "nextjs", "angular", "ios"].map((stack, index) => [
+  ["nodejs", "typescript", "react", "nextjs", "angular", "ios", "other"].map((stack, index) => [
     stack as DetectableStack,
     index,
   ]),
@@ -128,6 +128,10 @@ export const detectProjectContext = async (cwd: string): Promise<ProjectContext>
         path: candidatePath,
       });
     }
+  }
+
+  if (stacks.size === 0) {
+    addStack(stacks, signals, "other", "fallback");
   }
 
   const detectedStacks = [...stacks].sort((left, right) => (stackOrder.get(left) ?? 0) - (stackOrder.get(right) ?? 0));
