@@ -1,11 +1,14 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
+import {
+  getProjectBankContinuationIteration,
+  resolveProjectBankLifecycleStatus,
+} from "../bank/lifecycle.js";
 import { parseCanonicalRuleDocument, parseCanonicalSkillDocument } from "../bank/canonicalEntry.js";
 import { ValidationError } from "../../shared/errors.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
-import type { ProjectBankState } from "../bank/types.js";
 
 type ResolveContextOptions = {
   repository: BankRepository;
@@ -222,19 +225,6 @@ const buildCreatingText = ({
 const buildDeclinedText = (): string =>
   "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
 
-const isSyncPostponed = (projectState: ProjectBankState | null, now = new Date()): boolean => {
-  if (!projectState?.postponedUntil) {
-    return false;
-  }
-
-  return new Date(projectState.postponedUntil).getTime() > now.getTime();
-};
-
-const requiresSync = (
-  projectState: ProjectBankState | null,
-  expectedStorageVersion: number,
-): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
-
 const buildSyncRequiredText = ({
   postponedUntil,
 }: {
@@ -263,17 +253,11 @@ export const resolveMemoryBankContext = async ({
   const detectedProjectContext = await detectProjectContext(identity.projectPath);
   const projectManifest = await repository.readProjectManifestOptional(identity.projectId);
   const projectState = await repository.readProjectStateOptional(identity.projectId);
-
-  const status =
-    projectState?.creationState === "declined"
-      ? "creation_declined"
-      : projectManifest !== null
-      ? projectState?.creationState === "creating"
-        ? "creation_in_progress"
-        : requiresSync(projectState, manifest.storageVersion) && !isSyncPostponed(projectState)
-          ? "sync_required"
-          : "ready"
-      : "missing";
+  const status = resolveProjectBankLifecycleStatus({
+    projectManifest,
+    projectState,
+    expectedStorageVersion: manifest.storageVersion,
+  });
 
   if (status === "sync_required") {
     return {
@@ -318,7 +302,7 @@ export const resolveMemoryBankContext = async ({
   }
 
   if (status === "creation_in_progress") {
-    const nextIteration = (projectState?.createIteration ?? 0) + 1;
+    const nextIteration = getProjectBankContinuationIteration(projectState);
 
     return {
       text: buildCreatingText({

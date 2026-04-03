@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { detectProjectContext } from "../../core/context/detectProjectContext.js";
 import {
+  requiresProjectBankSync,
+  resolveProjectBankLifecycleStatus,
+} from "../../core/bank/lifecycle.js";
+import {
   createProjectBankManifest,
   createProjectBankState,
   markProjectBankSynced,
@@ -34,11 +38,6 @@ const CreateBankArgsSchema = z
       .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
   })
   .strict();
-
-const requiresSync = (
-  projectState: ProjectBankState | null,
-  expectedStorageVersion: number,
-): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
 
 const shouldWarnAboutIterationMismatch = (
   storedIteration: number | null,
@@ -220,6 +219,11 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       }
 
       const manifest = await options.repository.readManifest();
+      const lifecycleStatus = resolveProjectBankLifecycleStatus({
+        projectManifest: existingManifest,
+        projectState: existingState,
+        expectedStorageVersion: manifest.storageVersion,
+      });
       let nextState = existingState;
       const isFlowComplete = isCreateFlowComplete(requestedIteration);
       const shouldTrackCreateFlow =
@@ -254,12 +258,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         detectedStacks: projectContext.detectedStacks,
         selectedReferenceProjects,
       });
-      const syncRequired = existingManifest === null ? false : requiresSync(existingState, manifest.storageVersion);
+      const syncRequired = existingManifest === null ? false : requiresProjectBankSync(existingState, manifest.storageVersion);
       const improvementEntryPoint =
-        existingManifest !== null &&
-        existingState?.creationState === "ready" &&
-        !syncRequired &&
-        requestedIteration === 0;
+        lifecycleStatus === "ready" && requestedIteration === 0;
       const mustContinue =
         !syncRequired &&
         (nextState.creationState === "creating" ||
