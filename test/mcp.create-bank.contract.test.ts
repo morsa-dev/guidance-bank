@@ -22,6 +22,8 @@ const CreateBankSchema = z.object({
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),
+  existingBankUpdatedAt: z.string().nullable(),
+  existingBankUpdatedDaysAgo: z.number().int().nonnegative().nullable(),
   discoveredSources: z.array(
     z.object({
       kind: z.string(),
@@ -231,7 +233,7 @@ test("create_bank does not clear sync_required for an existing outdated project 
   assert.match(resolveStructured.text, /synchronization is required before using the project-specific bank/i);
 });
 
-test("later create_bank reruns do not reopen an already-ready bank as creating", async (t) => {
+test("ready project banks ask the user whether to run an improvement pass before continuing", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -250,15 +252,32 @@ test("later create_bank reruns do not reopen an already-ready bank as creating",
   const rerunStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 3 },
+    { projectPath: projectRoot },
     CreateBankSchema,
   );
 
   assert.equal(rerunStructured.creationState, "ready");
   assert.equal(rerunStructured.mustContinue, false);
-  assert.equal(rerunStructured.nextIteration, null);
-  assert.equal(rerunStructured.text, "Project Memory Bank is ready.");
-  assert.equal(rerunStructured.prompt, "Project Memory Bank already exists for this repository and is ready.");
+  assert.equal(rerunStructured.nextIteration, 1);
+  assert.equal(
+    rerunStructured.text,
+    "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1.",
+  );
+  assert.match(rerunStructured.prompt, /last updated 0 days ago/i);
+  assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
+  assert.equal(rerunStructured.existingBankUpdatedDaysAgo, 0);
+
+  const improveStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1 },
+    CreateBankSchema,
+  );
+  assert.equal(improveStructured.creationState, "ready");
+  assert.equal(improveStructured.mustContinue, true);
+  assert.equal(improveStructured.nextIteration, 2);
+  assert.match(improveStructured.prompt, /Current Bank Baseline/i);
+  assert.match(improveStructured.prompt, /Treat the current project bank as the canonical baseline/i);
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "ready");

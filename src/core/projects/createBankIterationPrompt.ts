@@ -17,9 +17,22 @@ type BuildCreateBankIterationPromptInput = {
   discoveredSources: ExistingGuidanceSource[];
   projectEvidence: ProjectEvidenceInventory;
   recentCommits: RecentProjectCommit[];
+  hasExistingProjectBank?: boolean;
 };
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
+
+const renderExistingBankBaselineSection = (hasExistingProjectBank: boolean): string =>
+  hasExistingProjectBank
+    ? `## Current Bank Baseline
+
+A project Memory Bank already exists for this repository. Treat the current project bank as the canonical baseline and improve it instead of recreating it blindly.
+
+- Reuse strong existing entries
+- Prefer updating or replacing weak entries over duplicating them
+- Remove stale or overlapping entries only when there is clear evidence and the user approves destructive changes
+`
+    : "";
 
 const appendContinuationInstruction = (prompt: string, iteration: number): string => `${prompt}
 
@@ -230,6 +243,30 @@ export const getNextCreateFlowIteration = (iteration: number): number | null =>
 
 export const isCreateFlowComplete = (iteration: number): boolean => iteration >= CREATE_FLOW_COMPLETED_ITERATION;
 
+export const buildReadyProjectBankPrompt = ({
+  updatedAt,
+  updatedDaysAgo,
+}: {
+  updatedAt: string | null;
+  updatedDaysAgo: number | null;
+}): string => {
+  const updatedLine =
+    updatedAt === null || updatedDaysAgo === null
+      ? "A project Memory Bank already exists for this repository."
+      : `A project Memory Bank already exists for this repository and was last updated ${updatedDaysAgo} day${updatedDaysAgo === 1 ? "" : "s"} ago (${updatedAt}).`;
+
+  return `# Existing Project Memory Bank
+
+${updatedLine}
+
+What to do:
+- Tell the user that a project Memory Bank already exists for this repository
+- Ask whether they want to improve it now instead of keeping it as-is
+- If the user wants to improve it, call \`create_bank\` again with \`iteration: 1\`
+- If the user does not want to improve it, continue normal work with the current ready bank through \`resolve_context\`
+- If you continue into later create iterations, treat the existing project bank as the canonical baseline and improve gaps, stale entries, duplicates, and weak coverage instead of recreating the bank from scratch`;
+};
+
 export const buildCreateBankIterationPrompt = ({
   iteration,
   projectName,
@@ -242,6 +279,7 @@ export const buildCreateBankIterationPrompt = ({
   discoveredSources,
   projectEvidence,
   recentCommits,
+  hasExistingProjectBank = false,
 }: BuildCreateBankIterationPromptInput): string => {
   const normalizedIteration = Math.min(Math.max(iteration, 0), CREATE_FLOW_COMPLETED_ITERATION);
   const buildPrompt = CREATE_FLOW_PROMPT_BUILDERS[normalizedIteration]!;
@@ -257,9 +295,15 @@ export const buildCreateBankIterationPrompt = ({
     discoveredSources,
     projectEvidence,
     recentCommits,
+    hasExistingProjectBank,
   });
 
+  const promptWithBaseline =
+    hasExistingProjectBank && normalizedIteration > 0 && normalizedIteration < CREATE_FLOW_COMPLETED_ITERATION
+      ? `${renderExistingBankBaselineSection(true)}\n${prompt}`
+      : prompt;
+
   return normalizedIteration < CREATE_FLOW_COMPLETED_ITERATION
-    ? appendContinuationInstruction(prompt, normalizedIteration)
-    : prompt;
+    ? appendContinuationInstruction(promptWithBaseline, normalizedIteration)
+    : promptWithBaseline;
 };

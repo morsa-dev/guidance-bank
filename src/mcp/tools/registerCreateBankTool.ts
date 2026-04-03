@@ -13,6 +13,7 @@ import { discoverProjectEvidence } from "../../core/projects/discoverProjectEvid
 import { discoverRecentCommits } from "../../core/projects/discoverRecentCommits.js";
 import {
   buildCreateBankIterationPrompt,
+  buildReadyProjectBankPrompt,
   getNextCreateFlowIteration,
   isCreateFlowComplete,
 } from "../../core/projects/createBankIterationPrompt.js";
@@ -51,7 +52,25 @@ const shouldWarnAboutIterationMismatch = (
     return false;
   }
 
+  if (requestedIteration === 0) {
+    return false;
+  }
+
   return true;
+};
+
+const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
+  if (updatedAt === null) {
+    return null;
+  }
+
+  const updatedAtTime = new Date(updatedAt).getTime();
+  if (Number.isNaN(updatedAtTime)) {
+    return null;
+  }
+
+  const diffMs = Math.max(0, now.getTime() - updatedAtTime);
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 };
 
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
@@ -121,6 +140,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         creationState: z.enum(["unknown", "declined", "creating", "ready"]),
         mustContinue: z.boolean(),
         nextIteration: z.number().int().nonnegative().nullable(),
+        existingBankUpdatedAt: z.string().nullable(),
+        existingBankUpdatedDaysAgo: z.number().int().nonnegative().nullable(),
         prompt: z.string(),
         creationPrompt: z.string(),
         text: z.string(),
@@ -173,6 +194,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         : [];
       const existingManifest = await options.repository.readProjectManifestOptional(identity.projectId);
       const existingState = await options.repository.readProjectStateOptional(identity.projectId);
+      const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
+      const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
 
       if (
         existingState !== null &&
@@ -232,12 +255,34 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         selectedReferenceProjects,
       });
       const syncRequired = existingManifest === null ? false : requiresSync(existingState, manifest.storageVersion);
-      const mustContinue = !syncRequired && nextState.creationState === "creating";
-      const nextIteration = mustContinue ? getNextCreateFlowIteration(requestedIteration) : null;
+      const improvementEntryPoint =
+        existingManifest !== null &&
+        existingState?.creationState === "ready" &&
+        !syncRequired &&
+        requestedIteration === 0;
+      const mustContinue =
+        !syncRequired &&
+        (nextState.creationState === "creating" ||
+          (existingManifest !== null &&
+            existingState?.creationState === "ready" &&
+            requestedIteration > 0 &&
+            !isFlowComplete));
+      const nextIteration = syncRequired
+        ? null
+        : improvementEntryPoint
+          ? 1
+          : mustContinue
+            ? getNextCreateFlowIteration(requestedIteration)
+            : null;
       const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
       const prompt =
         syncRequired
           ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
+          : improvementEntryPoint
+            ? buildReadyProjectBankPrompt({
+                updatedAt: existingBankUpdatedAt,
+                updatedDaysAgo: existingBankUpdatedDaysAgo,
+              })
           : mustContinue || completedFlowThisCall
             ? buildCreateBankIterationPrompt({
                 iteration: requestedIteration,
@@ -251,6 +296,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
                 discoveredSources,
                 projectEvidence,
                 recentCommits,
+                hasExistingProjectBank: existingManifest !== null,
               })
             : "Project Memory Bank already exists for this repository and is ready.";
 
@@ -272,11 +318,15 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         creationState: nextState.creationState,
         mustContinue,
         nextIteration,
+        existingBankUpdatedAt,
+        existingBankUpdatedDaysAgo,
         prompt,
         creationPrompt,
         text:
           syncRequired
             ? "Call sync_bank."
+            : improvementEntryPoint
+              ? "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1."
             : mustContinue && nextIteration !== null
               ? `Call create_bank with iteration: ${nextIteration}.`
               : completedFlowThisCall
