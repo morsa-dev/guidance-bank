@@ -266,6 +266,10 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.match(rerunStructured.prompt, /last updated 0 days ago/i);
   assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
   assert.equal(rerunStructured.existingBankUpdatedDaysAgo, 0);
+  assert.deepEqual(rerunStructured.discoveredSources, []);
+  assert.deepEqual(rerunStructured.projectEvidence.topLevelDirectories, []);
+  assert.deepEqual(rerunStructured.projectEvidence.evidenceFiles, []);
+  assert.deepEqual(rerunStructured.recentCommits, []);
 
   const improveStructured = await callToolStructured(
     client,

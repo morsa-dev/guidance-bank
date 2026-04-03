@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-import { detectProjectContext } from "../../core/context/detectProjectContext.js";
-import {
-  requiresProjectBankSync,
-  resolveProjectBankLifecycleStatus,
-} from "../../core/bank/lifecycle.js";
 import {
   createProjectBankManifest,
   createProjectBankState,
@@ -12,18 +7,11 @@ import {
   setProjectBankCreateIteration,
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
-import { discoverExistingGuidance } from "../../core/projects/discoverExistingGuidance.js";
-import { discoverProjectEvidence } from "../../core/projects/discoverProjectEvidence.js";
-import { discoverRecentCommits } from "../../core/projects/discoverRecentCommits.js";
+import { resolveCreateBankFlowContext } from "../../core/projects/createBankFlow.js";
 import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
-  getNextCreateFlowIteration,
-  isCreateFlowComplete,
 } from "../../core/projects/createBankIterationPrompt.js";
-import { findReferenceProjects } from "../../core/projects/findReferenceProjects.js";
-import { resolveProjectIdentity } from "../../core/projects/identity.js";
-import type { ProjectBankState } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
@@ -56,20 +44,6 @@ const shouldWarnAboutIterationMismatch = (
   }
 
   return true;
-};
-
-const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
-  if (updatedAt === null) {
-    return null;
-  }
-
-  const updatedAtTime = new Date(updatedAt).getTime();
-  if (Number.isNaN(updatedAtTime)) {
-    return null;
-  }
-
-  const diffMs = Math.max(0, now.getTime() - updatedAtTime);
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 };
 
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
@@ -161,40 +135,43 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       }
 
       const requestedIteration = parsedArgs.data.iteration ?? 0;
-      const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
-      const projectContext = await detectProjectContext(identity.projectPath);
-      const discoveredSources = await discoverExistingGuidance(identity.projectPath);
-      const projectEvidence = await discoverProjectEvidence(identity.projectPath);
-      const recentCommits = await discoverRecentCommits(identity.projectPath);
-      const referenceProjects = await findReferenceProjects({
+      const flowContext = await resolveCreateBankFlowContext({
         repository: options.repository,
-        currentProjectId: identity.projectId,
-        detectedStacks: projectContext.detectedStacks,
+        projectPath: parsedArgs.data.projectPath,
+        requestedIteration,
+        ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
-      const unknownReferenceIds =
-        parsedArgs.data.referenceProjectIds?.filter(
-          (referenceProjectId) => !referenceProjects.some((project) => project.projectId === referenceProjectId),
-        ) ?? [];
 
-      if (unknownReferenceIds.length > 0) {
+      if (flowContext.unknownReferenceIds.length > 0) {
         return {
           isError: true,
           content: [
             {
               type: "text",
-              text: `Unknown reference project ids for tool create_bank: ${unknownReferenceIds.join(", ")}`,
+              text: `Unknown reference project ids for tool create_bank: ${flowContext.unknownReferenceIds.join(", ")}`,
             },
           ],
         };
       }
 
-      const selectedReferenceProjects = parsedArgs.data.referenceProjectIds
-        ? referenceProjects.filter((project) => parsedArgs.data.referenceProjectIds?.includes(project.projectId))
-        : [];
-      const existingManifest = await options.repository.readProjectManifestOptional(identity.projectId);
-      const existingState = await options.repository.readProjectStateOptional(identity.projectId);
-      const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
-      const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
+      const {
+        identity,
+        projectContext,
+        existingManifest,
+        existingState,
+        selectedReferenceProjects,
+        existingBankUpdatedAt,
+        existingBankUpdatedDaysAgo,
+        shouldTrackCreateFlow,
+        nextCreationState,
+        syncRequired,
+        improvementEntryPoint,
+        mustContinue,
+        nextIteration,
+        completedFlowThisCall,
+        extendedContext,
+        manifestStorageVersion,
+      } = flowContext;
 
       if (
         existingState !== null &&
@@ -218,22 +195,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         );
       }
 
-      const manifest = await options.repository.readManifest();
-      const lifecycleStatus = resolveProjectBankLifecycleStatus({
-        projectManifest: existingManifest,
-        projectState: existingState,
-        expectedStorageVersion: manifest.storageVersion,
-      });
       let nextState = existingState;
-      const isFlowComplete = isCreateFlowComplete(requestedIteration);
-      const shouldTrackCreateFlow =
-        existingManifest === null ||
-        existingState?.creationState === "creating" ||
-        existingState?.creationState === "declined";
-      const nextCreationState = shouldTrackCreateFlow ? (isFlowComplete ? "ready" : "creating") : "ready";
-
       if (existingManifest === null) {
-        nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifest.storageVersion);
+        nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifestStorageVersion);
       } else if (nextState === null) {
         nextState = createProjectBankState(nextCreationState);
       } else if (shouldTrackCreateFlow) {
@@ -258,24 +222,6 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         detectedStacks: projectContext.detectedStacks,
         selectedReferenceProjects,
       });
-      const syncRequired = existingManifest === null ? false : requiresProjectBankSync(existingState, manifest.storageVersion);
-      const improvementEntryPoint =
-        lifecycleStatus === "ready" && requestedIteration === 0;
-      const mustContinue =
-        !syncRequired &&
-        (nextState.creationState === "creating" ||
-          (existingManifest !== null &&
-            existingState?.creationState === "ready" &&
-            requestedIteration > 0 &&
-            !isFlowComplete));
-      const nextIteration = syncRequired
-        ? null
-        : improvementEntryPoint
-          ? 1
-          : mustContinue
-            ? getNextCreateFlowIteration(requestedIteration)
-            : null;
-      const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
       const prompt =
         syncRequired
           ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
@@ -294,9 +240,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
                 skillsDirectory,
                 detectedStacks: projectContext.detectedStacks,
                 selectedReferenceProjects,
-                discoveredSources,
-                projectEvidence,
-                recentCommits,
+                discoveredSources: extendedContext.discoveredSources,
+                projectEvidence: extendedContext.projectEvidence,
+                recentCommits: extendedContext.recentCommits,
                 hasExistingProjectBank: existingManifest !== null,
               })
             : "Project Memory Bank already exists for this repository and is ready.";
@@ -312,9 +258,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
         iteration: requestedIteration,
-        discoveredSources,
-        projectEvidence,
-        recentCommits,
+        discoveredSources: extendedContext.discoveredSources,
+        projectEvidence: extendedContext.projectEvidence,
+        recentCommits: extendedContext.recentCommits,
         selectedReferenceProjects,
         creationState: nextState.creationState,
         mustContinue,
