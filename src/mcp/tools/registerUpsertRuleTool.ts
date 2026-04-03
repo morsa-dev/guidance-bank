@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 import { ENTRY_SCOPES } from "../../core/bank/types.js";
-import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
+import {
+  buildInvalidToolArgsResult,
+  buildStructuredToolResult,
+  readEntryBeforeMutation,
+  resolveScopedMutationContext,
+} from "./entryMutationHelpers.js";
 
 const UpsertRuleArgsSchema = z
   .object({
@@ -61,40 +66,27 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
     async (args) => {
       const parsedArgs = UpsertRuleArgsSchema.safeParse(args);
       if (!parsedArgs.success) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Invalid arguments for tool upsert_rule: ${z.prettifyError(parsedArgs.error)}`,
-            },
-          ],
-        };
+        return buildInvalidToolArgsResult("upsert_rule", parsedArgs.error);
       }
 
-      const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
-      const projectId = parsedArgs.data.scope === "project" ? identity.projectId : undefined;
-      if (parsedArgs.data.scope === "project") {
-        const projectManifest = await options.repository.readProjectManifestOptional(identity.projectId);
-        if (projectManifest === null) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text",
-                text: "Project Memory Bank does not exist yet. Call create_bank before writing project-scoped rules.",
-              },
-            ],
-          };
-        }
+      const mutationContext = await resolveScopedMutationContext({
+        repository: options.repository,
+        projectPath: parsedArgs.data.projectPath,
+        scope: parsedArgs.data.scope,
+        missingProjectMessage: "Project Memory Bank does not exist yet. Call create_bank before writing project-scoped rules.",
+      });
+      if ("isError" in mutationContext) {
+        return mutationContext;
       }
+      const { identity, projectId } = mutationContext;
 
-      const beforeContent = await options.repository.readLayerEntryOptional(
-        parsedArgs.data.scope,
-        "rules",
-        parsedArgs.data.path,
-        projectId,
-      );
+      const beforeContent = await readEntryBeforeMutation({
+        repository: options.repository,
+        scope: parsedArgs.data.scope,
+        kind: "rules",
+        path: parsedArgs.data.path,
+        ...(projectId ? { projectId } : {}),
+      });
 
       const result = await options.repository.upsertRule(
         parsedArgs.data.scope,
@@ -127,15 +119,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
         absolutePath: result.absolutePath,
       } as const;
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(payload, null, 2),
-          },
-        ],
-        structuredContent: payload,
-      };
+      return buildStructuredToolResult(payload);
     },
   );
 };
