@@ -1,7 +1,6 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
-import { buildCreateBankPrompt } from "./createBankPrompt.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import type { ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
@@ -22,6 +21,8 @@ type BuildCreateBankIterationPromptInput = {
 };
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
+
+const STABLE_CONTRACT_NOTE = `Use \`creationPrompt\` as the stable create-flow contract for the whole run. This step prompt contains only the incremental instruction for the current iteration.`;
 
 const renderExistingBankBaselineSection = (
   hasExistingProjectBank: boolean,
@@ -79,7 +80,81 @@ Evidence files:
 ${fileLines}`;
 };
 
+const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
+  detectedStacks.length === 0
+    ? `## Detected Stacks
+
+- other`
+    : `## Detected Stacks
+
+${detectedStacks.map((stack) => `- ${stack}`).join("\n")}`;
+
+const renderReferenceProjectsSection = (selectedReferenceProjects: readonly ReferenceProjectCandidate[]): string => {
+  if (selectedReferenceProjects.length === 0) {
+    return `## Reference Projects
+
+No reference project banks were selected for this run.`;
+  }
+
+  return `## Reference Projects
+
+${selectedReferenceProjects
+  .map(
+    (project) => `- ${project.projectName}
+  - Project path: \`${project.projectPath}\`
+  - Shared stacks: ${project.sharedStacks.join(", ")}`,
+  )
+  .join("\n")}`;
+};
+
+const buildKickoffPrompt = ({
+  projectName,
+  projectPath,
+  projectBankPath,
+  rulesDirectory,
+  skillsDirectory,
+  detectedStacks,
+  selectedReferenceProjects,
+}: Pick<
+  BuildCreateBankIterationPromptInput,
+  | "projectName"
+  | "projectPath"
+  | "projectBankPath"
+  | "rulesDirectory"
+  | "skillsDirectory"
+  | "detectedStacks"
+  | "selectedReferenceProjects"
+>) => `# Create Flow Kickoff
+
+${STABLE_CONTRACT_NOTE}
+
+Project:
+- \`${projectName}\`
+- \`${projectPath}\`
+
+Target Memory Bank:
+- \`${projectBankPath}\`
+- Rules: \`${rulesDirectory}\`
+- Skills: \`${skillsDirectory}\`
+
+${renderDetectedStacksSection(detectedStacks)}
+
+${renderReferenceProjectsSection(selectedReferenceProjects)}
+
+What to do in this step:
+- inspect the repository and selected reference projects
+- form a working plan for which canonical entries are likely needed first
+- start writing canonical entries only when the evidence is already strong
+- do not import or delete repository-local guidance yet; that review happens in later iterations
+
+Step output:
+- one line per created or updated file
+- short purpose for each file or planned file
+- major uncertainties or skipped areas that should be handled in later iterations`;
+
 const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
+
+${STABLE_CONTRACT_NOTE}
 
 Review any existing repository-local guidance before importing it into Memory Bank.
 
@@ -105,6 +180,8 @@ Decision rules:
 - Never delete or rewrite any original source during this review step`;
 
 const buildImportSelectedPrompt = (discoveredSources: readonly ExistingGuidanceSource[]): string => `# Import Selected Guidance
+
+${STABLE_CONTRACT_NOTE}
 
 Import only the guidance the user approved for canonicalization.
 
@@ -135,6 +212,8 @@ const buildDeriveFromProjectPrompt = (
   detectedStacks: readonly DetectableStack[],
 ): string => `# Derive From Project
 
+${STABLE_CONTRACT_NOTE}
+
 Derive additional Memory Bank entries from the real repository.
 
 Project path:
@@ -157,6 +236,8 @@ Quality rules:
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
 const buildFinalizePrompt = (): string => `# Finalize Memory Bank
+
+${STABLE_CONTRACT_NOTE}
 
 Finish the project Memory Bank creation flow.
 
@@ -184,16 +265,8 @@ What to do:
 - Continue normal Memory Bank work through the standard mutation tools when the user asks for targeted updates`;
 
 const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
-  ({
-    projectName,
-    projectPath,
-    projectBankPath,
-    rulesDirectory,
-    skillsDirectory,
-    detectedStacks,
-    selectedReferenceProjects,
-  }) =>
-    buildCreateBankPrompt({
+  ({ projectName, projectPath, projectBankPath, rulesDirectory, skillsDirectory, detectedStacks, selectedReferenceProjects }) =>
+    buildKickoffPrompt({
       projectName,
       projectPath,
       projectBankPath,

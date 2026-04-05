@@ -97,14 +97,15 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   );
   assert.equal(structured.currentBankSnapshot.exists, true);
   assert.deepEqual(structured.currentBankSnapshot.entries, []);
-  assert.match(structured.prompt, /This create flow is iterative/i);
-  assert.match(structured.prompt, /review, import, derive, and finalize steps/i);
-  assert.match(structured.prompt, /may be reviewed explicitly in later `create_bank` iterations/i);
-  assert.doesNotMatch(structured.prompt, /only during explicit bootstrap or sync\/import flows/i);
-  assert.match(structured.prompt, /Supported Stack Ids/i);
-  assert.match(structured.prompt, /- other/);
-  assert.match(structured.prompt, /Expected Bank Density/i);
-  assert.match(structured.prompt, /2-6 focused rule files/i);
+  assert.match(structured.prompt, /Create Flow Kickoff/i);
+  assert.match(structured.prompt, /stable create-flow contract/i);
+  assert.match(structured.prompt, /do not import or delete repository-local guidance yet/i);
+  assert.doesNotMatch(structured.prompt, /Supported Stack Ids/i);
+  assert.doesNotMatch(structured.prompt, /Expected Bank Density/i);
+  assert.match(structured.creationPrompt, /Supported Stack Ids/i);
+  assert.match(structured.creationPrompt, /- other/);
+  assert.match(structured.creationPrompt, /Expected Bank Density/i);
+  assert.match(structured.creationPrompt, /2-6 focused rule files/i);
   assert.match(structured.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
 });
 
@@ -129,6 +130,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     { projectPath: projectRoot, iteration: 1 },
     CreateBankSchema,
   );
+  assert.match(reviewStructured.prompt, /stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /choose exactly one action/i);
   assert.match(reviewStructured.prompt, /`ignore`/);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
@@ -139,6 +141,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     { projectPath: projectRoot, iteration: 2 },
     CreateBankSchema,
   );
+  assert.match(importStructured.prompt, /stable create-flow contract/i);
   assert.match(importStructured.prompt, /Use MCP mutation tools for all canonical writes/i);
   assert.match(importStructured.prompt, /unless the user explicitly chose `move`/i);
 
@@ -148,6 +151,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     { projectPath: projectRoot, iteration: 3 },
     CreateBankSchema,
   );
+  assert.match(deriveProjectStructured.prompt, /stable create-flow contract/i);
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
@@ -163,6 +167,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.mustContinue, true);
   assert.equal(finalizeStructured.nextIteration, 5);
   assert.equal(finalizeStructured.text, "Call create_bank with iteration: 5.");
+  assert.match(finalizeStructured.prompt, /stable create-flow contract/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /After completing this step, call `create_bank` again with `iteration: 5`/i);
