@@ -131,8 +131,9 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.match(reviewStructured.prompt, /stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /choose exactly one action/i);
-  assert.match(reviewStructured.prompt, /`ignore`/);
+  assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
+  assert.match(reviewStructured.prompt, /choose one strategy per meaningful source/i);
+  assert.match(reviewStructured.prompt, /`keep source, fill gaps in bank`/);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
 
   const importStructured = await callToolStructured(
@@ -142,8 +143,9 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.match(importStructured.prompt, /stable create-flow contract/i);
+  assert.match(importStructured.prompt, /Apply the source-level strategies/i);
   assert.match(importStructured.prompt, /Use MCP mutation tools for all canonical writes/i);
-  assert.match(importStructured.prompt, /unless the user explicitly chose `move`/i);
+  assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
 
   const deriveProjectStructured = await callToolStructured(
     client,

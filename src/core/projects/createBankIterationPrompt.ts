@@ -156,7 +156,7 @@ const buildReviewExistingPrompt = (projectPath: string, discoveredSources: reado
 
 ${STABLE_CONTRACT_NOTE}
 
-Review any existing repository-local guidance before importing it into Memory Bank.
+Review available external guidance before importing anything into Memory Bank.
 
 Project path:
 - \`${projectPath}\`
@@ -164,36 +164,46 @@ Project path:
 ${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
-- Read the discovered guidance sources and identify what is still useful, redundant, project-specific, or reusable across projects
+- Build a concise source-level picture of guidance that already exists for this project
+- Treat the listed repository-local sources as the guaranteed inputs for this review
+- If additional provider-global guidance is directly visible in the current agent session, include it in the same review and label it separately
 - Skip purely empty, obsolete, or trivial sources without bothering the user
-- For each meaningful source, ask the user to choose exactly one action:
+- For each meaningful source, summarize:
+  - what the source covers
+  - whether it looks project-specific or reusable across projects
+  - whether Memory Bank should absorb it fully, partially, or not at all
+- Ask the user to choose one strategy per meaningful source:
   - \`ignore\`: keep the source as-is and do not duplicate it into Memory Bank
-  - \`copy\`: convert it into canonical Memory Bank entries and keep the original source
-  - \`move\`: convert it into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
-- Do not duplicate provider-native guidance blindly into Memory Bank
-- Keep the user-facing review concise: one source, summary, recommended scope, requested action
+  - \`copy\`: convert the useful parts into canonical Memory Bank entries and keep the original source
+  - \`move\`: convert the useful parts into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
+  - \`keep source, fill gaps in bank\`: leave the source as the primary record and add only uncovered high-value guidance to Memory Bank
+- Keep the user-facing review concise: one source, summary, recommended scope, recommended strategy
 
 Decision rules:
 - Recommend \`project\` scope when the guidance depends on this repository's structure, tooling, or workflow
 - Recommend \`shared\` scope when the guidance is clearly reusable across repositories
 - If scope is unclear, ask the user explicitly instead of guessing
+- Ask for source-level strategy decisions, not per-rule micro-decisions
 - Never delete or rewrite any original source during this review step`;
 
 const buildImportSelectedPrompt = (discoveredSources: readonly ExistingGuidanceSource[]): string => `# Import Selected Guidance
 
 ${STABLE_CONTRACT_NOTE}
 
-Import only the guidance the user approved for canonicalization.
+Apply the source-level strategies the user approved for external guidance.
 
 ${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
+- For each source the user reviewed, follow the confirmed strategy exactly
 - Convert approved guidance into canonical Memory Bank rules and skills
 - Split entries between project scope and shared scope when appropriate
 - Assign stable ids, titles, topics, and stacks
 - Deduplicate against existing Memory Bank content before writing
 - Use MCP mutation tools for all canonical writes
-- If the user approved a move instead of a copy, delete the original source only after the canonical entry is written and the deletion is explicitly confirmed
+- If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
+- If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
+- If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
 
 Write rules:
 - Create a \`rule\` when the source describes a stable constraint, convention, or preference
@@ -204,7 +214,8 @@ Write rules:
 Safety rules:
 - Do not delete, rewrite, or trim any original source unless the user explicitly chose \`move\`
 - If the user did not clearly approve an action for a source, leave that source untouched
-- If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination`;
+- If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
+- If the chosen strategy was \`keep source, fill gaps in bank\`, avoid re-copying material that already lives in the source clearly enough`;
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,
