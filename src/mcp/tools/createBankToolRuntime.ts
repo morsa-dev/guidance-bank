@@ -4,6 +4,7 @@ import {
   setProjectBankCreateIteration,
 } from "../../core/bank/project.js";
 import type { ProjectBankManifest, ProjectBankState, ProjectCreationState } from "../../core/bank/types.js";
+import type { CreateFlowPhase } from "../../core/projects/createFlowPhases.js";
 import type { CreateBankApplyResults } from "./createBankApply.js";
 import type { CreateBankArgs } from "./createBankToolSchemas.js";
 
@@ -129,6 +130,7 @@ export const buildCreateBankResponseText = ({
   improvementEntryPoint,
   mustContinue,
   completedFlowThisCall,
+  phase,
 }: {
   syncRequired: boolean;
   applyResults: CreateBankApplyResults;
@@ -137,6 +139,7 @@ export const buildCreateBankResponseText = ({
   improvementEntryPoint: boolean;
   mustContinue: boolean;
   completedFlowThisCall: boolean;
+  phase: CreateFlowPhase;
 }): string => {
   if (syncRequired) {
     return "Call sync_bank to reconcile the existing project bank before any create or improve flow.";
@@ -148,11 +151,11 @@ export const buildCreateBankResponseText = ({
     }
 
     if (stepCompletionRequired && nextIteration !== null) {
-      return `Create-flow changes were applied. Mark the current step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
+      return `Create-flow changes were applied during phase \`${phase}\`. Mark the current step complete before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
     }
 
     if (mustContinue && nextIteration !== null) {
-      return `Create-flow changes were applied. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is complete.`;
+      return `Create-flow changes were applied during phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is complete.`;
     }
 
     if (completedFlowThisCall) {
@@ -163,15 +166,15 @@ export const buildCreateBankResponseText = ({
   }
 
   if (stepCompletionRequired && nextIteration !== null) {
-    return `Mark the current create step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
+    return `Mark the current create step complete before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
   }
 
   if (improvementEntryPoint) {
-    return "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1.";
+    return "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.";
   }
 
   if (mustContinue && nextIteration !== null) {
-    return `Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete.`;
+    return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete.`;
   }
 
   if (completedFlowThisCall) {

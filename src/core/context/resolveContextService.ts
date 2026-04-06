@@ -8,6 +8,7 @@ import { ValidationError } from "../../shared/errors.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { ResolvedContextEntry, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
+import { getCreateFlowPhase } from "../projects/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
 
 type ResolveContextOptions = {
@@ -217,10 +218,12 @@ const buildMissingText = ({
 };
 
 const buildCreatingText = ({
+  phase,
   nextIteration,
 }: {
+  phase: string;
   nextIteration: number;
-}): string => `Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after the current step is actually complete.`;
+}): string => `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for batched writes inside the guided flow. Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after the current step is actually complete.`;
 
 const buildDeclinedText = (): string =>
   "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
@@ -306,13 +309,16 @@ export const resolveMemoryBankContext = async ({
 
   if (status === "creation_in_progress") {
     const nextIteration = getProjectBankContinuationIteration(projectState);
+    const createFlowPhase = getCreateFlowPhase(nextIteration);
 
     return {
       text: buildCreatingText({
+        phase: createFlowPhase,
         nextIteration,
       }),
       creationState: "creating",
       requiredAction: "continue_create_bank",
+      createFlowPhase,
       nextIteration,
     };
   }

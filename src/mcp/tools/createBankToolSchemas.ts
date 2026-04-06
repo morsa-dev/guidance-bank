@@ -133,7 +133,7 @@ export const CreateBankOutputShape = {
     ),
   }),
   prompt: z.string(),
-  creationPrompt: z.string(),
+  creationPrompt: z.string().nullable(),
   text: z.string(),
 } as const;
 

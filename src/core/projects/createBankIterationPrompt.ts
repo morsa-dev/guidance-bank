@@ -23,7 +23,7 @@ type BuildCreateBankIterationPromptInput = {
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
 
-const STABLE_CONTRACT_NOTE = `Use \`creationPrompt\` as the stable create-flow contract for the whole run. This step prompt contains only the incremental instruction for the current iteration.`;
+const STABLE_CONTRACT_NOTE = `Use \`phase\` as the main guide for the current create step and treat \`iteration\` as diagnostic only. If \`creationPrompt\` is present, use it as the stable create-flow contract; this step prompt contains only the incremental instruction for the current phase.`;
 
 const renderExistingBankBaselineSection = (
   hasExistingProjectBank: boolean,

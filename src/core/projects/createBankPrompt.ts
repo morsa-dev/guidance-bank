@@ -98,6 +98,7 @@ Use these inputs together:
 
 Important:
 - Memory Bank is the canonical user-managed context for this project
+- Use \`phase\` as the main guide during the iterative create or improve flow; treat \`iteration\` as transport and diagnostic detail only
 - Provider-native guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` is a separate repository-local layer
 - Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
 - Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`

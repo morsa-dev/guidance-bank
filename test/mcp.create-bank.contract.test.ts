@@ -84,7 +84,7 @@ const CreateBankSchema = z.object({
     }),
   ),
   prompt: z.string(),
-  creationPrompt: z.string(),
+  creationPrompt: z.string().nullable(),
   text: z.string(),
 });
 
@@ -113,7 +113,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.equal(structured.nextIteration, 1);
   assert.equal(
     structured.text,
-    "Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete.",
+    "Continue the create flow at phase `kickoff`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete.",
   );
   assert.deepEqual(
     structured.discoveredSources.map((source) => source.relativePath),
@@ -132,10 +132,10 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(structured.prompt, /do not import or delete repository-local guidance yet/i);
   assert.doesNotMatch(structured.prompt, /Supported Stack Ids/i);
   assert.doesNotMatch(structured.prompt, /Expected Bank Density/i);
-  assert.match(structured.creationPrompt, /Supported Stack Ids/i);
-  assert.match(structured.creationPrompt, /- other/);
-  assert.match(structured.creationPrompt, /Expected Bank Density/i);
-  assert.match(structured.creationPrompt, /2-6 focused rule files/i);
+  assert.match(structured.creationPrompt ?? "", /Supported Stack Ids/i);
+  assert.match(structured.creationPrompt ?? "", /- other/);
+  assert.match(structured.creationPrompt ?? "", /Expected Bank Density/i);
+  assert.match(structured.creationPrompt ?? "", /2-6 focused rule files/i);
   assert.match(
     structured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 1` and `stepCompleted: true`/i,
@@ -168,9 +168,12 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedReviewStructured.stepCompletionRequired, true);
   assert.equal(
     blockedReviewStructured.text,
-    "Mark the current create step complete before advancing. Re-call create_bank with iteration: 1 and stepCompleted: true once the current step is actually done.",
+    "Mark the current create step complete before advancing from phase `kickoff`. Use `phase` as the primary guide and treat `iteration` as diagnostic only. Re-call create_bank with iteration: 1 and stepCompleted: true once the current step is actually done.",
   );
   assert.match(blockedReviewStructured.prompt, /Create Flow Kickoff/i);
+  assert.match(blockedReviewStructured.prompt, /Use `phase` as the main guide/i);
+  assert.match(blockedReviewStructured.text, /Use `phase` as the primary guide/i);
+  assert.match(blockedReviewStructured.creationPrompt ?? "", /Supported Stack Ids/i);
 
   const reviewStructured = await callToolStructured(
     client,
@@ -181,11 +184,13 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.iteration, 1);
   assert.equal(reviewStructured.phase, "review_existing_guidance");
   assert.equal(reviewStructured.stepCompletionRequired, false);
-  assert.match(reviewStructured.prompt, /stable create-flow contract/i);
+  assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
   assert.match(reviewStructured.prompt, /choose one strategy per meaningful source/i);
   assert.match(reviewStructured.prompt, /`keep source, fill gaps in bank`/);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
+  assert.equal(reviewStructured.creationPrompt, null);
+  assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
 
   const importStructured = await callToolStructured(
     client,
@@ -196,10 +201,11 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(importStructured.iteration, 2);
   assert.equal(importStructured.phase, "import_selected_guidance");
   assert.equal(importStructured.stepCompletionRequired, false);
-  assert.match(importStructured.prompt, /stable create-flow contract/i);
+  assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
   assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
+  assert.equal(importStructured.creationPrompt, null);
 
   const deriveProjectStructured = await callToolStructured(
     client,
@@ -209,12 +215,13 @@ test("create_bank later iterations expose review import derive and finalize prom
   );
   assert.equal(deriveProjectStructured.iteration, 3);
   assert.equal(deriveProjectStructured.phase, "derive_from_project");
-  assert.match(deriveProjectStructured.prompt, /stable create-flow contract/i);
+  assert.match(deriveProjectStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
+  assert.equal(deriveProjectStructured.creationPrompt, null);
 
   const finalizeStructured = await callToolStructured(
     client,
@@ -229,12 +236,13 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.nextIteration, 5);
   assert.equal(
     finalizeStructured.text,
-    "Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete.",
+    "Continue the create flow at phase `finalize`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete.",
   );
-  assert.match(finalizeStructured.prompt, /stable create-flow contract/i);
+  assert.match(finalizeStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
+  assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 5` and `stepCompleted: true`/i,
@@ -247,6 +255,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.equal(completedStructured.phase, "completed");
+  assert.equal(completedStructured.creationPrompt, null);
   assert.equal(completedStructured.creationState, "ready");
   assert.equal(completedStructured.stepCompletionRequired, false);
   assert.equal(completedStructured.mustContinue, false);
@@ -612,8 +621,8 @@ topics: [architecture]
   assert.equal(conflicted.applyResults.writes[0]?.actualSha256, existingRule.sha256);
   assert.match(conflicted.text, /conflicted with the current Memory Bank state/i);
   assert.match(conflicted.text, /Re-read the affected entries/i);
-  assert.match(conflicted.creationPrompt, /if `create_bank\.apply` reports `conflict`/i);
   assert.match(conflicted.prompt, /If `create_bank\.apply` reports a `conflict`/i);
+  assert.equal(conflicted.creationPrompt, null);
 });
 
 test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {
@@ -634,10 +643,11 @@ test("resolve_context blocks normal runtime context until the create flow is com
 
   assert.equal(inProgressStructured.creationState, "creating");
   assert.equal(inProgressStructured.requiredAction, "continue_create_bank");
+  assert.equal(inProgressStructured.createFlowPhase, "review_existing_guidance");
   assert.equal(inProgressStructured.nextIteration, 1);
   assert.equal(
     inProgressStructured.text,
-    "Call `create_bank` with `iteration: 1` and `stepCompleted: true` after the current step is actually complete.",
+    "Continue the create flow at phase `review_existing_guidance`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for batched writes inside the guided flow. Call `create_bank` with `iteration: 1` and `stepCompleted: true` after the current step is actually complete.",
   );
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
@@ -712,7 +722,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(rerunStructured.nextIteration, 1);
   assert.equal(
     rerunStructured.text,
-    "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1.",
+    "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.",
   );
   assert.match(rerunStructured.prompt, /last updated 0 days ago/i);
   assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
@@ -736,6 +746,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(improveStructured.nextIteration, 2);
   assert.match(improveStructured.prompt, /Current Bank Baseline/i);
   assert.match(improveStructured.prompt, /Treat the current project bank as the canonical baseline/i);
+  assert.equal(improveStructured.creationPrompt, null);
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "ready");
@@ -806,7 +817,7 @@ test("resolve_context suggests similar project banks and create_bank accepts sel
 
   assert.equal(targetCreateStructured.selectedReferenceProjects.length, 1);
   assert.equal(targetCreateStructured.selectedReferenceProjects[0]?.projectId, referenceCreateStructured.projectId);
-  assert.match(targetCreateStructured.creationPrompt, /Reference Projects/i);
+  assert.match(targetCreateStructured.creationPrompt ?? "", /Reference Projects/i);
 });
 
 test("create_bank blocks advancing to a later step without explicit completion confirmation", async (t) => {

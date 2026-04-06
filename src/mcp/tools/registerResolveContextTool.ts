@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
 import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
@@ -29,6 +30,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         text: z.string(),
         creationState: z.enum(["unknown", "declined", "creating", "ready"]).optional(),
         requiredAction: z.enum(["create_bank", "continue_create_bank", "sync_bank"]).optional(),
+        createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
         referenceProjects: z
           .array(

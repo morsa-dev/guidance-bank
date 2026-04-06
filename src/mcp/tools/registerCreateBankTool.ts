@@ -178,15 +178,6 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       if (parsedArgs.data.apply) {
         currentBankSnapshot = await discoverCurrentProjectBank(options.repository, identity.projectId, true);
       }
-      const creationPrompt = buildCreateBankPrompt({
-        projectName: identity.projectName,
-        projectPath: identity.projectPath,
-        projectBankPath,
-        rulesDirectory,
-        skillsDirectory,
-        detectedStacks: projectContext.detectedStacks,
-        selectedReferenceProjects,
-      });
       const prompt =
         syncRequired
           ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current Memory Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
@@ -216,6 +207,18 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         : improvementEntryPoint
           ? "ready_to_improve"
           : getCreateFlowPhase(effectiveIteration);
+      const creationPrompt =
+        effectiveIteration === 0
+          ? buildCreateBankPrompt({
+              projectName: identity.projectName,
+              projectPath: identity.projectPath,
+              projectBankPath,
+              rulesDirectory,
+              skillsDirectory,
+              detectedStacks: projectContext.detectedStacks,
+              selectedReferenceProjects,
+            })
+          : null;
 
       const payload = {
         status: existingManifest === null ? "created" : "already_exists",
@@ -250,6 +253,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           improvementEntryPoint,
           mustContinue,
           completedFlowThisCall,
+          phase,
         }),
       } as const;
 

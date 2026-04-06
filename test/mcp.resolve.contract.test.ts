@@ -88,6 +88,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   const structured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(structured.creationState, "ready");
+  assert.equal(structured.createFlowPhase, undefined);
   assert.match(structured.text, /### shared\/preferences\/user-praise\.md/);
   assert.match(structured.text, /Ты хорош/);
 });
