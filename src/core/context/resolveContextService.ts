@@ -238,10 +238,13 @@ const buildSyncRequiredText = ({
 
 ${postponeLine}
 
+Sync only reconciles the existing project bank with the current Memory Bank storage version. It does not create a new bank and does not replace the normal create or improve flow.
+
 Ask the user whether to synchronize the project Memory Bank now or postpone it.
 - If the user wants to sync now, call \`sync_bank\` with \`action: "run"\`.
 - If the user wants to postpone, call \`sync_bank\` with \`action: "postpone"\`.
-- After that, call \`resolve_context\` again.`;
+- After that, call \`resolve_context\` again.
+- If the user later wants to create or improve project-specific content, continue with \`create_bank\` after synchronization is no longer required.`;
 };
 
 export const resolveMemoryBankContext = async ({

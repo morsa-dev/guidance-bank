@@ -237,7 +237,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       });
       const prompt =
         syncRequired
-          ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
+          ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current Memory Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
           : improvementEntryPoint
             ? buildReadyProjectBankPrompt({
                 updatedAt: existingBankUpdatedAt,
@@ -284,7 +284,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         creationPrompt,
         text:
           syncRequired
-            ? "Call sync_bank."
+            ? "Call sync_bank to reconcile the existing project bank before any create or improve flow."
             : improvementEntryPoint
               ? "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1."
             : mustContinue && nextIteration !== null

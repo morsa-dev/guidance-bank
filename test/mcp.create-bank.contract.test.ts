@@ -240,6 +240,11 @@ test("create_bank does not clear sync_required for an existing outdated project 
   assert.equal(secondStructured.status, "already_exists");
   assert.equal(secondStructured.syncRequired, true);
   assert.match(secondStructured.prompt, /requires synchronization before reuse/i);
+  assert.match(secondStructured.prompt, /does not create or improve project content/i);
+  assert.equal(
+    secondStructured.text,
+    "Call sync_bank to reconcile the existing project bank before any create or improve flow.",
+  );
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.match(resolveStructured.text, /synchronization is required before using the project-specific bank/i);

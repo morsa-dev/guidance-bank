@@ -214,6 +214,8 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
 
   const beforePostpone = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.match(beforePostpone.text, /synchronization is required before using the project-specific bank/i);
+  assert.match(beforePostpone.text, /Sync only reconciles the existing project bank/i);
+  assert.match(beforePostpone.text, /does not create a new bank and does not replace the normal create or improve flow/i);
 
   const postponeStructured = await callToolStructured(
     client,
