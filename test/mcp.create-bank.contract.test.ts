@@ -428,6 +428,98 @@ When adding a feature.
   assert.match(projectRule.content, /Demo Project General Rules/);
 });
 
+test("create_bank apply accepts singular rule and skill kinds as aliases", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
+    },
+    CreateBankSchema,
+  );
+
+  const applied = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rule",
+            scope: "project",
+            path: "core/general.md",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+          },
+          {
+            kind: "skill",
+            scope: "project",
+            path: "adding-feature",
+            content: `---
+id: demo-project-adding-feature
+kind: skill
+title: Adding Feature
+description: Add a feature in this demo project.
+stacks: [other]
+topics: [workflow]
+---
+
+## When to use
+
+When adding a feature.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.deepEqual(
+    applied.applyResults.writes.map((item) => item.kind),
+    ["rules", "skills"],
+  );
+  assert.equal(applied.currentBankSnapshot.entries.length, 2);
+});
+
 test("create_bank apply can update and delete existing entries in one batch with baseSha256", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");

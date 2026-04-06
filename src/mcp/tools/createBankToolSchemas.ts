@@ -3,9 +3,23 @@ import { z } from "zod";
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
+const CreateBankApplyEntryKindSchema = z
+  .enum(["rule", "rules", "skill", "skills"])
+  .transform((value) => {
+    if (value === "rule") {
+      return "rules";
+    }
+
+    if (value === "skill") {
+      return "skills";
+    }
+
+    return value;
+  });
+
 export const CreateBankApplyWriteSchema = z
   .object({
-    kind: z.enum(["rules", "skills"]),
+    kind: CreateBankApplyEntryKindSchema,
     scope: z.enum(["shared", "project"]),
     path: z.string().trim().min(1),
     content: z.string().min(1),
@@ -15,7 +29,7 @@ export const CreateBankApplyWriteSchema = z
 
 export const CreateBankApplyDeletionSchema = z
   .object({
-    kind: z.enum(["rules", "skills"]),
+    kind: CreateBankApplyEntryKindSchema,
     scope: z.enum(["shared", "project"]),
     path: z.string().trim().min(1),
     baseSha256: z.string().trim().min(1).optional(),
