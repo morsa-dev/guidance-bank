@@ -12,6 +12,7 @@ import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
 } from "../../core/projects/createBankIterationPrompt.js";
+import { CREATE_FLOW_PHASES, getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
@@ -90,6 +91,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory: z.string(),
         skillsDirectory: z.string(),
         detectedStacks: z.array(z.string()),
+        phase: z.enum(CREATE_FLOW_PHASES),
         iteration: z.number().int().nonnegative(),
         discoveredSources: z.array(
           z.object({
@@ -284,6 +286,11 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
                 hasExistingProjectBank: existingManifest !== null,
               })
             : "Project Memory Bank already exists for this repository and is ready.";
+      const phase = syncRequired
+        ? "sync_required"
+        : improvementEntryPoint
+          ? "ready_to_improve"
+          : getCreateFlowPhase(effectiveIteration);
 
       const payload = {
         status: existingManifest === null ? "created" : "already_exists",
@@ -295,6 +302,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory,
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
+        phase,
         iteration: effectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
         projectEvidence: extendedContext.projectEvidence,

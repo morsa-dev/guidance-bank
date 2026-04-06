@@ -18,6 +18,7 @@ const CreateBankSchema = z.object({
   status: z.enum(["created", "already_exists"]),
   syncRequired: z.boolean(),
   projectId: z.string(),
+  phase: z.string(),
   iteration: z.number(),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
   stepCompletionRequired: z.boolean(),
@@ -82,6 +83,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
 
   assert.equal(structured.status, "created");
   assert.equal(structured.syncRequired, false);
+  assert.equal(structured.phase, "kickoff");
   assert.equal(structured.iteration, 0);
   assert.equal(structured.creationState, "creating");
   assert.equal(structured.stepCompletionRequired, false);
@@ -139,6 +141,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.equal(blockedReviewStructured.iteration, 0);
+  assert.equal(blockedReviewStructured.phase, "kickoff");
   assert.equal(blockedReviewStructured.stepCompletionRequired, true);
   assert.equal(
     blockedReviewStructured.text,
@@ -153,6 +156,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.equal(reviewStructured.iteration, 1);
+  assert.equal(reviewStructured.phase, "review_existing_guidance");
   assert.equal(reviewStructured.stepCompletionRequired, false);
   assert.match(reviewStructured.prompt, /stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
@@ -167,6 +171,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.equal(importStructured.iteration, 2);
+  assert.equal(importStructured.phase, "import_selected_guidance");
   assert.equal(importStructured.stepCompletionRequired, false);
   assert.match(importStructured.prompt, /stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
@@ -180,6 +185,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     CreateBankSchema,
   );
   assert.equal(deriveProjectStructured.iteration, 3);
+  assert.equal(deriveProjectStructured.phase, "derive_from_project");
   assert.match(deriveProjectStructured.prompt, /stable create-flow contract/i);
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
@@ -192,6 +198,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     { projectPath: projectRoot, iteration: 4, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(finalizeStructured.phase, "finalize");
   assert.equal(finalizeStructured.creationState, "creating");
   assert.equal(finalizeStructured.stepCompletionRequired, false);
   assert.equal(finalizeStructured.mustContinue, true);
@@ -214,6 +221,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     { projectPath: projectRoot, iteration: 5, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(completedStructured.phase, "completed");
   assert.equal(completedStructured.creationState, "ready");
   assert.equal(completedStructured.stepCompletionRequired, false);
   assert.equal(completedStructured.mustContinue, false);
@@ -277,6 +285,7 @@ test("create_bank does not clear sync_required for an existing outdated project 
   const secondStructured = await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
   assert.equal(secondStructured.status, "already_exists");
   assert.equal(secondStructured.syncRequired, true);
+  assert.equal(secondStructured.phase, "sync_required");
   assert.match(secondStructured.prompt, /requires synchronization before reuse/i);
   assert.match(secondStructured.prompt, /does not create or improve project content/i);
   assert.equal(
@@ -312,6 +321,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   );
 
   assert.equal(rerunStructured.creationState, "ready");
+  assert.equal(rerunStructured.phase, "ready_to_improve");
   assert.equal(rerunStructured.stepCompletionRequired, false);
   assert.equal(rerunStructured.mustContinue, false);
   assert.equal(rerunStructured.nextIteration, 1);
@@ -335,6 +345,7 @@ test("ready project banks ask the user whether to run an improvement pass before
     CreateBankSchema,
   );
   assert.equal(improveStructured.creationState, "ready");
+  assert.equal(improveStructured.phase, "review_existing_guidance");
   assert.equal(improveStructured.stepCompletionRequired, false);
   assert.equal(improveStructured.mustContinue, true);
   assert.equal(improveStructured.nextIteration, 2);

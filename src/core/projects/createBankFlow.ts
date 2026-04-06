@@ -2,7 +2,7 @@ import type { BankRepository } from "../../storage/bankRepository.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../bank/lifecycle.js";
 import type { ProjectCreationState } from "../bank/types.js";
 import { detectProjectContext } from "../context/detectProjectContext.js";
-import { getNextCreateFlowIteration, isCreateFlowComplete } from "./createBankIterationPrompt.js";
+import { getNextCreateFlowIteration, isCreateFlowComplete } from "./createFlowPhases.js";
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { discoverProjectEvidence, type ProjectEvidenceInventory } from "./discoverProjectEvidence.js";

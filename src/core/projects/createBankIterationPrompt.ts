@@ -1,5 +1,6 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
+import { CREATE_FLOW_COMPLETED_ITERATION } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
@@ -293,13 +294,6 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
   () => buildFinalizePrompt(),
   () => buildCompletedPrompt(),
 ] as const;
-
-export const CREATE_FLOW_COMPLETED_ITERATION = CREATE_FLOW_PROMPT_BUILDERS.length - 1;
-
-export const getNextCreateFlowIteration = (iteration: number): number | null =>
-  iteration < CREATE_FLOW_COMPLETED_ITERATION ? iteration + 1 : null;
-
-export const isCreateFlowComplete = (iteration: number): boolean => iteration >= CREATE_FLOW_COMPLETED_ITERATION;
 
 export const buildReadyProjectBankPrompt = ({
   updatedAt,
