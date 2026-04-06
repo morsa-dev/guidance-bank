@@ -2,9 +2,6 @@ import { z } from "zod";
 
 import {
   createProjectBankManifest,
-  createProjectBankState,
-  markProjectBankSynced,
-  setProjectBankCreateIteration,
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
 import { resolveCreateBankFlowContext } from "../../core/projects/createBankFlow.js";
@@ -13,97 +10,22 @@ import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
 } from "../../core/projects/createBankIterationPrompt.js";
-import { CREATE_FLOW_PHASES, getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
+import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
-
-const CreateBankApplyWriteSchema = z
-  .object({
-    kind: z.enum(["rules", "skills"]),
-    scope: z.enum(["shared", "project"]),
-    path: z.string().trim().min(1),
-    content: z.string().min(1),
-    baseSha256: z.string().trim().min(1).optional(),
-  })
-  .strict();
-
-const CreateBankApplyDeletionSchema = z
-  .object({
-    kind: z.enum(["rules", "skills"]),
-    scope: z.enum(["shared", "project"]),
-    path: z.string().trim().min(1),
-    baseSha256: z.string().trim().min(1).optional(),
-  })
-  .strict();
-
-const CreateBankArgsSchema = z
-  .object({
-    projectPath: AbsoluteProjectPathSchema,
-    iteration: z.number().int().nonnegative().optional(),
-    sessionRef: z.string().trim().min(1).optional(),
-    stepCompleted: z
-      .boolean()
-      .optional()
-      .describe("Marks the current create-flow step as complete when advancing to the next iteration."),
-    referenceProjectIds: z
-      .array(z.string().trim().min(1))
-      .max(5)
-      .optional()
-      .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
-    apply: z
-      .object({
-        writes: z.array(CreateBankApplyWriteSchema).default([]),
-        deletions: z.array(CreateBankApplyDeletionSchema).default([]),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
-
-const shouldWarnAboutIterationMismatch = (
-  storedIteration: number | null,
-  requestedIteration: number,
-  effectiveIteration: number,
-  stepCompletionRequired: boolean,
-): boolean => {
-  if (storedIteration === null) {
-    return false;
-  }
-
-  if (stepCompletionRequired) {
-    return false;
-  }
-
-  if (requestedIteration === effectiveIteration) {
-    return false;
-  }
-
-  if (requestedIteration === 0) {
-    return false;
-  }
-
-  return true;
-};
-
-const normalizeApplyWrites = (
-  writes: readonly z.infer<typeof CreateBankApplyWriteSchema>[],
-) => writes.map((write) => ({
-  kind: write.kind,
-  scope: write.scope,
-  path: write.path,
-  content: write.content,
-  ...(write.baseSha256 !== undefined ? { baseSha256: write.baseSha256 } : {}),
-}));
-
-const normalizeApplyDeletions = (
-  deletions: readonly z.infer<typeof CreateBankApplyDeletionSchema>[],
-) => deletions.map((deletion) => ({
-  kind: deletion.kind,
-  scope: deletion.scope,
-  path: deletion.path,
-  ...(deletion.baseSha256 !== undefined ? { baseSha256: deletion.baseSha256 } : {}),
-}));
+import {
+  buildCreateBankResponseText,
+  getCreateBankApplyBlockedMessage,
+  normalizeApplyDeletions,
+  normalizeApplyWrites,
+  resolveNextCreateBankState,
+  shouldWarnAboutIterationMismatch,
+} from "./createBankToolRuntime.js";
+import {
+  CreateBankArgsSchema,
+  CreateBankInputShape,
+  CreateBankOutputShape,
+} from "./createBankToolSchemas.js";
 
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
@@ -116,117 +38,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         readOnlyHint: false,
         destructiveHint: false,
       },
-      inputSchema: {
-        projectPath: AbsoluteProjectPathSchema,
-        iteration: z.number().int().nonnegative().optional().describe("Current create-flow iteration. Defaults to 0."),
-        sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
-        stepCompleted: z
-          .boolean()
-          .optional()
-          .describe("Marks the current create-flow step as complete when advancing to the next iteration."),
-        referenceProjectIds: z
-          .array(z.string().trim().min(1))
-          .max(5)
-          .optional()
-          .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
-        apply: z
-          .object({
-            writes: z
-              .array(CreateBankApplyWriteSchema)
-              .default([])
-              .describe("Full-document writes to apply in this create-flow step."),
-            deletions: z
-              .array(CreateBankApplyDeletionSchema)
-              .default([])
-              .describe("Entry deletions to apply in this create-flow step."),
-          })
-          .strict()
-          .optional()
-          .describe("Optional batched entry mutations for the current create-flow step."),
-      },
-      outputSchema: {
-        status: z.enum(["created", "already_exists"]),
-        syncRequired: z.boolean(),
-        projectId: z.string(),
-        projectName: z.string(),
-        projectPath: z.string(),
-        projectBankPath: z.string(),
-        rulesDirectory: z.string(),
-        skillsDirectory: z.string(),
-        detectedStacks: z.array(z.string()),
-        phase: z.enum(CREATE_FLOW_PHASES),
-        iteration: z.number().int().nonnegative(),
-        discoveredSources: z.array(
-          z.object({
-            kind: z.enum(["agents", "claude-md", "copilot", "cursor", "claude", "codex"]),
-            entryType: z.enum(["file", "directory"]),
-            path: z.string(),
-            relativePath: z.string(),
-          }),
-        ),
-        projectEvidence: z.object({
-          topLevelDirectories: z.array(z.string()),
-          evidenceFiles: z.array(
-            z.object({
-              kind: z.enum(["config", "doc"]),
-              relativePath: z.string(),
-            }),
-          ),
-        }),
-        currentBankSnapshot: z.object({
-          exists: z.boolean(),
-          entries: z.array(
-            z.object({
-              kind: z.enum(["rules", "skills"]),
-              scope: z.literal("project"),
-              path: z.string(),
-              id: z.string(),
-              sha256: z.string(),
-            }),
-          ),
-        }),
-        selectedReferenceProjects: z.array(
-          z.object({
-            projectId: z.string(),
-            projectName: z.string(),
-            projectPath: z.string(),
-            projectBankPath: z.string(),
-            detectedStacks: z.array(z.string()),
-            sharedStacks: z.array(z.string()),
-          }),
-        ),
-        creationState: z.enum(["unknown", "declined", "creating", "ready"]),
-        stepCompletionRequired: z.boolean(),
-        mustContinue: z.boolean(),
-        nextIteration: z.number().int().nonnegative().nullable(),
-        existingBankUpdatedAt: z.string().nullable(),
-        existingBankUpdatedDaysAgo: z.number().int().nonnegative().nullable(),
-        applyResults: z.object({
-          writes: z.array(
-            z.object({
-              kind: z.enum(["rules", "skills"]),
-              scope: z.enum(["shared", "project"]),
-              path: z.string(),
-              status: z.enum(["created", "updated", "conflict"]),
-              expectedSha256: z.string().nullable(),
-              actualSha256: z.string().nullable(),
-            }),
-          ),
-          deletions: z.array(
-            z.object({
-              kind: z.enum(["rules", "skills"]),
-              scope: z.enum(["shared", "project"]),
-              path: z.string(),
-              status: z.enum(["deleted", "not_found", "conflict"]),
-              expectedSha256: z.string().nullable(),
-              actualSha256: z.string().nullable(),
-            }),
-          ),
-        }),
-        prompt: z.string(),
-        creationPrompt: z.string(),
-        text: z.string(),
-      },
+      inputSchema: CreateBankInputShape,
+      outputSchema: CreateBankOutputShape,
     },
     async (args) => {
       const parsedArgs = CreateBankArgsSchema.safeParse(args);
@@ -297,38 +110,19 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           `create_bank iteration mismatch for project ${identity.projectId}: stored=${existingState.createIteration}, requested=${requestedIteration}, effective=${effectiveIteration}. Overwriting stored iteration.`,
         );
       }
-
-      if (parsedArgs.data.apply && syncRequired) {
+      const applyBlockedMessage = getCreateBankApplyBlockedMessage({
+        hasApply: parsedArgs.data.apply !== undefined,
+        syncRequired,
+        improvementEntryPoint,
+        stepCompletionRequired,
+      });
+      if (applyBlockedMessage !== null) {
         return {
           isError: true,
           content: [
             {
               type: "text",
-              text: "Cannot apply create-flow changes while sync_bank is required. Reconcile the existing project bank first.",
-            },
-          ],
-        };
-      }
-
-      if (parsedArgs.data.apply && improvementEntryPoint) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: "Cannot apply create-flow changes from the ready-to-improve entry point. Ask the user whether to improve the existing bank first, then continue with iteration: 1.",
-            },
-          ],
-        };
-      }
-
-      if (parsedArgs.data.apply && stepCompletionRequired) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: "Cannot apply create-flow changes while step completion is unresolved. Re-call create_bank for the current step before applying changes or advancing.",
+              text: applyBlockedMessage,
             },
           ],
         };
@@ -347,21 +141,14 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         );
       }
 
-      let nextState = existingState;
-      if (existingManifest === null) {
-        nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifestStorageVersion);
-      } else if (nextState === null) {
-        nextState = createProjectBankState(nextCreationState);
-      } else if (shouldTrackCreateFlow) {
-        nextState = {
-          ...nextState,
-          creationState: nextCreationState,
-        };
-      }
-
-      if (shouldTrackCreateFlow) {
-        nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
-      }
+      const nextState = resolveNextCreateBankState({
+        existingManifest,
+        existingState,
+        shouldTrackCreateFlow,
+        nextCreationState,
+        manifestStorageVersion,
+        effectiveIteration,
+      });
       await options.repository.writeProjectState(identity.projectId, nextState);
 
       const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
@@ -455,26 +242,15 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         applyResults,
         prompt,
         creationPrompt,
-        text:
-          syncRequired
-            ? "Call sync_bank to reconcile the existing project bank before any create or improve flow."
-            : applyResults.writes.length > 0 || applyResults.deletions.length > 0
-              ? stepCompletionRequired && nextIteration !== null
-                ? `Create-flow changes were applied. Mark the current step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`
-                : mustContinue && nextIteration !== null
-                  ? `Create-flow changes were applied. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is complete.`
-                  : completedFlowThisCall
-                    ? "Create-flow changes were applied and the flow is complete. Tell the user the project bank is ready."
-                    : "Create-flow changes were applied for the current step."
-            : stepCompletionRequired && nextIteration !== null
-              ? `Mark the current create step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`
-            : improvementEntryPoint
-              ? "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1."
-            : mustContinue && nextIteration !== null
-              ? `Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete.`
-              : completedFlowThisCall
-                ? "Create flow complete. Tell the user the project bank is ready."
-                : "Project Memory Bank is ready.",
+        text: buildCreateBankResponseText({
+          syncRequired,
+          applyResults,
+          stepCompletionRequired,
+          nextIteration,
+          improvementEntryPoint,
+          mustContinue,
+          completedFlowThisCall,
+        }),
       } as const;
 
       return {
