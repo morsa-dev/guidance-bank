@@ -7,6 +7,7 @@ import { registerBankManifestTool } from "./tools/registerBankManifestTool.js";
 import { registerClearProjectBankTool } from "./tools/registerClearProjectBankTool.js";
 import { registerCreateBankTool } from "./tools/registerCreateBankTool.js";
 import { registerDeleteEntryTool } from "./tools/registerDeleteEntryTool.js";
+import { registerDeleteGuidanceSourceTool } from "./tools/registerDeleteGuidanceSourceTool.js";
 import { registerListEntriesTool } from "./tools/registerListEntriesTool.js";
 import { registerReadEntryTool } from "./tools/registerReadEntryTool.js";
 import { registerResolveContextTool } from "./tools/registerResolveContextTool.js";
@@ -31,6 +32,7 @@ const toolRegistrars: ToolRegistrar[] = [
   registerUpsertRuleTool,
   registerUpsertSkillTool,
   registerDeleteEntryTool,
+  registerDeleteGuidanceSourceTool,
   registerSetProjectStateTool,
   registerBankManifestTool,
   registerListEntriesTool,

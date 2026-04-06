@@ -50,13 +50,13 @@ const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuid
   if (discoveredSources.length === 0) {
     return `## Discovered Guidance Sources
 
-No repository-local guidance sources were discovered for this project.`;
+No repository-local or provider-project guidance sources were discovered for this project.`;
   }
 
   return `## Discovered Guidance Sources
 
 ${discoveredSources
-  .map((source) => `- [${source.kind}] ${source.relativePath} (${source.entryType})`)
+  .map((source) => `- [${source.kind}${source.scope === "provider-project" && source.provider ? `/${source.provider}` : ""}] ${source.relativePath} (${source.entryType}, ${source.scope})`)
   .join("\n")}`;
 };
 
@@ -148,8 +148,10 @@ ${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
 - Build a concise source-level picture of guidance that already exists for this project
-- Treat the listed repository-local sources as the guaranteed inputs for this review
+- Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
 - If additional provider-global guidance is directly visible in the current agent session, include it in the same review and label it separately
+- Treat provider-project guidance as legacy project-specific input that should usually be migrated into Memory Bank, not left as the long-term canonical source
+- Do not treat provider-global skills or model-native instructions as a substitute for project or shared Memory Bank coverage
 - Skip purely empty, obsolete, or trivial sources without bothering the user
 - For each meaningful source, summarize:
   - what the source covers
@@ -184,6 +186,7 @@ What to do:
 - Assign stable ids, titles, topics, and stacks
 - Deduplicate against existing Memory Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
+- After the user explicitly approves \`move\`, use \`delete_guidance_source\` to remove the original repository-local or provider-project source only after the canonical Memory Bank entries are already written successfully
 - If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
 - If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
 - If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
@@ -200,7 +203,8 @@ Safety rules:
 - Do not delete, rewrite, or trim any original source unless the user explicitly chose \`move\`
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
-- If the chosen strategy was \`keep source, fill gaps in bank\`, avoid re-copying material that already lives in the source clearly enough`;
+- If the chosen strategy was \`keep source, fill gaps in bank\`, avoid re-copying material that already lives in the source clearly enough
+- Do not count provider-global skills or agent-local built-in guidance as existing Memory Bank coverage when deciding what still needs to be written`;
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,

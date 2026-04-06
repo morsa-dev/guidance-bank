@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
 
 import { z } from "zod";
 
@@ -80,6 +81,29 @@ const CreateBankSchema = z.object({
   text: z.string(),
 });
 
+const withTemporaryHome = async <T>(homePath: string, run: () => Promise<T>): Promise<T> => {
+  const previousHome = process.env.HOME;
+  process.env.HOME = homePath;
+
+  try {
+    return await run();
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+  }
+};
+
+const encodeCursorProjectPath = (projectPath: string): string =>
+  path
+    .resolve(projectPath)
+    .split(path.sep)
+    .filter(Boolean)
+    .join("-")
+    .replaceAll(" ", "-");
+
 test("create_bank iteration 0 scaffolds a project bank and reports discovered inputs", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
@@ -127,6 +151,51 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(
     structured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 1` and `stepCompleted: true`/i,
+  );
+});
+
+test("create_bank discovers provider-project guidance sources for codex and cursor", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexProjectSkillsRoot = path.join(fakeHome, ".codex", "skills", "projects", "demo-project");
+  const cursorProjectRulesRoot = path.join(
+    fakeHome,
+    ".cursor",
+    "projects",
+    encodeCursorProjectPath(projectRoot),
+    "rules",
+  );
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  await mkdir(path.join(codexProjectSkillsRoot, "routing-seo-ssr"), { recursive: true });
+  await writeFile(
+    path.join(codexProjectSkillsRoot, "routing-seo-ssr", "SKILL.md"),
+    "---\nname: routing-seo-ssr\ndescription: demo\n---\n",
+  );
+  await mkdir(cursorProjectRulesRoot, { recursive: true });
+  await writeFile(path.join(cursorProjectRulesRoot, "architecture.mdc"), "# Cursor Architecture\n");
+
+  const structured = await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    return callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  });
+
+  assert.deepEqual(
+    structured.discoveredSources
+      .filter((source) => source.kind === "codex-project" || source.kind === "cursor-project")
+      .map((source) => source.relativePath),
+    [
+      "~/.codex/skills/projects/demo-project",
+      "~/.codex/skills/projects/demo-project/routing-seo-ssr/SKILL.md",
+      `~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules`,
+      `~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules/architecture.mdc`,
+    ],
   );
 });
 

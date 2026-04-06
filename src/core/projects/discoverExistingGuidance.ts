@@ -1,12 +1,26 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-export type ExistingGuidanceSourceKind = "agents" | "claude-md" | "copilot" | "cursor" | "claude" | "codex";
+import { discoverProviderProjectGuidance, type ProviderProjectGuidanceProvider } from "./providerProjectGuidance.js";
+
+export type ExistingGuidanceSourceKind =
+  | "agents"
+  | "claude-md"
+  | "copilot"
+  | "cursor"
+  | "claude"
+  | "codex"
+  | "cursor-project"
+  | "claude-project"
+  | "codex-project";
 export type ExistingGuidanceSourceEntryType = "file" | "directory";
+export type ExistingGuidanceSourceScope = "repository-local" | "provider-project";
 
 export type ExistingGuidanceSource = {
   kind: ExistingGuidanceSourceKind;
   entryType: ExistingGuidanceSourceEntryType;
+  scope: ExistingGuidanceSourceScope;
+  provider: ProviderProjectGuidanceProvider | null;
   path: string;
   relativePath: string;
 };
@@ -68,6 +82,8 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
     discoveredSources.push({
       kind: candidate.kind,
       entryType: "file",
+      scope: "repository-local",
+      provider: null,
       path: candidatePath,
       relativePath: candidate.relativePath,
     });
@@ -83,6 +99,8 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
     discoveredSources.push({
       kind: candidate.kind,
       entryType: "directory",
+      scope: "repository-local",
+      provider: null,
       path: candidatePath,
       relativePath: candidate.relativePath,
     });
@@ -92,10 +110,31 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
       discoveredSources.push({
         kind: candidate.kind,
         entryType: "file",
+        scope: "repository-local",
+        provider: null,
         path: nestedFilePath,
         relativePath: path.relative(resolvedProjectPath, nestedFilePath),
       });
     }
+  }
+
+  const providerProjectSources = await discoverProviderProjectGuidance(resolvedProjectPath);
+  for (const source of providerProjectSources) {
+    const kind: ExistingGuidanceSourceKind =
+      source.provider === "codex"
+        ? "codex-project"
+        : source.provider === "cursor"
+          ? "cursor-project"
+          : "claude-project";
+
+    discoveredSources.push({
+      kind,
+      entryType: source.entryType,
+      scope: "provider-project",
+      provider: source.provider,
+      path: source.path,
+      relativePath: source.relativePath,
+    });
   }
 
   return discoveredSources.sort((left, right) => left.relativePath.localeCompare(right.relativePath));

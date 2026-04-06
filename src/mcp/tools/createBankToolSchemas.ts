@@ -112,8 +112,20 @@ export const CreateBankOutputShape = {
   iteration: z.number().int().nonnegative(),
   discoveredSources: z.array(
     z.object({
-      kind: z.enum(["agents", "claude-md", "copilot", "cursor", "claude", "codex"]),
+      kind: z.enum([
+        "agents",
+        "claude-md",
+        "copilot",
+        "cursor",
+        "claude",
+        "codex",
+        "cursor-project",
+        "claude-project",
+        "codex-project",
+      ]),
       entryType: z.enum(["file", "directory"]),
+      scope: z.enum(["repository-local", "provider-project"]),
+      provider: z.enum(["codex", "cursor", "claude"]).nullable(),
       path: z.string(),
       relativePath: z.string(),
     }),

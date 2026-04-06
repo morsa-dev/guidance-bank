@@ -102,10 +102,13 @@ Important:
 - Memory Bank is the canonical user-managed context for this project
 - Use \`phase\` as the main guide during the iterative create or improve flow; treat \`iteration\` as transport and diagnostic detail only
 - Provider-native guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` is a separate repository-local layer
+- Legacy project-scoped provider guidance may also exist outside the repository (for example under provider home directories); review it explicitly when the create flow surfaces it
 - Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
 - Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`
+- Provider-global skills, built-in model knowledge, or agent-local tooling must not be used as a reason to skip project- or shared-Memory-Bank coverage
 - During the iterative create/improve flow, write canonical Memory Bank changes through \`create_bank\` using its \`apply\` payload for batched writes and deletions
 - Reserve the standalone MCP mutation tools for targeted updates outside the full create/improve flow
+- Use \`delete_guidance_source\` only after the user explicitly approves moving a repository-local or provider-project guidance source into Memory Bank
 - When you need the full text of an existing Memory Bank entry, inspect it through \`list_entries\` and \`read_entry\` instead of inferring content from file names alone
 
 ## Canonical Output Contract
@@ -152,6 +155,8 @@ Do not duplicate shared rules or skills unless the project needs a narrower over
 If you discover guidance that is clearly reusable across repositories or across a shared stack such as Angular, store it in the shared layer with \`scope: "shared"\` instead of the project layer.
 
 If the right scope is unclear, ask the user explicitly whether the entry should live only in this project or in the shared layer.
+
+Do not treat provider-global skills or project-external model instructions as if they were already part of Memory Bank. Only shared/project Memory Bank entries and explicitly reviewed external sources count as canonical coverage.
 
 ## Quality Gates
 
