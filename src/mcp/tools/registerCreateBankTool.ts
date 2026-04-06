@@ -11,7 +11,7 @@ import {
   buildReadyProjectBankPrompt,
 } from "../../core/projects/createBankIterationPrompt.js";
 import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
-import type { ToolRegistrar } from "../registerTools.js";
+import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
 import {
   buildCreateBankResponseText,
@@ -27,13 +27,24 @@ import {
   CreateBankOutputShape,
 } from "./createBankToolSchemas.js";
 
-export const registerCreateBankTool: ToolRegistrar = (server, options) => {
+const registerCreateLikeTool = (
+  server: Parameters<ToolRegistrar>[0],
+  options: McpServerRuntimeOptions,
+  {
+    toolName,
+    title,
+    description,
+  }: {
+    toolName: "create_bank" | "improve_bank";
+    title: string;
+    description: string;
+  },
+) => {
   server.registerTool(
-    "create_bank",
+    toolName,
     {
-      title: "Create Project Memory Bank",
-      description:
-        "Create or reuse the canonical project Memory Bank scaffold under the user-level Memory Bank storage and return instructions for the agent to populate it from the real codebase.",
+      title,
+      description,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -49,7 +60,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool create_bank: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${toolName}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -73,7 +84,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Unknown reference project ids for tool create_bank: ${flowContext.unknownReferenceIds.join(", ")}`,
+              text: `Unknown reference project ids for tool ${toolName}: ${flowContext.unknownReferenceIds.join(", ")}`,
             },
           ],
         };
@@ -273,4 +284,20 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       };
     },
   );
+};
+
+export const registerCreateBankTool: ToolRegistrar = (server, options) => {
+  registerCreateLikeTool(server, options, {
+    toolName: "create_bank",
+    title: "Create Project Memory Bank",
+    description:
+      "Create or improve the canonical project Memory Bank under the user-level Memory Bank storage. Prefer this tool when no project bank exists yet or when the user explicitly asks to initialize one.",
+  });
+
+  registerCreateLikeTool(server, options, {
+    toolName: "improve_bank",
+    title: "Improve Project Memory Bank",
+    description:
+      "Review and improve an existing project Memory Bank through the guided flow. Prefer this tool when a project bank already exists and the user wants to refine or expand it.",
+  });
 };

@@ -18,6 +18,7 @@ test("server registers public Memory Bank tools with output schemas", async (t) 
       "clear_project_bank",
       "create_bank",
       "delete_entry",
+      "improve_bank",
       "list_entries",
       "read_entry",
       "resolve_context",
