@@ -364,6 +364,258 @@ When adding a feature.
   assert.match(projectRule.content, /Demo Project General Rules/);
 });
 
+test("create_bank apply can update and delete existing entries in one batch with baseSha256", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const initialApply = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+          },
+          {
+            kind: "skills",
+            scope: "project",
+            path: "adding-feature",
+            content: `---
+id: demo-project-adding-feature
+kind: skill
+title: Adding Feature
+description: Add a feature in this demo project.
+stacks: [other]
+topics: [workflow]
+---
+
+## When to use
+
+When adding a feature.
+
+## Workflow
+
+1. Read the project.
+2. Implement the feature.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  const originalRule = initialApply.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  const originalSkill = initialApply.currentBankSnapshot.entries.find(
+    (entry) => entry.kind === "skills" && entry.path.startsWith("adding-feature"),
+  );
+
+  assert.ok(originalRule);
+  assert.ok(originalSkill);
+
+  const updated = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            baseSha256: originalRule.sha256,
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+- Update rules through create_bank.apply during full flows.
+`,
+          },
+        ],
+        deletions: [
+          {
+            kind: "skills",
+            scope: "project",
+            path: "adding-feature",
+            baseSha256: originalSkill.sha256,
+          },
+        ],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.deepEqual(updated.applyResults.writes.map((item) => item.status), ["updated"]);
+  assert.deepEqual(updated.applyResults.deletions.map((item) => item.status), ["deleted"]);
+  assert.equal(updated.currentBankSnapshot.entries.length, 1);
+  assert.deepEqual(
+    updated.currentBankSnapshot.entries.map((entry) => entry.path),
+    ["core/general.md"],
+  );
+
+  const updatedRule = await callToolStructured(
+    client,
+    "read_entry",
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "core/general.md" },
+    z.object({ path: z.string(), content: z.string() }),
+  );
+  assert.match(updatedRule.content, /Update rules through create_bank\.apply/i);
+});
+
+test("create_bank apply reports conflicts and tells the agent how to recover", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const created = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  const existingRule = created.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  assert.ok(existingRule);
+
+  const conflicted = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            baseSha256: "stale-sha256",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- This write should conflict.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.deepEqual(conflicted.applyResults.writes.map((item) => item.status), ["conflict"]);
+  assert.equal(conflicted.applyResults.writes[0]?.expectedSha256, "stale-sha256");
+  assert.equal(conflicted.applyResults.writes[0]?.actualSha256, existingRule.sha256);
+  assert.match(conflicted.text, /conflicted with the current Memory Bank state/i);
+  assert.match(conflicted.text, /Re-read the affected entries/i);
+  assert.match(conflicted.creationPrompt, /if `create_bank\.apply` reports `conflict`/i);
+  assert.match(conflicted.prompt, /If `create_bank\.apply` reports a `conflict`/i);
+});
+
 test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");

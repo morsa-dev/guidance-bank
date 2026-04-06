@@ -117,6 +117,10 @@ export const resolveNextCreateBankState = ({
 const hasAppliedChanges = (applyResults: CreateBankApplyResults): boolean =>
   applyResults.writes.length > 0 || applyResults.deletions.length > 0;
 
+const hasApplyConflicts = (applyResults: CreateBankApplyResults): boolean =>
+  applyResults.writes.some((item) => item.status === "conflict") ||
+  applyResults.deletions.some((item) => item.status === "conflict");
+
 export const buildCreateBankResponseText = ({
   syncRequired,
   applyResults,
@@ -139,6 +143,10 @@ export const buildCreateBankResponseText = ({
   }
 
   if (hasAppliedChanges(applyResults)) {
+    if (hasApplyConflicts(applyResults)) {
+      return "Some create-flow changes conflicted with the current Memory Bank state. Re-read the affected entries, rebuild the full final documents, and retry create_bank.apply with fresh baseSha256 values.";
+    }
+
     if (stepCompletionRequired && nextIteration !== null) {
       return `Create-flow changes were applied. Mark the current step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
     }

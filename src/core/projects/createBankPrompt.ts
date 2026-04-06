@@ -113,6 +113,8 @@ During this iterative flow:
 - prefer batched writes and deletions via \`create_bank.apply\`
 - pass complete final documents, not partial markdown patches
 - use \`baseSha256\` when replacing or deleting an entry you previously read from Memory Bank
+- if \`create_bank.apply\` reports \`conflict\` for an entry, do not guess or overwrite blindly
+- on conflict, re-read the affected entry through \`read_entry\`, rebuild the full final document, and retry the batch with the fresh \`baseSha256\`
 
 Outside the iterative flow, the standalone tools are still available for targeted edits:
 - \`upsert_rule\` for thematic rule files

@@ -206,6 +206,7 @@ What to do:
 - If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
 - If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
 - When replacing or deleting an existing Memory Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
+- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
 Write rules:
 - Create a \`rule\` when the source describes a stable constraint, convention, or preference
@@ -246,6 +247,7 @@ Quality rules:
 - Skip temporary, noisy, or accidental implementation details
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it
 - Apply derived changes through \`create_bank.apply\` in batches instead of a long series of one-entry write calls
+- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
@@ -261,6 +263,7 @@ What to do:
 - Check ids, titles, topics, and stacks for consistency
 - If confidence is low for any high-impact rule, ask the user before keeping it
 - Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
+- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
 
 Final pass checklist:
