@@ -101,14 +101,20 @@ Important:
 - Provider-native guidance such as \`AGENTS.md\`, \`.cursor\`, \`.claude\`, or \`.codex\` is a separate repository-local layer
 - Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
 - Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`
-- Write the canonical bank only into the target Memory Bank through the MCP mutation tools
+- During the iterative create/improve flow, write canonical Memory Bank changes through \`create_bank\` using its \`apply\` payload for batched writes and deletions
+- Reserve the standalone MCP mutation tools for targeted updates outside the full create/improve flow
 - When you need the full text of an existing Memory Bank entry, inspect it through \`list_entries\` and \`read_entry\` instead of inferring content from file names alone
 
 ## Canonical Output Contract
 
 Write Memory Bank entries through MCP tools instead of editing the user storage directly.
 
-Available write tools:
+During this iterative flow:
+- prefer batched writes and deletions via \`create_bank.apply\`
+- pass complete final documents, not partial markdown patches
+- use \`baseSha256\` when replacing or deleting an entry you previously read from Memory Bank
+
+Outside the iterative flow, the standalone tools are still available for targeted edits:
 - \`upsert_rule\` for thematic rule files
 - \`upsert_skill\` for skill folders with a single \`SKILL.md\`
 - \`delete_entry\` for cleanup when you intentionally remove a previous entry

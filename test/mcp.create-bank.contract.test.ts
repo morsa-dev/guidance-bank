@@ -26,6 +26,28 @@ const CreateBankSchema = z.object({
   nextIteration: z.number().int().nonnegative().nullable(),
   existingBankUpdatedAt: z.string().nullable(),
   existingBankUpdatedDaysAgo: z.number().int().nonnegative().nullable(),
+  applyResults: z.object({
+    writes: z.array(
+      z.object({
+        kind: z.enum(["rules", "skills"]),
+        scope: z.enum(["shared", "project"]),
+        path: z.string(),
+        status: z.enum(["created", "updated", "conflict"]),
+        expectedSha256: z.string().nullable(),
+        actualSha256: z.string().nullable(),
+      }),
+    ),
+    deletions: z.array(
+      z.object({
+        kind: z.enum(["rules", "skills"]),
+        scope: z.enum(["shared", "project"]),
+        path: z.string(),
+        status: z.enum(["deleted", "not_found", "conflict"]),
+        expectedSha256: z.string().nullable(),
+        actualSha256: z.string().nullable(),
+      }),
+    ),
+  }),
   discoveredSources: z.array(
     z.object({
       kind: z.string(),
@@ -104,6 +126,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   );
   assert.equal(structured.currentBankSnapshot.exists, true);
   assert.deepEqual(structured.currentBankSnapshot.entries, []);
+  assert.deepEqual(structured.applyResults, { writes: [], deletions: [] });
   assert.match(structured.prompt, /Create Flow Kickoff/i);
   assert.match(structured.prompt, /stable create-flow contract/i);
   assert.match(structured.prompt, /do not import or delete repository-local guidance yet/i);
@@ -175,7 +198,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(importStructured.stepCompletionRequired, false);
   assert.match(importStructured.prompt, /stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
-  assert.match(importStructured.prompt, /Use MCP mutation tools for all canonical writes/i);
+  assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
   assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
 
   const deriveProjectStructured = await callToolStructured(
@@ -191,6 +214,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
+  assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
 
   const finalizeStructured = await callToolStructured(
     client,
@@ -210,6 +234,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /stable create-flow contract/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
+  assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
   assert.match(
     finalizeStructured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 5` and `stepCompleted: true`/i,
@@ -229,6 +254,114 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
   assert.match(completedStructured.prompt, /Do not continue the create flow automatically/i);
   assert.doesNotMatch(completedStructured.prompt, /iteration: 6/i);
+});
+
+test("create_bank can apply batched writes for the current step and refresh the snapshot", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const applied = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+          },
+          {
+            kind: "skills",
+            scope: "project",
+            path: "adding-feature",
+            content: `---
+id: demo-project-adding-feature
+kind: skill
+title: Adding Feature
+description: Add a feature in this demo project.
+stacks: [other]
+topics: [workflow]
+---
+
+## When to use
+
+When adding a feature.
+
+## Workflow
+
+1. Read the project.
+2. Implement the feature.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.equal(applied.phase, "derive_from_project");
+  assert.equal(applied.iteration, 3);
+  assert.equal(applied.applyResults.writes.length, 2);
+  assert.deepEqual(
+    applied.applyResults.writes.map((item) => [item.kind, item.scope, item.status]),
+    [
+      ["rules", "project", "created"],
+      ["skills", "project", "created"],
+    ],
+  );
+  assert.deepEqual(applied.applyResults.deletions, []);
+  assert.equal(applied.currentBankSnapshot.exists, true);
+  assert.equal(applied.currentBankSnapshot.entries.length, 2);
+  assert.match(applied.text, /Create-flow changes were applied/i);
+
+  const projectRule = await callToolStructured(
+    client,
+    "read_entry",
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "core/general.md" },
+    z.object({ path: z.string(), content: z.string() }),
+  );
+  assert.match(projectRule.content, /Demo Project General Rules/);
 });
 
 test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {

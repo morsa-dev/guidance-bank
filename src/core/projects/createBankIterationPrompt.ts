@@ -201,10 +201,11 @@ What to do:
 - Split entries between project scope and shared scope when appropriate
 - Assign stable ids, titles, topics, and stacks
 - Deduplicate against existing Memory Bank content before writing
-- Use MCP mutation tools for all canonical writes
+- Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
 - If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
 - If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
 - If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
+- When replacing or deleting an existing Memory Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 
 Write rules:
 - Create a \`rule\` when the source describes a stable constraint, convention, or preference
@@ -244,6 +245,7 @@ Quality rules:
 - Prefer patterns confirmed by multiple files, configuration, or stable architecture boundaries
 - Skip temporary, noisy, or accidental implementation details
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it
+- Apply derived changes through \`create_bank.apply\` in batches instead of a long series of one-entry write calls
 
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
@@ -258,6 +260,7 @@ What to do:
 - Verify scope split between shared and project entries
 - Check ids, titles, topics, and stacks for consistency
 - If confidence is low for any high-impact rule, ask the user before keeping it
+- Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
 - Return a concise completion report when the bank is in a good canonical state
 
 Final pass checklist:

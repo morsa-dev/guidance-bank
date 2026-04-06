@@ -18,7 +18,7 @@ export type AuditEvent = {
   timestamp: string;
   provider: ProviderId | null;
   sessionRef: string | null;
-  tool: "upsert_rule" | "upsert_skill" | "delete_entry";
+  tool: "upsert_rule" | "upsert_skill" | "delete_entry" | "create_bank";
   action: "upsert" | "delete";
   scope: EntryScope;
   kind: EntryKind;
