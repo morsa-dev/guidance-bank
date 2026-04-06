@@ -1,6 +1,7 @@
 export const IOS_DERIVE_GUIDANCE = `## iOS Guidance
 
-Focus on iOS/Swift patterns: SwiftUI, UIKit, TCA, MVVM, Combine, async/await, navigation, services, testing, and UI boundaries.
+Focus on iOS/Swift patterns: SwiftUI, UIKit, architecture boundaries, state and async flow, navigation, services, testing, and UI boundaries.
+Treat SwiftUI, UIKit, TCA, MVVM, coordinators, and KMM as possible branches, not defaults. Promote only patterns that are supported by file-path evidence in this codebase.
 
 ## Codebase Exploration Before Generating
 
@@ -17,15 +18,16 @@ For each category, read 2-3 representative Swift files and extract patterns:
 
 | Category | What to Find | What to Extract |
 |----------|--------------|-----------------|
-| Features/Screens | Feature folders (\`*Reducer.swift\`, \`*View.swift\`) | TCA State/Action/Body or MVVM ViewModel pattern |
+| Features/Screens | Feature folders (\`*View.swift\`, \`*ViewModel.swift\`, \`*Reducer.swift\`, \`*Coordinator.swift\`) | Screen/module structure and the actual local architecture pattern |
 | Services | Service files (\`*Service.swift\`, \`*Actor.swift\`) | Protocol abstraction, actor usage, async/await |
 | Views | SwiftUI views (\`*View.swift\`) | View composition, modifiers, environment usage |
 | Models/Entities | Entity files (\`*Entity.swift\`, \`*Model.swift\`) | Codable, Equatable, Identifiable conformances |
-| Tests | Test files (\`*Tests.swift\`) | XCTest structure, mocking, TCA TestStore usage |
-| Navigation | Coordinator/Router files | NavigationStack, NavigationPath, or Coordinator pattern |
-| Dependencies | DI files (\`*Dependency.swift\`, \`*Client.swift\`) | TCA Dependencies, or custom DI container |
-| KMM Integration | KMM wrapper files | ResultWrapper handling, entity mapping |
-| UI Components | Shared components folders | Reusable SwiftUI components, styling tokens |
+| Tests | Test files (\`*Tests.swift\`) | XCTest structure, mocking, and any framework-specific helpers actually in use |
+| Navigation | Coordinator/Router files | NavigationStack, NavigationPath, coordinator, tab flow, or custom navigation ownership |
+| Dependencies | DI files (\`*Dependency.swift\`, \`*Client.swift\`, container or factory files) | TCA Dependencies, factories, constructor injection, or custom DI container |
+| Shared Modules | Shared components or modules folders | Reusable SwiftUI/UIKit components, styling tokens, app-wide primitives |
+| Platform Integration | App lifecycle, notifications, widgets, extensions, deep links | Runtime boundaries and platform-specific integration points |
+| KMM Integration | KMM wrapper files | ResultWrapper handling, entity mapping, only if present |
 
 ### Config and Dependency Analysis (iOS-Specific)
 
@@ -35,19 +37,23 @@ Read these iOS project files if they exist:
 - \`*.xcodeproj\` / \`*.xcworkspace\` / \`project.pbxproj\`
 - \`Cartfile\` (Carthage, if used)
 - app entry point: \`@main App.swift\`, \`AppDelegate.swift\`, \`SceneDelegate.swift\`
-- TCA entry: \`AppReducer.swift\`, \`AppView.swift\`, \`App.State\`
+- architecture entry points only when present: \`AppReducer.swift\`, \`AppView.swift\`, root coordinator, root router
 - build configs: \`*.xcconfig\`, \`Info.plist\`, build phases
 - linter configs: \`.swiftlint.yml\`, \`.swiftformat\`
+- platform integration configs: widget/extension targets, deep-link registration, notification setup
 - KMM: \`shared/\` folder, \`KMMWrapper.swift\`, framework imports
 
 ### Version and Feature Gate (iOS)
 
 Before turning patterns into rules, verify what is actually used in this codebase:
 - UI framework mode: SwiftUI, UIKit, or mixed.
-- Architecture style: TCA, MVVM, MVC, VIPER, Clean, or mixed.
+- Architecture style: TCA, MVVM, MVC, VIPER, Clean, coordinator-driven, lightweight screen logic, or mixed.
 - Async style: async/await, Combine, callbacks, or mixed.
-- Dependency pattern: TCA Dependencies, Resolver/Factory, manual injection, or mixed.
-- Do not force TCA, MVVM, or coordinator patterns unless project evidence supports them.
+- Dependency pattern: TCA Dependencies, Resolver/Factory, constructor injection, manual injection, or mixed.
+- Navigation ownership: NavigationStack, coordinator/router, UIKit navigation controller, or mixed.
+- Platform surface: app-only, app + widgets/extensions, deep links, notifications, or mixed.
+- Do not force TCA, MVVM, coordinators, KMM, or any other architecture pattern unless project evidence supports them.
+- If the project is simple SwiftUI/UIKit without a heavyweight architecture, preserve that simplicity instead of inventing extra layers.
 
 ### Red Flag Detection (Swift-Specific)
 
@@ -64,6 +70,9 @@ Search for recurring iOS/Swift problems that should become explicit rules:
 - \`Task { }\` without proper cancellation handling
 - missing \`Equatable\`/\`Sendable\` conformances where needed
 - inconsistent async/await vs Combine usage
+- navigation logic leaking into unrelated view/service layers
+- UIKit/SwiftUI bridging patterns that are repeated but undocumented
+- extension/widget/deep-link boundaries handled inconsistently
 
 ### Code Style Extraction (Swift)
 
@@ -71,11 +80,11 @@ From representative Swift files, identify:
 - import order: \`Foundation\` -> \`SwiftUI/UIKit\` -> third-party -> local modules
 - access control patterns: \`private\`, \`internal\`, \`public\` usage
 - type naming: \`PascalCase\` for types, \`camelCase\` for properties/methods
-- file naming: \`FeatureNameView.swift\`, \`FeatureNameReducer.swift\`, etc.
+- file naming: \`FeatureNameView.swift\`, \`FeatureNameReducer.swift\`, \`FeatureNameViewModel.swift\`, etc.
 - extension organization: separate extensions for protocol conformances
 - MARK comments: \`// MARK: -\` usage for code organization
 - documentation: \`///\` doc comments on public APIs
-- property wrappers: \`@State\`, \`@Binding\`, \`@Environment\`, \`@Dependency\` patterns
+- property wrappers: \`@State\`, \`@Binding\`, \`@Environment\`, \`@Dependency\`, \`@Observable\` patterns
 - closure syntax: trailing closure conventions
 - guard vs if-let patterns
 
@@ -88,6 +97,7 @@ Document these with file path evidence:
 - State management and async model.
 - Dependency injection and service/client pattern.
 - Navigation strategy and ownership.
+- Platform integration boundaries (widgets, extensions, notifications, deep links) if present.
 - Networking/persistence/KMM integration, if present.
 - Testing approach and helper usage.
 - Code style conventions that are not already enforced by formatters.
@@ -99,11 +109,12 @@ If evidence remains partial, continue conservatively and mark uncertainty with \
 ### Generation Locks (Prevent Architecture Drift)
 
 Apply these constraints when generating rules and skills:
-- Preserve detected architecture (TCA/MVVM/etc.) and do not migrate implicitly.
+- Preserve detected architecture (TCA/MVVM/coordinator/simple SwiftUI/UIKit/etc.) and do not migrate implicitly.
 - Preserve detected UI framework mode (SwiftUI/UIKit/mixed).
 - Preserve dependency injection and service ownership model.
 - Preserve navigation ownership model.
 - Preserve concurrency model unless strong project evidence suggests convergence.
+- Preserve the observed complexity level: if the project uses lightweight patterns, do not generate enterprise-style layers.
 - Preserve build/runtime and module-boundary assumptions.
 
 ## Skill Candidates (iOS)
@@ -114,8 +125,8 @@ For small/low-confidence projects, 2-4 core skills are usually enough.
 
 ### adding-feature
 - Include actual feature folder structure used in this project.
-- Reference real Reducer/View/ViewModel files as templates.
-- Show step-by-step for the detected architecture pattern.
+- Reference real View/ViewModel/Reducer/Coordinator files as templates based on the detected local architecture.
+- Show step-by-step for the detected architecture pattern only.
 - Include navigation and parent integration when relevant.
 
 ### adding-service
@@ -138,8 +149,11 @@ For small/low-confidence projects, 2-4 core skills are usually enough.
 ### [framework-specific]
 Generate 1-3 additional skills based on actual stack usage:
 - tca-patterns (if TCA is primary)
+- mvvm-patterns (if MVVM or view-model-heavy flow is primary)
+- coordinator-patterns (if coordinator/router ownership is central)
 - kmm-integration (if shared/KMM is present)
 - adding-widget (if reusable widget/component system is central)
+- extension-workflows (if widgets/extensions/deep links are central)
 - [domain]-workflows (if a domain workflow is clearly repeated)
 
 ### enrichment-tasks (optional)
@@ -160,6 +174,7 @@ Keep this section iOS-specific:
 - Capture decisions tied to Swift architecture and app structure (TCA/MVVM, navigation, DI, async model).
 - Prefer Swift-native patterns and terminology over generic cross-stack wording.
 - Highlight iOS-specific risks and anti-patterns that recur in this codebase.
+- Match the actual architecture level of the project; do not upscale a lightweight codebase into a layered architecture just because the stack allows it.
 
 ## Algorithm: Analysis -> Rules (iOS)
 
@@ -167,7 +182,7 @@ Follow this systematic approach for iOS projects:
 
 **Structure -> Architecture Rules:**
 1. Detect patterns in feature folders and module layout.
-2. Generate placement rules for reducers/viewmodels, views, services, and models.
+2. Generate placement rules for the artifacts that actually exist here: views, view models, reducers, coordinators, services, models, modules.
 3. Document module boundaries and what can import what.
 
 **Swift Files -> Code Style Rules:**
@@ -177,7 +192,7 @@ Follow this systematic approach for iOS projects:
 
 **Configs -> Architectural Rules:**
 1. Inspect Package.swift, Podfile, swiftlint, xcconfig, and project metadata.
-2. Create rules for module imports, dependency access, and runtime boundaries.
+2. Create rules for module imports, dependency access, runtime boundaries, and platform integrations.
 3. Do not restate what SwiftLint/SwiftFormat already enforce.
 
 **Red Flags -> Safety Rules:**
@@ -187,7 +202,7 @@ Follow this systematic approach for iOS projects:
 **Tests -> Testing Rules:**
 1. Identify test location pattern and XCTest/TestStore usage.
 2. Extract mocking and assertion conventions.
-3. Require tests for reducers/services only when that matches actual project practice.
+3. Require tests only for module types that are consistently tested in this project.
 
 ## Recommended Rule Topics (iOS Project)
 
@@ -203,9 +218,11 @@ Generate only topics that are supported by concrete project evidence.
 | \`swiftui-patterns\` | View composition, modifiers, environment, previews |
 | \`uikit-patterns\` | UIViewController patterns, lifecycle, layout (if UIKit) |
 | \`tca-patterns\` | Reducer structure, State/Action, effects, testing (if TCA) |
+| \`mvvm-patterns\` | ViewModel ownership, bindings, async flow (if MVVM) |
 | \`services\` | API clients, persistence, mapping, boundary normalization |
 | \`widget-system\` | Reusable UI components and styling tokens |
 | \`kmm-integration\` | Shared/KMM wrappers and entity bridging |
+| \`platform-integration\` | widgets, extensions, notifications, deep links, app lifecycle boundaries |
 | \`testing\` | XCTest patterns, TestStore, mocking, snapshots |
 | \`error-handling\` | Error types, logging, user-facing failures |
 | \`localization\` | String localization and formatting (if applicable) |
@@ -218,7 +235,7 @@ Generate only skills that are supported by concrete project evidence.
 | Found in iOS Codebase | Generate Rule Topic | Generate Skill |
 |----------------------|---------------------|----------------|
 | TCA architecture (\`@Reducer\`, \`Store\`) | \`architecture\`, \`tca-patterns\` | \`adding-feature\` |
-| MVVM architecture (\`ObservableObject\`) | \`architecture\` | \`adding-feature\` |
+| MVVM architecture (\`ObservableObject\`, \`@Observable\`) | \`architecture\`, \`mvvm-patterns\` | \`adding-feature\`, \`mvvm-patterns\` |
 | Swift code conventions | \`code-style\` | \`code-review\` |
 | TCA Dependencies (\`@Dependency\`) | \`dependencies\` | \`adding-service\` |
 | Custom DI (Resolver, Factory) | \`dependencies\` | \`adding-service\` |
@@ -228,6 +245,7 @@ Generate only skills that are supported by concrete project evidence.
 | API/Network layer | \`services\` | - |
 | Reusable UI components | \`widget-system\` | \`adding-widget\` |
 | KMM shared module | \`kmm-integration\` | \`kmm-integration\` |
+| Widgets/extensions/deep links | \`platform-integration\` | \`extension-workflows\` |
 | XCTest / TCA TestStore | \`testing\` | - |
 | Error types, logging | \`error-handling\` | - |
 | Localized strings | \`localization\` | - |
