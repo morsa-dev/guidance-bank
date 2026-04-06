@@ -55,15 +55,6 @@ const CreateBankSchema = z.object({
       relativePath: z.string(),
     }),
   ),
-  projectEvidence: z.object({
-    topLevelDirectories: z.array(z.string()),
-    evidenceFiles: z.array(
-      z.object({
-        kind: z.string(),
-        relativePath: z.string(),
-      }),
-    ),
-  }),
   currentBankSnapshot: z.object({
     exists: z.boolean(),
     entries: z.array(
@@ -118,11 +109,6 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.deepEqual(
     structured.discoveredSources.map((source) => source.relativePath),
     [".cursor", ".cursor/rules.md", "AGENTS.md"],
-  );
-  assert.deepEqual(structured.projectEvidence.topLevelDirectories, []);
-  assert.deepEqual(
-    structured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
-    ["package.json"],
   );
   assert.equal(structured.currentBankSnapshot.exists, true);
   assert.deepEqual(structured.currentBankSnapshot.entries, []);
@@ -216,8 +202,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(deriveProjectStructured.iteration, 3);
   assert.equal(deriveProjectStructured.phase, "derive_from_project");
   assert.match(deriveProjectStructured.prompt, /Use `phase` as the main guide/i);
-  assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
-  assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
+  assert.match(deriveProjectStructured.prompt, /Inspect the real repository directly/i);
+  assert.match(deriveProjectStructured.prompt, /Do not rely on a server-provided file checklist/i);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
@@ -728,8 +714,6 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
   assert.equal(rerunStructured.existingBankUpdatedDaysAgo, 0);
   assert.deepEqual(rerunStructured.discoveredSources, []);
-  assert.deepEqual(rerunStructured.projectEvidence.topLevelDirectories, []);
-  assert.deepEqual(rerunStructured.projectEvidence.evidenceFiles, []);
   assert.equal(rerunStructured.currentBankSnapshot.exists, true);
   assert.deepEqual(rerunStructured.currentBankSnapshot.entries, []);
 
@@ -854,11 +838,6 @@ test("create_bank blocks advancing to a later step without explicit completion c
 
     assert.equal(advancedStructured.iteration, 0);
     assert.equal(advancedStructured.stepCompletionRequired, true);
-    assert.deepEqual(advancedStructured.projectEvidence.topLevelDirectories, ["docs", "src"]);
-    assert.deepEqual(
-      advancedStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
-      ["docs/architecture.md", "package.json", "README.md"],
-    );
     assert.equal(warnings.length, 0);
 
     const state = await repository.readProjectStateOptional(advancedStructured.projectId);

@@ -4,7 +4,6 @@ import { CREATE_FLOW_COMPLETED_ITERATION } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
-import type { ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
 
 type BuildCreateBankIterationPromptInput = {
   iteration: number;
@@ -16,7 +15,6 @@ type BuildCreateBankIterationPromptInput = {
   detectedStacks: DetectableStack[];
   selectedReferenceProjects: ReferenceProjectCandidate[];
   discoveredSources: ExistingGuidanceSource[];
-  projectEvidence: ProjectEvidenceInventory;
   currentBankSnapshot: CurrentProjectBankSnapshot;
   hasExistingProjectBank?: boolean;
 };
@@ -60,25 +58,6 @@ No repository-local guidance sources were discovered for this project.`;
 ${discoveredSources
   .map((source) => `- [${source.kind}] ${source.relativePath} (${source.entryType})`)
   .join("\n")}`;
-};
-
-const renderProjectEvidenceSection = (projectEvidence: ProjectEvidenceInventory): string => {
-  const directoryLines =
-    projectEvidence.topLevelDirectories.length > 0
-      ? projectEvidence.topLevelDirectories.map((directoryName) => `- ${directoryName}`).join("\n")
-      : "- No common top-level project directories were auto-detected.";
-  const fileLines =
-    projectEvidence.evidenceFiles.length > 0
-      ? projectEvidence.evidenceFiles.map((file) => `- [${file.kind}] ${file.relativePath}`).join("\n")
-      : "- No project evidence files were auto-detected.";
-
-  return `## Project Evidence
-
-Top-level directories:
-${directoryLines}
-
-Evidence files:
-${fileLines}`;
 };
 
 const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
@@ -222,7 +201,6 @@ Safety rules:
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,
-  projectEvidence: ProjectEvidenceInventory,
   detectedStacks: readonly DetectableStack[],
 ): string => `# Derive From Project
 
@@ -233,16 +211,14 @@ Derive additional Memory Bank entries from the real repository.
 Project path:
 - \`${projectPath}\`
 
-${renderProjectEvidenceSection(projectEvidence)}
-
 What to do:
-- Inspect project structure, configuration, source files, and recurring implementation patterns
+- Inspect the real repository directly: project structure, entrypoints, configuration, source files, and recurring implementation patterns
 - Create a focused set of high-value project rules and skills
 - Prefer stable patterns over one-off details
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
 
 Quality rules:
-- Use the discovered project evidence as starting points, not as a checklist
+- Do not rely on a server-provided file checklist; gather your own evidence from the real repository
 - Prefer patterns confirmed by multiple files, configuration, or stable architecture boundaries
 - Skip temporary, noisy, or accidental implementation details
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it
@@ -295,8 +271,8 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
     }),
   ({ projectPath, discoveredSources }) => buildReviewExistingPrompt(projectPath, discoveredSources),
   ({ discoveredSources }) => buildImportSelectedPrompt(discoveredSources),
-  ({ projectPath, projectEvidence, detectedStacks }) =>
-    buildDeriveFromProjectPrompt(projectPath, projectEvidence, detectedStacks),
+  ({ projectPath, detectedStacks }) =>
+    buildDeriveFromProjectPrompt(projectPath, detectedStacks),
   () => buildFinalizePrompt(),
   () => buildCompletedPrompt(),
 ] as const;
@@ -335,7 +311,6 @@ export const buildCreateBankIterationPrompt = ({
   detectedStacks,
   selectedReferenceProjects,
   discoveredSources,
-  projectEvidence,
   currentBankSnapshot,
   hasExistingProjectBank = false,
 }: BuildCreateBankIterationPromptInput): string => {
@@ -351,7 +326,6 @@ export const buildCreateBankIterationPrompt = ({
     detectedStacks,
     selectedReferenceProjects,
     discoveredSources,
-    projectEvidence,
     currentBankSnapshot,
     hasExistingProjectBank,
   });

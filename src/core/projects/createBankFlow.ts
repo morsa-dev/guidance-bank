@@ -5,13 +5,11 @@ import { detectProjectContext } from "../context/detectProjectContext.js";
 import { getNextCreateFlowIteration, isCreateFlowComplete } from "./createFlowPhases.js";
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
-import { discoverProjectEvidence, type ProjectEvidenceInventory } from "./discoverProjectEvidence.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
 import { resolveProjectIdentity } from "./identity.js";
 
 type CreateBankExtendedContext = {
   discoveredSources: ExistingGuidanceSource[];
-  projectEvidence: ProjectEvidenceInventory;
   currentBankSnapshot: CurrentProjectBankSnapshot;
 };
 
@@ -46,14 +44,8 @@ type ResolvedCreateBankFlowContext = {
   extendedContext: CreateBankExtendedContext;
 };
 
-const EMPTY_PROJECT_EVIDENCE: ProjectEvidenceInventory = {
-  topLevelDirectories: [],
-  evidenceFiles: [],
-};
-
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   discoveredSources: [],
-  projectEvidence: EMPTY_PROJECT_EVIDENCE,
   currentBankSnapshot: {
     exists: false,
     entries: [],
@@ -132,15 +124,13 @@ const loadExtendedCreateBankContext = async (
     };
   }
 
-  const [discoveredSources, projectEvidence, currentBankSnapshot] = await Promise.all([
+  const [discoveredSources, currentBankSnapshot] = await Promise.all([
     discoverExistingGuidance(projectPath),
-    discoverProjectEvidence(projectPath),
     discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
   ]);
 
   return {
     discoveredSources,
-    projectEvidence,
     currentBankSnapshot,
   };
 };

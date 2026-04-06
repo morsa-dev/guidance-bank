@@ -197,7 +197,6 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
                 detectedStacks: projectContext.detectedStacks,
                 selectedReferenceProjects,
                 discoveredSources: extendedContext.discoveredSources,
-                projectEvidence: extendedContext.projectEvidence,
                 currentBankSnapshot,
                 hasExistingProjectBank: existingManifest !== null,
               })
@@ -233,7 +232,6 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         phase,
         iteration: effectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
-        projectEvidence: extendedContext.projectEvidence,
         currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,

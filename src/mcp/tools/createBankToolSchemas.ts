@@ -73,15 +73,6 @@ export const CreateBankOutputShape = {
       relativePath: z.string(),
     }),
   ),
-  projectEvidence: z.object({
-    topLevelDirectories: z.array(z.string()),
-    evidenceFiles: z.array(
-      z.object({
-        kind: z.enum(["config", "doc"]),
-        relativePath: z.string(),
-      }),
-    ),
-  }),
   currentBankSnapshot: z.object({
     exists: z.boolean(),
     entries: z.array(
