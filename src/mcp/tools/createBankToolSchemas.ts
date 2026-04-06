@@ -69,7 +69,7 @@ export const CreateBankArgsSchema = z
   .superRefine((value, ctx) => {
     if (value.stepOutcome === "no_changes" && value.stepOutcomeNote === undefined) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["stepOutcomeNote"],
         message: "stepOutcomeNote is required when stepOutcome is `no_changes`.",
       });
@@ -77,7 +77,7 @@ export const CreateBankArgsSchema = z
 
     if (value.stepOutcome === undefined && value.stepOutcomeNote !== undefined) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["stepOutcome"],
         message: "stepOutcome is required when stepOutcomeNote is provided.",
       });
