@@ -28,6 +28,33 @@ const MissingContextSchema = z.object({
     .optional(),
 });
 
+const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
+  await callToolResult(client, "create_bank", { projectPath });
+  await callToolResult(client, "create_bank", { projectPath, iteration: 1, stepCompleted: true });
+  await callToolResult(client, "create_bank", { projectPath, iteration: 2, stepCompleted: true });
+  await callToolResult(client, "create_bank", {
+    projectPath,
+    iteration: 3,
+    stepCompleted: true,
+    stepOutcome: "no_changes",
+    stepOutcomeNote: "No external guidance needed importing in this setup.",
+  });
+  await callToolResult(client, "create_bank", {
+    projectPath,
+    iteration: 4,
+    stepCompleted: true,
+    stepOutcome: "no_changes",
+    stepOutcomeNote: "No derived changes were needed in this setup.",
+  });
+  await callToolResult(client, "create_bank", {
+    projectPath,
+    iteration: 5,
+    stepCompleted: true,
+    stepOutcome: "no_changes",
+    stepOutcomeNote: "Finalize completed without cleanup changes in this setup.",
+  });
+};
+
 test("resolve_context returns missing status when no project bank exists", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
@@ -73,10 +100,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
 
-  await callToolResult(client, "create_bank", { projectPath: projectRoot });
-  for (const iteration of [1, 2, 3, 4, 5, 6]) {
-    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true });
-  }
+  await advanceCreateFlowToReady(client, projectRoot);
   await callToolResult(client, "upsert_rule", {
     scope: "shared",
     projectPath: projectRoot,
@@ -109,10 +133,7 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
 
-  await callToolResult(client, "create_bank", { projectPath: projectRoot });
-  for (const iteration of [1, 2, 3, 4, 5, 6]) {
-    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true });
-  }
+  await advanceCreateFlowToReady(client, projectRoot);
   const result = await callToolResult(client, "resolve_context", { projectPath: projectRoot });
 
   assert.equal(result.isError, true);

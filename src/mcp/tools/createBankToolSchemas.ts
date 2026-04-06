@@ -30,6 +30,18 @@ export const CreateBankInputShape = {
     .boolean()
     .optional()
     .describe("Marks the current create-flow step as complete when advancing to the next iteration."),
+  stepOutcome: z
+    .enum(["applied", "no_changes"])
+    .optional()
+    .describe(
+      "Explicit result of the current create-flow step when advancing. Use `applied` if this phase already produced canonical changes, or `no_changes` if the phase intentionally produced no bank mutations.",
+    ),
+  stepOutcomeNote: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Short explanation required when `stepOutcome` is `no_changes`."),
   referenceProjectIds: z
     .array(z.string().trim().min(1))
     .max(5)
@@ -51,7 +63,26 @@ export const CreateBankInputShape = {
     .describe("Optional batched entry mutations for the current create-flow step."),
 } as const;
 
-export const CreateBankArgsSchema = z.object(CreateBankInputShape).strict();
+export const CreateBankArgsSchema = z
+  .object(CreateBankInputShape)
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.stepOutcome === "no_changes" && value.stepOutcomeNote === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["stepOutcomeNote"],
+        message: "stepOutcomeNote is required when stepOutcome is `no_changes`.",
+      });
+    }
+
+    if (value.stepOutcome === undefined && value.stepOutcomeNote !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["stepOutcome"],
+        message: "stepOutcome is required when stepOutcomeNote is provided.",
+      });
+    }
+  });
 
 export const CreateBankOutputShape = {
   status: z.enum(["created", "already_exists"]),
@@ -97,6 +128,7 @@ export const CreateBankOutputShape = {
   ),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
   stepCompletionRequired: z.boolean(),
+  stepOutcomeRequired: z.boolean(),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),
   existingBankUpdatedAt: z.string().nullable(),

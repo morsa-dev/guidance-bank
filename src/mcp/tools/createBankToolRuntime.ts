@@ -55,11 +55,13 @@ export const getCreateBankApplyBlockedMessage = ({
   syncRequired,
   improvementEntryPoint,
   stepCompletionRequired,
+  stepOutcomeRequired,
 }: {
   hasApply: boolean;
   syncRequired: boolean;
   improvementEntryPoint: boolean;
   stepCompletionRequired: boolean;
+  stepOutcomeRequired: boolean;
 }): string | null => {
   if (!hasApply) {
     return null;
@@ -75,6 +77,10 @@ export const getCreateBankApplyBlockedMessage = ({
 
   if (stepCompletionRequired) {
     return "Cannot apply create-flow changes while step completion is unresolved. Re-call create_bank for the current step before applying changes or advancing.";
+  }
+
+  if (stepOutcomeRequired) {
+    return "Cannot apply create-flow changes while the previous phase still needs an explicit outcome. Re-call create_bank for the current phase, then advance with either create_bank.apply results or stepOutcome.";
   }
 
   return null;
@@ -126,6 +132,7 @@ export const buildCreateBankResponseText = ({
   syncRequired,
   applyResults,
   stepCompletionRequired,
+  stepOutcomeRequired,
   nextIteration,
   improvementEntryPoint,
   mustContinue,
@@ -135,6 +142,7 @@ export const buildCreateBankResponseText = ({
   syncRequired: boolean;
   applyResults: CreateBankApplyResults;
   stepCompletionRequired: boolean;
+  stepOutcomeRequired: boolean;
   nextIteration: number | null;
   improvementEntryPoint: boolean;
   mustContinue: boolean;
@@ -155,7 +163,7 @@ export const buildCreateBankResponseText = ({
     }
 
     if (mustContinue && nextIteration !== null) {
-      return `Create-flow changes were applied during phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is complete.`;
+      return `Create-flow changes were applied during phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and stepOutcome: \`applied\` once the current step is complete.`;
     }
 
     if (completedFlowThisCall) {
@@ -169,12 +177,16 @@ export const buildCreateBankResponseText = ({
     return `Mark the current create step complete before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
   }
 
+  if (stepOutcomeRequired && nextIteration !== null) {
+    return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\` (with stepOutcomeNote for \`no_changes\`).`;
+  }
+
   if (improvementEntryPoint) {
     return "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.";
   }
 
   if (mustContinue && nextIteration !== null) {
-    return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete.`;
+    return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use \`create_bank.apply\` for changes or set \`stepOutcome\` when no new mutations are needed.`;
   }
 
   if (completedFlowThisCall) {

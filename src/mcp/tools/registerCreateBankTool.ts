@@ -61,6 +61,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         projectPath: parsedArgs.data.projectPath,
         requestedIteration,
         stepCompleted: parsedArgs.data.stepCompleted ?? false,
+        hasApply: parsedArgs.data.apply !== undefined,
+        stepOutcome: parsedArgs.data.stepOutcome ?? null,
+        stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -86,6 +89,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         existingBankUpdatedDaysAgo,
         effectiveIteration,
         stepCompletionRequired,
+        stepOutcomeRequired,
         shouldTrackCreateFlow,
         nextCreationState,
         syncRequired,
@@ -115,6 +119,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         syncRequired,
         improvementEntryPoint,
         stepCompletionRequired,
+        stepOutcomeRequired,
       });
       if (applyBlockedMessage !== null) {
         return {
@@ -236,6 +241,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         selectedReferenceProjects,
         creationState: nextState.creationState,
         stepCompletionRequired,
+        stepOutcomeRequired,
         mustContinue,
         nextIteration,
         existingBankUpdatedAt,
@@ -247,6 +253,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           syncRequired,
           applyResults,
           stepCompletionRequired,
+          stepOutcomeRequired,
           nextIteration,
           improvementEntryPoint,
           mustContinue,

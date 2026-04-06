@@ -22,6 +22,7 @@ const CreateBankSchema = z.object({
   iteration: z.number(),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
   stepCompletionRequired: z.boolean(),
+  stepOutcomeRequired: z.boolean(),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),
   existingBankUpdatedAt: z.string().nullable(),
@@ -100,11 +101,12 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.equal(structured.iteration, 0);
   assert.equal(structured.creationState, "creating");
   assert.equal(structured.stepCompletionRequired, false);
+  assert.equal(structured.stepOutcomeRequired, false);
   assert.equal(structured.mustContinue, true);
   assert.equal(structured.nextIteration, 1);
   assert.equal(
     structured.text,
-    "Continue the create flow at phase `kickoff`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete.",
+    "Continue the create flow at phase `kickoff`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use `create_bank.apply` for changes or set `stepOutcome` when no new mutations are needed.",
   );
   assert.deepEqual(
     structured.discoveredSources.map((source) => source.relativePath),
@@ -152,6 +154,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedReviewStructured.iteration, 0);
   assert.equal(blockedReviewStructured.phase, "kickoff");
   assert.equal(blockedReviewStructured.stepCompletionRequired, true);
+  assert.equal(blockedReviewStructured.stepOutcomeRequired, false);
   assert.equal(
     blockedReviewStructured.text,
     "Mark the current create step complete before advancing from phase `kickoff`. Use `phase` as the primary guide and treat `iteration` as diagnostic only. Re-call create_bank with iteration: 1 and stepCompleted: true once the current step is actually done.",
@@ -170,6 +173,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.iteration, 1);
   assert.equal(reviewStructured.phase, "review_existing_guidance");
   assert.equal(reviewStructured.stepCompletionRequired, false);
+  assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
   assert.match(reviewStructured.prompt, /choose one strategy per meaningful source/i);
@@ -187,42 +191,82 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(importStructured.iteration, 2);
   assert.equal(importStructured.phase, "import_selected_guidance");
   assert.equal(importStructured.stepCompletionRequired, false);
+  assert.equal(importStructured.stepOutcomeRequired, false);
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
   assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
+  assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 
-  const deriveProjectStructured = await callToolStructured(
+  const blockedDeriveStructured = await callToolStructured(
     client,
     "create_bank",
     { projectPath: projectRoot, iteration: 3, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(blockedDeriveStructured.iteration, 2);
+  assert.equal(blockedDeriveStructured.phase, "import_selected_guidance");
+  assert.equal(blockedDeriveStructured.stepCompletionRequired, false);
+  assert.equal(blockedDeriveStructured.stepOutcomeRequired, true);
+  assert.match(blockedDeriveStructured.text, /Record an explicit outcome for phase `import_selected_guidance`/i);
+
+  const deriveProjectStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance needed importing for this test project.",
+    },
+    CreateBankSchema,
+  );
   assert.equal(deriveProjectStructured.iteration, 3);
   assert.equal(deriveProjectStructured.phase, "derive_from_project");
+  assert.equal(deriveProjectStructured.stepOutcomeRequired, false);
   assert.match(deriveProjectStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(deriveProjectStructured.prompt, /Inspect the real repository directly/i);
   assert.match(deriveProjectStructured.prompt, /Do not rely on a server-provided file checklist/i);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
+  assert.match(deriveProjectStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(deriveProjectStructured.creationPrompt, null);
 
-  const finalizeStructured = await callToolStructured(
+  const blockedFinalizeStructured = await callToolStructured(
     client,
     "create_bank",
     { projectPath: projectRoot, iteration: 4, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(blockedFinalizeStructured.iteration, 3);
+  assert.equal(blockedFinalizeStructured.phase, "derive_from_project");
+  assert.equal(blockedFinalizeStructured.stepOutcomeRequired, true);
+  assert.match(blockedFinalizeStructured.text, /Record an explicit outcome for phase `derive_from_project`/i);
+
+  const finalizeStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 4,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No additional derived rules were needed for this test project.",
+    },
+    CreateBankSchema,
+  );
   assert.equal(finalizeStructured.phase, "finalize");
   assert.equal(finalizeStructured.creationState, "creating");
   assert.equal(finalizeStructured.stepCompletionRequired, false);
+  assert.equal(finalizeStructured.stepOutcomeRequired, false);
   assert.equal(finalizeStructured.mustContinue, true);
   assert.equal(finalizeStructured.nextIteration, 5);
   assert.equal(
     finalizeStructured.text,
-    "Continue the create flow at phase `finalize`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete.",
+    "Continue the create flow at phase `finalize`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use `create_bank.apply` for changes or set `stepOutcome` when no new mutations are needed.",
   );
   assert.match(finalizeStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
@@ -233,17 +277,36 @@ test("create_bank later iterations expose review import derive and finalize prom
     finalizeStructured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 5` and `stepCompleted: true`/i,
   );
+  assert.match(finalizeStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
+
+  const blockedCompletedStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 5, stepCompleted: true },
+    CreateBankSchema,
+  );
+  assert.equal(blockedCompletedStructured.iteration, 4);
+  assert.equal(blockedCompletedStructured.phase, "finalize");
+  assert.equal(blockedCompletedStructured.stepOutcomeRequired, true);
+  assert.match(blockedCompletedStructured.text, /Record an explicit outcome for phase `finalize`/i);
 
   const completedStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 5, stepCompleted: true },
+    {
+      projectPath: projectRoot,
+      iteration: 5,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "Finalize completed without additional cleanup changes.",
+    },
     CreateBankSchema,
   );
   assert.equal(completedStructured.phase, "completed");
   assert.equal(completedStructured.creationPrompt, null);
   assert.equal(completedStructured.creationState, "ready");
   assert.equal(completedStructured.stepCompletionRequired, false);
+  assert.equal(completedStructured.stepOutcomeRequired, false);
   assert.equal(completedStructured.mustContinue, false);
   assert.equal(completedStructured.nextIteration, null);
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
@@ -278,7 +341,13 @@ test("create_bank can apply batched writes for the current step and refresh the 
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
+    },
     CreateBankSchema,
   );
 
@@ -386,7 +455,13 @@ test("create_bank apply can update and delete existing entries in one batch with
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
+    },
     CreateBankSchema,
   );
 
@@ -534,7 +609,13 @@ test("create_bank apply reports conflicts and tells the agent how to recover", a
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
+    },
     CreateBankSchema,
   );
 
@@ -638,9 +719,44 @@ test("resolve_context blocks normal runtime context until the create flow is com
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
 
-  for (const iteration of [1, 2, 3, 4, 5]) {
-    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true }, CreateBankSchema);
-  }
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance needed importing for this test project.",
+    },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 4,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No additional derived rules were needed for this test project.",
+    },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 5,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "Finalize completed without additional cleanup changes.",
+    },
+    CreateBankSchema,
+  );
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(resolveStructured.creationState, "ready");
@@ -690,9 +806,44 @@ test("ready project banks ask the user whether to run an improvement pass before
   t.after(close);
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
-  for (const iteration of [1, 2, 3, 4, 5]) {
-    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true }, CreateBankSchema);
-  }
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance needed importing for this ready-bank test.",
+    },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 4,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No derived changes were needed for this ready-bank test.",
+    },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 5,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "Finalize completed without cleanup changes for this ready-bank test.",
+    },
+    CreateBankSchema,
+  );
 
   const rerunStructured = await callToolStructured(
     client,

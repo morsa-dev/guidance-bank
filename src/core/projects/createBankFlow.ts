@@ -2,7 +2,7 @@ import type { BankRepository } from "../../storage/bankRepository.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../bank/lifecycle.js";
 import type { ProjectCreationState } from "../bank/types.js";
 import { detectProjectContext } from "../context/detectProjectContext.js";
-import { getNextCreateFlowIteration, isCreateFlowComplete } from "./createFlowPhases.js";
+import { getNextCreateFlowIteration, isCreateFlowComplete, requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
@@ -18,6 +18,9 @@ type ResolveCreateBankFlowContextOptions = {
   projectPath: string;
   requestedIteration: number;
   stepCompleted: boolean;
+  hasApply: boolean;
+  stepOutcome: "applied" | "no_changes" | null;
+  stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
 };
 
@@ -33,6 +36,7 @@ type ResolvedCreateBankFlowContext = {
   existingBankUpdatedDaysAgo: number | null;
   effectiveIteration: number;
   stepCompletionRequired: boolean;
+  stepOutcomeRequired: boolean;
   lifecycleStatus: ReturnType<typeof resolveProjectBankLifecycleStatus>;
   shouldTrackCreateFlow: boolean;
   nextCreationState: ProjectCreationState;
@@ -70,18 +74,26 @@ const resolveEffectiveIteration = ({
   storedIteration,
   requestedIteration,
   stepCompleted,
+  hasApply,
+  stepOutcome,
+  stepOutcomeNote,
 }: {
   storedIteration: number | null;
   requestedIteration: number;
   stepCompleted: boolean;
+  hasApply: boolean;
+  stepOutcome: "applied" | "no_changes" | null;
+  stepOutcomeNote: string | null;
 }): {
   effectiveIteration: number;
   stepCompletionRequired: boolean;
+  stepOutcomeRequired: boolean;
 } => {
   if (storedIteration === null) {
     return {
       effectiveIteration: requestedIteration,
       stepCompletionRequired: false,
+      stepOutcomeRequired: false,
     };
   }
 
@@ -89,24 +101,39 @@ const resolveEffectiveIteration = ({
     return {
       effectiveIteration: requestedIteration,
       stepCompletionRequired: false,
+      stepOutcomeRequired: false,
     };
   }
 
   if (requestedIteration === storedIteration + 1) {
+    const stepOutcomeSatisfied =
+      hasApply || stepOutcome === "applied" || (stepOutcome === "no_changes" && stepOutcomeNote !== null);
+
+    if (stepCompleted && requiresCreateFlowStepOutcome(storedIteration) && !stepOutcomeSatisfied) {
+      return {
+        effectiveIteration: storedIteration,
+        stepCompletionRequired: false,
+        stepOutcomeRequired: true,
+      };
+    }
+
     return stepCompleted
       ? {
           effectiveIteration: requestedIteration,
           stepCompletionRequired: false,
+          stepOutcomeRequired: false,
         }
       : {
           effectiveIteration: storedIteration,
           stepCompletionRequired: true,
+          stepOutcomeRequired: false,
         };
   }
 
   return {
     effectiveIteration: storedIteration,
     stepCompletionRequired: true,
+    stepOutcomeRequired: false,
   };
 };
 
@@ -140,6 +167,9 @@ export const resolveCreateBankFlowContext = async ({
   projectPath,
   requestedIteration,
   stepCompleted,
+  hasApply,
+  stepOutcome,
+  stepOutcomeNote,
   referenceProjectIds,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
@@ -166,10 +196,13 @@ export const resolveCreateBankFlowContext = async ({
 
   const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
   const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
-  const { effectiveIteration, stepCompletionRequired } = resolveEffectiveIteration({
+  const { effectiveIteration, stepCompletionRequired, stepOutcomeRequired } = resolveEffectiveIteration({
     storedIteration: existingState?.createIteration ?? null,
     requestedIteration,
     stepCompleted,
+    hasApply,
+    stepOutcome,
+    stepOutcomeNote,
   });
   const lifecycleStatus = resolveProjectBankLifecycleStatus({
     projectManifest: existingManifest,
@@ -216,6 +249,7 @@ export const resolveCreateBankFlowContext = async ({
     existingBankUpdatedDaysAgo,
     effectiveIteration,
     stepCompletionRequired,
+    stepOutcomeRequired,
     lifecycleStatus,
     shouldTrackCreateFlow,
     nextCreationState,

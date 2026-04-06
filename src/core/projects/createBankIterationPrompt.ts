@@ -1,6 +1,6 @@
 import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
 
-import { CREATE_FLOW_COMPLETED_ITERATION } from "./createFlowPhases.js";
+import { CREATE_FLOW_COMPLETED_ITERATION, requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
@@ -44,7 +44,7 @@ const appendContinuationInstruction = (prompt: string, iteration: number): strin
 
 ## Continuation
 
-After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`.`;
+After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`${requiresCreateFlowStepOutcome(iteration) ? ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes` (with `stepOutcomeNote` for `no_changes`)." : "."}`;
 
 const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
   if (discoveredSources.length === 0) {

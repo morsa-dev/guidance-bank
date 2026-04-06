@@ -31,6 +31,48 @@ const ClearProjectBankSchema = z.object({
   projectBankPath: z.string(),
 });
 
+const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
+  await callToolStructured(client, "create_bank", { projectPath }, z.object({ projectId: z.string() }));
+  await callToolStructured(client, "create_bank", { projectPath, iteration: 1, stepCompleted: true }, z.object({ projectId: z.string() }));
+  await callToolStructured(client, "create_bank", { projectPath, iteration: 2, stepCompleted: true }, z.object({ projectId: z.string() }));
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance needed importing in this setup.",
+    },
+    z.object({ projectId: z.string() }),
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath,
+      iteration: 4,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No derived changes were needed in this setup.",
+    },
+    z.object({ projectId: z.string() }),
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath,
+      iteration: 5,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "Finalize completed without cleanup changes in this setup.",
+    },
+    z.object({ projectId: z.string() }),
+  );
+};
+
 const setupAngularProject = async () => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "angular-admin");
@@ -49,20 +91,7 @@ const setupAngularProject = async () => {
   });
 
   const { client, close } = await createConnectedClient(bankRoot, { provider: "cursor" });
-  await callToolStructured(
-    client,
-    "create_bank",
-    { projectPath: projectRoot },
-    z.object({ projectId: z.string() }),
-  );
-  for (const iteration of [1, 2, 3, 4, 5, 6]) {
-    await callToolStructured(
-      client,
-      "create_bank",
-      { projectPath: projectRoot, iteration, stepCompleted: true },
-      z.object({ projectId: z.string() }),
-    );
-  }
+  await advanceCreateFlowToReady(client, projectRoot);
 
   return { projectRoot, bankRoot, client, close };
 };
