@@ -186,6 +186,7 @@ What to do:
 - Assign stable ids, titles, topics, and stacks
 - Deduplicate against existing Memory Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
+- In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`topics/example.md\` or \`adding-feature\`, not \`rules/topics/example.md\` or \`skills/adding-feature\`
 - After the user explicitly approves \`move\`, use \`delete_guidance_source\` to remove the original repository-local or provider-project source only after the canonical Memory Bank entries are already written successfully
 - If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
 - If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
@@ -232,6 +233,7 @@ Quality rules:
 - Skip temporary, noisy, or accidental implementation details
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it
 - Apply derived changes through \`create_bank.apply\` in batches instead of a long series of one-entry write calls
+- In \`create_bank.apply\`, keep each path relative to the rules/skills root instead of prefixing it with \`rules/\` or \`skills/\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 - For each obvious candidate you do not create, keep a short explicit reason: already covered, weak evidence, intentionally deferred, or better suited to shared scope
 

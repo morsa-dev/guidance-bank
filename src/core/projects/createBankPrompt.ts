@@ -118,6 +118,10 @@ Write Memory Bank entries through MCP tools instead of editing the user storage 
 During this iterative flow:
 - prefer batched writes and deletions via \`create_bank.apply\`
 - pass complete final documents, not partial markdown patches
+- for \`create_bank.apply.path\`, use paths relative to the rules/skills root only:
+  - rules: \`core/general.md\`, \`topics/architecture.md\`
+  - skills: \`adding-feature\`, \`task-based-reading\`
+- do not prefix \`create_bank.apply.path\` with \`rules/\` or \`skills/\`
 - use \`baseSha256\` when replacing or deleting an entry you previously read from Memory Bank
 - if \`create_bank.apply\` reports \`conflict\` for an entry, do not guess or overwrite blindly
 - on conflict, re-read the affected entry through \`read_entry\`, rebuild the full final document, and retry the batch with the fresh \`baseSha256\`

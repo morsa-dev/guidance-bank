@@ -17,6 +17,40 @@ const CreateBankApplyEntryKindSchema = z
     return value;
   });
 
+const stripPrefixedEntryPath = (kind: "rules" | "skills", rawPath: string): string => {
+  const normalizedPath = rawPath.replaceAll("\\", "/").trim();
+  const lowerCasePath = normalizedPath.toLowerCase();
+
+  const matchingPrefixes =
+    kind === "rules"
+      ? ["rule/", "rules/"]
+      : ["skill/", "skills/"];
+  const conflictingPrefixes =
+    kind === "rules"
+      ? ["skill/", "skills/"]
+      : ["rule/", "rules/"];
+
+  for (const prefix of conflictingPrefixes) {
+    if (lowerCasePath === prefix.slice(0, -1) || lowerCasePath.startsWith(prefix)) {
+      throw new Error(
+        `Path must be relative to the ${kind} root and must not start with \`${prefix.slice(0, -1)}/\`.`,
+      );
+    }
+  }
+
+  for (const prefix of matchingPrefixes) {
+    if (lowerCasePath === prefix.slice(0, -1)) {
+      throw new Error(`Path must be relative to the ${kind} root and cannot be just \`${prefix.slice(0, -1)}\`.`);
+    }
+
+    if (lowerCasePath.startsWith(prefix)) {
+      return normalizedPath.slice(prefix.length);
+    }
+  }
+
+  return normalizedPath;
+};
+
 export const CreateBankApplyWriteSchema = z
   .object({
     kind: CreateBankApplyEntryKindSchema,
@@ -25,7 +59,22 @@ export const CreateBankApplyWriteSchema = z
     content: z.string().min(1),
     baseSha256: z.string().trim().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    try {
+      stripPrefixedEntryPath(value.kind, value.path);
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["path"],
+        message: error instanceof Error ? error.message : "Invalid create_bank.apply write path.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    path: stripPrefixedEntryPath(value.kind, value.path),
+  }));
 
 export const CreateBankApplyDeletionSchema = z
   .object({
@@ -34,7 +83,22 @@ export const CreateBankApplyDeletionSchema = z
     path: z.string().trim().min(1),
     baseSha256: z.string().trim().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    try {
+      stripPrefixedEntryPath(value.kind, value.path);
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["path"],
+        message: error instanceof Error ? error.message : "Invalid create_bank.apply deletion path.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    path: stripPrefixedEntryPath(value.kind, value.path),
+  }));
 
 export const CreateBankInputShape = {
   projectPath: AbsoluteProjectPathSchema,
