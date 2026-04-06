@@ -88,6 +88,8 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 Create a project-specific Memory Bank that captures stable patterns from this repository without duplicating broad user-level guidance that already belongs in the shared Memory Bank layer.
 
+The target is a right-sized, practically useful bank, not a minimal placeholder. If the repository contains enough evidence for a richer canonical bank, do not stop at a thin summary layer.
+
 ## Source Hierarchy
 
 Use these inputs together:
@@ -154,11 +156,14 @@ If the right scope is unclear, ask the user explicitly whether the entry should 
 ## Quality Gates
 
 - Explore the repository before writing
+- Explore broadly before the first canonical write; do not lock the bank shape after reading only one narrow area
 - Prefer a small number of high-value files over generic filler
 - Deduplicate aggressively
 - If evidence is weak, omit the entry or mark uncertainty explicitly
 - Use real file paths from the repository in skill workflows
 - Keep rules and skills clearly separated
+- Before the first substantial \`create_bank.apply\`, build a candidate list of the high-value rules and skills this project appears to support, then write the strongest batch first
+- If an obvious high-value candidate is skipped, keep an explicit reason in your working notes and mention the skip in later step outcomes when it materially affects coverage
 
 ## Rule and Skill Quality Contract
 
@@ -194,6 +199,10 @@ Aim for a right-sized bank, not a minimal placeholder:
 - 2-5 focused skills when reusable workflows are clearly present
 - for small or low-confidence projects, prefer fewer high-value entries over quota-filling
 
+Treat this as a completeness pressure, not a quota:
+- if the repository clearly supports more than a thin summary bank, keep exploring until the missing high-value rules and skills are either created or explicitly ruled out
+- if you finish with a lighter bank, be able to explain which obvious candidates were considered and why they were skipped
+
 High-value starting points when evidence supports them:
 - \`${rulesDirectory}/core/general.md\`
 - \`${rulesDirectory}/topics/architecture.md\`
@@ -203,13 +212,20 @@ High-value starting points when evidence supports them:
 - \`${skillsDirectory}/code-review/SKILL.md\`
 - \`${skillsDirectory}/task-based-reading/SKILL.md\` or a troubleshooting skill
 
+Common high-value candidates to consider explicitly when evidence supports them:
+- rule topics for architecture, routing, state/data flow, services/API, styling, i18n, SSR/browser boundaries, testing, or performance
+- skills for adding-feature, adding-service, code-review, task-based-reading, troubleshooting, common-anti-patterns, and stack-specific workflows
+- for each candidate that is not created, decide whether it is truly unsupported, already covered more clearly elsewhere, or should be deferred with a clear reason
+
 ## This Step
 
 During this initial step:
 - Inspect the repository and selected reference projects
 - Form a working plan for which canonical entries are likely needed first
+- Build a broad candidate inventory before the first major write batch: which rule files and which skills appear justified by project evidence
 - Avoid importing or deleting repository-local guidance yet; that review happens in later iterations
 - Start writing canonical entries only when the evidence is already strong from the codebase, shared Memory Bank context, or selected reference projects
+- Do not treat the first acceptable batch as the finished bank if the project clearly supports additional high-value canonical entries
 
 ## Suggested Initial File Shapes
 

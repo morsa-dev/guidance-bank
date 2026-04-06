@@ -124,12 +124,15 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 What to do in this step:
 - inspect the repository and selected reference projects
 - form a working plan for which canonical entries are likely needed first
+- build a broad candidate list before the first major write batch: which rule files and which skills appear justified by project evidence
 - start writing canonical entries only when the evidence is already strong
 - do not import or delete repository-local guidance yet; that review happens in later iterations
+- do not stop at a thin summary plan if the repository obviously supports a richer canonical bank
 
 Step output:
 - one line per created or updated file
 - short purpose for each file or planned file
+- note the strongest high-value candidates that still remain open after this step
 - major uncertainties or skipped areas that should be handled in later iterations`;
 
 const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
@@ -216,6 +219,8 @@ What to do:
 - Create a focused set of high-value project rules and skills
 - Prefer stable patterns over one-off details
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
+- Before applying a major batch, perform a gap review against the strongest remaining candidate rules and skills for this project
+- Treat a bank as incomplete if obvious high-value entries are still missing without a clear skip reason
 
 Quality rules:
 - Do not rely on a server-provided file checklist; gather your own evidence from the real repository
@@ -224,6 +229,7 @@ Quality rules:
 - If a candidate rule is high-impact and your confidence is low, ask the user before writing it
 - Apply derived changes through \`create_bank.apply\` in batches instead of a long series of one-entry write calls
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
+- For each obvious candidate you do not create, keep a short explicit reason: already covered, weak evidence, intentionally deferred, or better suited to shared scope
 
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
@@ -241,13 +247,18 @@ What to do:
 - Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
+- Run an explicit gap-and-coverage review before declaring the bank done
 
 Final pass checklist:
 - Remove near-duplicate entries and merge them into the clearest canonical version
 - Ensure each entry is either clearly a \`rule\` or clearly a \`skill\`
 - Ensure project overrides do not duplicate shared guidance without adding real specificity
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
-- In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties`;
+- Confirm the bank is not materially poorer than the strongest project evidence that was available during this run
+- Check whether high-value topics were considered where applicable: architecture, routing, state/data flow, services/API, styling, i18n, SSR/browser boundaries, testing, performance
+- Check whether high-value skills were considered where applicable: adding-feature, adding-service, code-review, task-based-reading, troubleshooting, common-anti-patterns, and stack-specific workflows
+- If any obvious candidate was skipped, keep the clearest reason rather than silently omitting it
+- In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates`;
 
 const buildCompletedPrompt = (): string => `# Create Flow Completed
 
