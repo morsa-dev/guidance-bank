@@ -75,7 +75,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
 
   await callToolResult(client, "create_bank", { projectPath: projectRoot });
   for (const iteration of [1, 2, 3, 4, 5, 6]) {
-    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration });
+    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true });
   }
   await callToolResult(client, "upsert_rule", {
     scope: "shared",
@@ -110,7 +110,7 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
 
   await callToolResult(client, "create_bank", { projectPath: projectRoot });
   for (const iteration of [1, 2, 3, 4, 5, 6]) {
-    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration });
+    await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true });
   }
   const result = await callToolResult(client, "resolve_context", { projectPath: projectRoot });
 

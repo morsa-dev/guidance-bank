@@ -20,6 +20,7 @@ const CreateBankSchema = z.object({
   projectId: z.string(),
   iteration: z.number(),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+  stepCompletionRequired: z.boolean(),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),
   existingBankUpdatedAt: z.string().nullable(),
@@ -83,9 +84,13 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.equal(structured.syncRequired, false);
   assert.equal(structured.iteration, 0);
   assert.equal(structured.creationState, "creating");
+  assert.equal(structured.stepCompletionRequired, false);
   assert.equal(structured.mustContinue, true);
   assert.equal(structured.nextIteration, 1);
-  assert.equal(structured.text, "Call create_bank with iteration: 1.");
+  assert.equal(
+    structured.text,
+    "Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete.",
+  );
   assert.deepEqual(
     structured.discoveredSources.map((source) => source.relativePath),
     [".cursor", ".cursor/rules.md", "AGENTS.md"],
@@ -106,7 +111,10 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(structured.creationPrompt, /- other/);
   assert.match(structured.creationPrompt, /Expected Bank Density/i);
   assert.match(structured.creationPrompt, /2-6 focused rule files/i);
-  assert.match(structured.prompt, /After completing this step, call `create_bank` again with `iteration: 1`/i);
+  assert.match(
+    structured.prompt,
+    /After completing this step, call `create_bank` again with `iteration: 1` and `stepCompleted: true`/i,
+  );
 });
 
 test("create_bank later iterations expose review import derive and finalize prompts", async (t) => {
@@ -124,12 +132,28 @@ test("create_bank later iterations expose review import derive and finalize prom
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
 
-  const reviewStructured = await callToolStructured(
+  const blockedReviewStructured = await callToolStructured(
     client,
     "create_bank",
     { projectPath: projectRoot, iteration: 1 },
     CreateBankSchema,
   );
+  assert.equal(blockedReviewStructured.iteration, 0);
+  assert.equal(blockedReviewStructured.stepCompletionRequired, true);
+  assert.equal(
+    blockedReviewStructured.text,
+    "Mark the current create step complete before advancing. Re-call create_bank with iteration: 1 and stepCompleted: true once the current step is actually done.",
+  );
+  assert.match(blockedReviewStructured.prompt, /Create Flow Kickoff/i);
+
+  const reviewStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  assert.equal(reviewStructured.iteration, 1);
+  assert.equal(reviewStructured.stepCompletionRequired, false);
   assert.match(reviewStructured.prompt, /stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
   assert.match(reviewStructured.prompt, /choose one strategy per meaningful source/i);
@@ -139,9 +163,11 @@ test("create_bank later iterations expose review import derive and finalize prom
   const importStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2 },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(importStructured.iteration, 2);
+  assert.equal(importStructured.stepCompletionRequired, false);
   assert.match(importStructured.prompt, /stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
   assert.match(importStructured.prompt, /Use MCP mutation tools for all canonical writes/i);
@@ -150,9 +176,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   const deriveProjectStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 3 },
+    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(deriveProjectStructured.iteration, 3);
   assert.match(deriveProjectStructured.prompt, /stable create-flow contract/i);
   assert.match(deriveProjectStructured.prompt, /## Project Evidence/);
   assert.match(deriveProjectStructured.prompt, /\[config\] package\.json/);
@@ -162,25 +189,33 @@ test("create_bank later iterations expose review import derive and finalize prom
   const finalizeStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 4 },
+    { projectPath: projectRoot, iteration: 4, stepCompleted: true },
     CreateBankSchema,
   );
   assert.equal(finalizeStructured.creationState, "creating");
+  assert.equal(finalizeStructured.stepCompletionRequired, false);
   assert.equal(finalizeStructured.mustContinue, true);
   assert.equal(finalizeStructured.nextIteration, 5);
-  assert.equal(finalizeStructured.text, "Call create_bank with iteration: 5.");
+  assert.equal(
+    finalizeStructured.text,
+    "Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete.",
+  );
   assert.match(finalizeStructured.prompt, /stable create-flow contract/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
-  assert.match(finalizeStructured.prompt, /After completing this step, call `create_bank` again with `iteration: 5`/i);
+  assert.match(
+    finalizeStructured.prompt,
+    /After completing this step, call `create_bank` again with `iteration: 5` and `stepCompleted: true`/i,
+  );
 
   const completedStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 5 },
+    { projectPath: projectRoot, iteration: 5, stepCompleted: true },
     CreateBankSchema,
   );
   assert.equal(completedStructured.creationState, "ready");
+  assert.equal(completedStructured.stepCompletionRequired, false);
   assert.equal(completedStructured.mustContinue, false);
   assert.equal(completedStructured.nextIteration, null);
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
@@ -207,12 +242,15 @@ test("resolve_context blocks normal runtime context until the create flow is com
   assert.equal(inProgressStructured.creationState, "creating");
   assert.equal(inProgressStructured.requiredAction, "continue_create_bank");
   assert.equal(inProgressStructured.nextIteration, 1);
-  assert.equal(inProgressStructured.text, "Call `create_bank` with `iteration: 1`.");
+  assert.equal(
+    inProgressStructured.text,
+    "Call `create_bank` with `iteration: 1` and `stepCompleted: true` after the current step is actually complete.",
+  );
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
 
   for (const iteration of [1, 2, 3, 4, 5]) {
-    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration }, CreateBankSchema);
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true }, CreateBankSchema);
   }
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
@@ -263,7 +301,7 @@ test("ready project banks ask the user whether to run an improvement pass before
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
   for (const iteration of [1, 2, 3, 4, 5]) {
-    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration }, CreateBankSchema);
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration, stepCompleted: true }, CreateBankSchema);
   }
 
   const rerunStructured = await callToolStructured(
@@ -274,6 +312,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   );
 
   assert.equal(rerunStructured.creationState, "ready");
+  assert.equal(rerunStructured.stepCompletionRequired, false);
   assert.equal(rerunStructured.mustContinue, false);
   assert.equal(rerunStructured.nextIteration, 1);
   assert.equal(
@@ -296,6 +335,7 @@ test("ready project banks ask the user whether to run an improvement pass before
     CreateBankSchema,
   );
   assert.equal(improveStructured.creationState, "ready");
+  assert.equal(improveStructured.stepCompletionRequired, false);
   assert.equal(improveStructured.mustContinue, true);
   assert.equal(improveStructured.nextIteration, 2);
   assert.match(improveStructured.prompt, /Current Bank Baseline/i);
@@ -373,7 +413,7 @@ test("resolve_context suggests similar project banks and create_bank accepts sel
   assert.match(targetCreateStructured.creationPrompt, /Reference Projects/i);
 });
 
-test("create_bank persists requested iteration and overwrites mismatched stored iteration", async (t) => {
+test("create_bank blocks advancing to a later step without explicit completion confirmation", async (t) => {
   const { tempDirectoryPath, bankRoot, repository } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -405,17 +445,17 @@ test("create_bank persists requested iteration and overwrites mismatched stored 
       CreateBankSchema,
     );
 
-    assert.equal(advancedStructured.iteration, 3);
+    assert.equal(advancedStructured.iteration, 0);
+    assert.equal(advancedStructured.stepCompletionRequired, true);
     assert.deepEqual(advancedStructured.projectEvidence.topLevelDirectories, ["docs", "src"]);
     assert.deepEqual(
       advancedStructured.projectEvidence.evidenceFiles.map((file) => file.relativePath),
       ["docs/architecture.md", "package.json", "README.md"],
     );
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0] ?? "", /iteration mismatch/i);
+    assert.equal(warnings.length, 0);
 
     const state = await repository.readProjectStateOptional(advancedStructured.projectId);
-    assert.equal(state?.createIteration, 3);
+    assert.equal(state?.createIteration, 0);
   } finally {
     console.warn = originalWarn;
   }
@@ -433,7 +473,7 @@ test("create_bank returns compact current project bank snapshot and project entr
   t.after(close);
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1 }, CreateBankSchema);
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
 
   await callToolStructured(
     client,
@@ -451,7 +491,7 @@ test("create_bank returns compact current project bank snapshot and project entr
   const snapshotStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2 },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
     CreateBankSchema,
   );
   assert.equal(snapshotStructured.currentBankSnapshot.exists, true);

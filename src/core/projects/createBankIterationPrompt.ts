@@ -45,7 +45,7 @@ const appendContinuationInstruction = (prompt: string, iteration: number): strin
 
 ## Continuation
 
-After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\`.`;
+After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`.`;
 
 const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
   if (discoveredSources.length === 0) {

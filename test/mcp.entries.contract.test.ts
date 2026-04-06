@@ -59,7 +59,7 @@ const setupAngularProject = async () => {
     await callToolStructured(
       client,
       "create_bank",
-      { projectPath: projectRoot, iteration },
+      { projectPath: projectRoot, iteration, stepCompleted: true },
       z.object({ projectId: z.string() }),
     );
   }

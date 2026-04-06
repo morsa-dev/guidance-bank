@@ -19,6 +19,7 @@ type ResolveCreateBankFlowContextOptions = {
   repository: BankRepository;
   projectPath: string;
   requestedIteration: number;
+  stepCompleted: boolean;
   referenceProjectIds?: string[];
 };
 
@@ -32,6 +33,8 @@ type ResolvedCreateBankFlowContext = {
   unknownReferenceIds: string[];
   existingBankUpdatedAt: string | null;
   existingBankUpdatedDaysAgo: number | null;
+  effectiveIteration: number;
+  stepCompletionRequired: boolean;
   lifecycleStatus: ReturnType<typeof resolveProjectBankLifecycleStatus>;
   shouldTrackCreateFlow: boolean;
   nextCreationState: ProjectCreationState;
@@ -71,6 +74,50 @@ const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number |
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 };
 
+const resolveEffectiveIteration = ({
+  storedIteration,
+  requestedIteration,
+  stepCompleted,
+}: {
+  storedIteration: number | null;
+  requestedIteration: number;
+  stepCompleted: boolean;
+}): {
+  effectiveIteration: number;
+  stepCompletionRequired: boolean;
+} => {
+  if (storedIteration === null) {
+    return {
+      effectiveIteration: requestedIteration,
+      stepCompletionRequired: false,
+    };
+  }
+
+  if (requestedIteration === 0 || requestedIteration <= storedIteration) {
+    return {
+      effectiveIteration: requestedIteration,
+      stepCompletionRequired: false,
+    };
+  }
+
+  if (requestedIteration === storedIteration + 1) {
+    return stepCompleted
+      ? {
+          effectiveIteration: requestedIteration,
+          stepCompletionRequired: false,
+        }
+      : {
+          effectiveIteration: storedIteration,
+          stepCompletionRequired: true,
+        };
+  }
+
+  return {
+    effectiveIteration: storedIteration,
+    stepCompletionRequired: true,
+  };
+};
+
 const loadExtendedCreateBankContext = async (
   repository: BankRepository,
   projectId: string,
@@ -102,6 +149,7 @@ export const resolveCreateBankFlowContext = async ({
   repository,
   projectPath,
   requestedIteration,
+  stepCompleted,
   referenceProjectIds,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
@@ -128,29 +176,34 @@ export const resolveCreateBankFlowContext = async ({
 
   const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
   const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
+  const { effectiveIteration, stepCompletionRequired } = resolveEffectiveIteration({
+    storedIteration: existingState?.createIteration ?? null,
+    requestedIteration,
+    stepCompleted,
+  });
   const lifecycleStatus = resolveProjectBankLifecycleStatus({
     projectManifest: existingManifest,
     projectState: existingState,
     expectedStorageVersion: manifest.storageVersion,
   });
   const syncRequired = existingManifest === null ? false : requiresProjectBankSync(existingState, manifest.storageVersion);
-  const isFlowComplete = isCreateFlowComplete(requestedIteration);
+  const isFlowComplete = isCreateFlowComplete(effectiveIteration);
   const shouldTrackCreateFlow =
     existingManifest === null ||
     existingState?.creationState === "creating" ||
     existingState?.creationState === "declined";
   const nextCreationState = shouldTrackCreateFlow ? (isFlowComplete ? "ready" : "creating") : "ready";
-  const improvementEntryPoint = lifecycleStatus === "ready" && requestedIteration === 0;
+  const improvementEntryPoint = lifecycleStatus === "ready" && effectiveIteration === 0;
   const mustContinue =
     !syncRequired &&
     (nextCreationState === "creating" ||
-      (lifecycleStatus === "ready" && requestedIteration > 0 && !isFlowComplete));
+      (lifecycleStatus === "ready" && effectiveIteration > 0 && !isFlowComplete));
   const nextIteration = syncRequired
     ? null
     : improvementEntryPoint
       ? 1
       : mustContinue
-        ? getNextCreateFlowIteration(requestedIteration)
+        ? getNextCreateFlowIteration(effectiveIteration)
         : null;
   const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
   const extendedContext = await loadExtendedCreateBankContext(
@@ -171,6 +224,8 @@ export const resolveCreateBankFlowContext = async ({
     unknownReferenceIds,
     existingBankUpdatedAt,
     existingBankUpdatedDaysAgo,
+    effectiveIteration,
+    stepCompletionRequired,
     lifecycleStatus,
     shouldTrackCreateFlow,
     nextCreationState,

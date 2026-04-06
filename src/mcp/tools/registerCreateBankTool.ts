@@ -19,6 +19,10 @@ const CreateBankArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
     iteration: z.number().int().nonnegative().optional(),
+    stepCompleted: z
+      .boolean()
+      .optional()
+      .describe("Marks the current create-flow step as complete when advancing to the next iteration."),
     referenceProjectIds: z
       .array(z.string().trim().min(1))
       .max(5)
@@ -30,12 +34,18 @@ const CreateBankArgsSchema = z
 const shouldWarnAboutIterationMismatch = (
   storedIteration: number | null,
   requestedIteration: number,
+  effectiveIteration: number,
+  stepCompletionRequired: boolean,
 ): boolean => {
   if (storedIteration === null) {
     return false;
   }
 
-  if (requestedIteration === storedIteration || requestedIteration === storedIteration + 1) {
+  if (stepCompletionRequired) {
+    return false;
+  }
+
+  if (requestedIteration === effectiveIteration) {
     return false;
   }
 
@@ -60,6 +70,10 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
         iteration: z.number().int().nonnegative().optional().describe("Current create-flow iteration. Defaults to 0."),
+        stepCompleted: z
+          .boolean()
+          .optional()
+          .describe("Marks the current create-flow step as complete when advancing to the next iteration."),
         referenceProjectIds: z
           .array(z.string().trim().min(1))
           .max(5)
@@ -117,6 +131,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
           }),
         ),
         creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+        stepCompletionRequired: z.boolean(),
         mustContinue: z.boolean(),
         nextIteration: z.number().int().nonnegative().nullable(),
         existingBankUpdatedAt: z.string().nullable(),
@@ -145,6 +160,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         repository: options.repository,
         projectPath: parsedArgs.data.projectPath,
         requestedIteration,
+        stepCompleted: parsedArgs.data.stepCompleted ?? false,
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -168,6 +184,8 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         selectedReferenceProjects,
         existingBankUpdatedAt,
         existingBankUpdatedDaysAgo,
+        effectiveIteration,
+        stepCompletionRequired,
         shouldTrackCreateFlow,
         nextCreationState,
         syncRequired,
@@ -181,10 +199,15 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
 
       if (
         existingState !== null &&
-        shouldWarnAboutIterationMismatch(existingState.createIteration, requestedIteration)
+        shouldWarnAboutIterationMismatch(
+          existingState.createIteration,
+          requestedIteration,
+          effectiveIteration,
+          stepCompletionRequired,
+        )
       ) {
         console.warn(
-          `create_bank iteration mismatch for project ${identity.projectId}: stored=${existingState.createIteration}, requested=${requestedIteration}. Overwriting stored iteration.`,
+          `create_bank iteration mismatch for project ${identity.projectId}: stored=${existingState.createIteration}, requested=${requestedIteration}, effective=${effectiveIteration}. Overwriting stored iteration.`,
         );
       }
 
@@ -213,7 +236,9 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         };
       }
 
-      nextState = setProjectBankCreateIteration(nextState, requestedIteration);
+      if (shouldTrackCreateFlow) {
+        nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
+      }
       await options.repository.writeProjectState(identity.projectId, nextState);
 
       const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
@@ -245,7 +270,7 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
               })
           : mustContinue || completedFlowThisCall
             ? buildCreateBankIterationPrompt({
-                iteration: requestedIteration,
+                iteration: effectiveIteration,
                 projectName: identity.projectName,
                 projectPath: identity.projectPath,
                 projectBankPath,
@@ -270,12 +295,13 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         rulesDirectory,
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
-        iteration: requestedIteration,
+        iteration: effectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
         projectEvidence: extendedContext.projectEvidence,
         currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,
+        stepCompletionRequired,
         mustContinue,
         nextIteration,
         existingBankUpdatedAt,
@@ -285,10 +311,12 @@ export const registerCreateBankTool: ToolRegistrar = (server, options) => {
         text:
           syncRequired
             ? "Call sync_bank to reconcile the existing project bank before any create or improve flow."
+            : stepCompletionRequired && nextIteration !== null
+              ? `Mark the current create step complete before advancing. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`
             : improvementEntryPoint
               ? "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1."
             : mustContinue && nextIteration !== null
-              ? `Call create_bank with iteration: ${nextIteration}.`
+              ? `Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete.`
               : completedFlowThisCall
                 ? "Create flow complete. Tell the user the project bank is ready."
                 : "Project Memory Bank is ready.",

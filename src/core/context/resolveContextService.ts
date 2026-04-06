@@ -220,7 +220,7 @@ const buildCreatingText = ({
   nextIteration,
 }: {
   nextIteration: number;
-}): string => `Call \`create_bank\` with \`iteration: ${nextIteration}\`.`;
+}): string => `Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after the current step is actually complete.`;
 
 const buildDeclinedText = (): string =>
   "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
