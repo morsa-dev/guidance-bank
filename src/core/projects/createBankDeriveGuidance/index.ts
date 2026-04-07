@@ -30,7 +30,7 @@ Aim for a right-sized bank, not a minimal placeholder:
 - 2-6 focused rule files when project evidence supports them
 - 2-5 focused skills when reusable workflows are clearly present
 - for small or low-confidence projects, prefer fewer high-value entries over quota-filling
-- do not stop at a thin summary bank when the repository clearly supports additional high-value canonical entries
+- do not stop at a thin summary when the repository clearly supports more
 
 Common high-value starting points when evidence supports them:
 - core/general
@@ -43,8 +43,7 @@ Common high-value starting points when evidence supports them:
 
 Before concluding derive/finalize:
 - review the strongest missing rule and skill candidates
-- either create them, merge them into clearer existing entries, or record why they should be skipped
-- prefer an explicit coverage decision over silent omission`;
+- either create them, merge them into clearer existing entries, or record a skip reason`;
 
 export const renderCreateDeriveGuidance = (detectedStacks: readonly DetectableStack[]): string => {
   const sections = [GENERAL_DERIVE_GUIDANCE];

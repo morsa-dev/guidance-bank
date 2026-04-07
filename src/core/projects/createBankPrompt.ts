@@ -102,10 +102,9 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 ## Coverage Expectations
 
 - Create a right-sized bank, not a thin summary
-- Prefer a small number of high-value entries over filler, but keep exploring if the repository clearly supports a richer bank
 - Consider both rules and skills
-- Before the first substantial write batch, build a candidate list of the strongest rule and skill entries suggested by the project
-- If obvious high-value candidates are skipped, keep a clear reason and reflect it later in \`stepOutcomeNote\`
+- Build a candidate list before the first substantial write batch
+- If obvious candidates are skipped, keep a clear reason and reflect it later in \`stepOutcomeNote\`
 
 Expected Bank Density:
 - 2-6 focused rule files when project evidence supports them

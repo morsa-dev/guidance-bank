@@ -269,8 +269,8 @@ What to do:
 - Create a focused set of high-value project rules and skills
 - Prefer stable patterns over one-off details
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
-- Before applying a major batch, perform a gap review against the strongest remaining candidate rules and skills for this project
-- Treat a bank as incomplete if obvious high-value entries are still missing without a clear skip reason
+- Review the strongest remaining candidates before a major batch
+- Treat the bank as incomplete if obvious entries are still missing without a clear skip reason
 
 Quality rules:
 - Do not rely on a server-provided file checklist; gather your own evidence from the real repository
@@ -280,7 +280,7 @@ Quality rules:
 - Apply derived changes through \`create_bank.apply\` in batches instead of a long series of one-entry write calls
 - In \`create_bank.apply\`, keep each path relative to the rules/skills root instead of prefixing it with \`rules/\` or \`skills/\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
-- For each obvious candidate you do not create, keep a short explicit reason: already covered, weak evidence, intentionally deferred, or better suited to shared scope
+- For each obvious candidate you skip, keep a short reason: already covered, weak evidence, intentionally deferred, or better suited to shared scope
 
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
@@ -305,10 +305,8 @@ Final pass checklist:
 - Ensure each entry is either clearly a \`rule\` or clearly a \`skill\`
 - Ensure project overrides do not duplicate shared guidance without adding real specificity
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
-- Confirm the bank is not materially poorer than the strongest project evidence that was available during this run
-- Check whether high-value topics were considered where applicable: architecture, routing, state/data flow, services/API, styling, i18n, SSR/browser boundaries, testing, performance
-- Check whether high-value skills were considered where applicable: adding-feature, adding-service, code-review, task-based-reading, troubleshooting, common-anti-patterns, and stack-specific workflows
-- If any obvious candidate was skipped, keep the clearest reason rather than silently omitting it
+- Confirm the bank is not materially poorer than the strongest project evidence from this run
+- Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates
 - If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered high-value candidates and why no further mutation was needed`;
 
