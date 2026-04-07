@@ -1130,6 +1130,117 @@ topics: [architecture]
   assert.equal(conflicted.creationPrompt, null);
 });
 
+test("create_bank does not advance stored iteration when an apply conflict blocks the same-step completion", async (t) => {
+  const { tempDirectoryPath, bankRoot, repository } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const created = await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
+    },
+    CreateBankSchema,
+  );
+
+  const seeded = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 3,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+  const existingRule = seeded.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  assert.ok(existingRule);
+
+  const conflictedAdvance = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 4,
+      stepCompleted: true,
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "core/general.md",
+            baseSha256: "stale-sha256",
+            content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- This conflicting write must not advance the flow.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.equal(conflictedAdvance.phase, "derive_from_project");
+  assert.equal(conflictedAdvance.iteration, 3);
+  assert.equal(conflictedAdvance.creationState, "creating");
+  assert.deepEqual(conflictedAdvance.applyResults.writes.map((item) => item.status), ["conflict"]);
+
+  const state = await repository.readProjectStateOptional(created.projectId);
+  assert.equal(state?.createIteration, 3);
+  assert.equal(state?.creationState, "creating");
+});
+
 test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");

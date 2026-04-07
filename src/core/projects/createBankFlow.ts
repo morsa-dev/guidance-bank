@@ -78,20 +78,16 @@ const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number |
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 };
 
-const resolveEffectiveIteration = ({
+export const resolveCreateFlowProgress = ({
   storedIteration,
   requestedIteration,
   stepCompleted,
-  hasApply,
-  stepOutcome,
-  stepOutcomeNote,
+  stepOutcomeSatisfied,
 }: {
   storedIteration: number | null;
   requestedIteration: number;
   stepCompleted: boolean;
-  hasApply: boolean;
-  stepOutcome: "applied" | "no_changes" | null;
-  stepOutcomeNote: string | null;
+  stepOutcomeSatisfied: boolean;
 }): {
   effectiveIteration: number;
   stepCompletionRequired: boolean;
@@ -114,9 +110,6 @@ const resolveEffectiveIteration = ({
   }
 
   if (requestedIteration === storedIteration + 1) {
-    const stepOutcomeSatisfied =
-      hasApply || stepOutcome === "applied" || (stepOutcome === "no_changes" && stepOutcomeNote !== null);
-
     if (stepCompleted && requiresCreateFlowStepOutcome(storedIteration) && !stepOutcomeSatisfied) {
       return {
         effectiveIteration: storedIteration,
@@ -205,13 +198,12 @@ export const resolveCreateBankFlowContext = async ({
 
   const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
   const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
-  const { effectiveIteration, stepCompletionRequired, stepOutcomeRequired } = resolveEffectiveIteration({
+  const { effectiveIteration, stepCompletionRequired, stepOutcomeRequired } = resolveCreateFlowProgress({
     storedIteration: existingState?.createIteration ?? null,
     requestedIteration,
     stepCompleted,
-    hasApply,
-    stepOutcome,
-    stepOutcomeNote,
+    stepOutcomeSatisfied:
+      hasApply || stepOutcome === "applied" || (stepOutcome === "no_changes" && stepOutcomeNote !== null),
   });
   const lifecycleStatus = resolveProjectBankLifecycleStatus({
     projectManifest: existingManifest,

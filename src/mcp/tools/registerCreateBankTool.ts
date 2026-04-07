@@ -4,13 +4,13 @@ import {
   createProjectBankManifest,
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
-import { resolveCreateBankFlowContext } from "../../core/projects/createBankFlow.js";
+import { resolveCreateBankFlowContext, resolveCreateFlowProgress } from "../../core/projects/createBankFlow.js";
 import { discoverCurrentProjectBank } from "../../core/projects/discoverCurrentProjectBank.js";
 import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
 } from "../../core/projects/createBankIterationPrompt.js";
-import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
+import { getCreateFlowPhase, getNextCreateFlowIteration, isCreateFlowComplete } from "../../core/projects/createFlowPhases.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
 import {
@@ -40,6 +40,13 @@ const registerCreateLikeTool = (
     description: string;
   },
 ) => {
+  const hasAppliedChanges = (applyResults: Awaited<ReturnType<typeof applyCreateBankChanges>>): boolean =>
+    applyResults.writes.length > 0 || applyResults.deletions.length > 0;
+
+  const hasApplyConflicts = (applyResults: Awaited<ReturnType<typeof applyCreateBankChanges>>): boolean =>
+    applyResults.writes.some((item) => item.status === "conflict") ||
+    applyResults.deletions.some((item) => item.status === "conflict");
+
   server.registerTool(
     toolName,
     {
@@ -104,12 +111,9 @@ const registerCreateLikeTool = (
         sourceStrategyRequired,
         stepOutcomeRequired,
         shouldTrackCreateFlow,
-        nextCreationState,
+        lifecycleStatus,
         syncRequired,
         improvementEntryPoint,
-        mustContinue,
-        nextIteration,
-        completedFlowThisCall,
         extendedContext,
         manifestStorageVersion,
         confirmedSourceStrategies,
@@ -168,17 +172,6 @@ const registerCreateLikeTool = (
         );
       }
 
-      const nextState = resolveNextCreateBankState({
-        existingManifest,
-        existingState,
-        shouldTrackCreateFlow,
-        nextCreationState,
-        manifestStorageVersion,
-        effectiveIteration,
-        confirmedSourceStrategies,
-      });
-      await options.repository.writeProjectState(identity.projectId, nextState);
-
       const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
       const rulesDirectory = options.repository.paths.projectRulesDirectory(identity.projectId);
       const skillsDirectory = options.repository.paths.projectSkillsDirectory(identity.projectId);
@@ -206,6 +199,54 @@ const registerCreateLikeTool = (
       if (parsedArgs.data.apply) {
         currentBankSnapshot = await discoverCurrentProjectBank(options.repository, identity.projectId, true);
       }
+      const {
+        effectiveIteration: finalEffectiveIteration,
+        stepCompletionRequired: finalStepCompletionRequired,
+        stepOutcomeRequired: finalStepOutcomeRequired,
+      } = resolveCreateFlowProgress({
+        storedIteration: existingState?.createIteration ?? null,
+        requestedIteration,
+        stepCompleted: parsedArgs.data.stepCompleted ?? false,
+        stepOutcomeSatisfied:
+          (hasAppliedChanges(applyResults) && !hasApplyConflicts(applyResults)) ||
+          parsedArgs.data.stepOutcome === "applied" ||
+          (parsedArgs.data.stepOutcome === "no_changes" && parsedArgs.data.stepOutcomeNote !== undefined),
+      });
+      const adjustedFinalEffectiveIteration = sourceStrategyRequired
+        ? existingState?.createIteration ?? finalEffectiveIteration
+        : finalEffectiveIteration;
+      const finalPhase = syncRequired
+        ? "sync_required"
+        : improvementEntryPoint
+          ? "ready_to_improve"
+          : getCreateFlowPhase(adjustedFinalEffectiveIteration);
+      const finalIsFlowComplete = isCreateFlowComplete(adjustedFinalEffectiveIteration);
+      const finalNextCreationState = shouldTrackCreateFlow
+        ? (finalIsFlowComplete ? "ready" : "creating")
+        : "ready";
+      const finalMustContinue =
+        !syncRequired &&
+        (finalNextCreationState === "creating" ||
+          (lifecycleStatus === "ready" && adjustedFinalEffectiveIteration > 0 && !finalIsFlowComplete));
+      const finalNextIteration = syncRequired
+        ? null
+        : improvementEntryPoint
+          ? 1
+          : finalMustContinue
+            ? getNextCreateFlowIteration(adjustedFinalEffectiveIteration)
+            : null;
+      const finalCompletedFlowThisCall =
+        !finalMustContinue && existingState?.creationState === "creating" && finalIsFlowComplete;
+      const nextState = resolveNextCreateBankState({
+        existingManifest,
+        existingState,
+        shouldTrackCreateFlow,
+        nextCreationState: finalNextCreationState,
+        manifestStorageVersion,
+        effectiveIteration: adjustedFinalEffectiveIteration,
+        confirmedSourceStrategies,
+      });
+      await options.repository.writeProjectState(identity.projectId, nextState);
       const prompt =
         syncRequired
           ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current Memory Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
@@ -214,9 +255,9 @@ const registerCreateLikeTool = (
                 updatedAt: existingBankUpdatedAt,
                 updatedDaysAgo: existingBankUpdatedDaysAgo,
               })
-          : mustContinue || completedFlowThisCall
+          : finalMustContinue || finalCompletedFlowThisCall
             ? buildCreateBankIterationPrompt({
-                iteration: effectiveIteration,
+                iteration: adjustedFinalEffectiveIteration,
                 projectName: identity.projectName,
                 projectPath: identity.projectPath,
                 projectBankPath,
@@ -230,13 +271,8 @@ const registerCreateLikeTool = (
                 hasExistingProjectBank: existingManifest !== null,
               })
             : "Project Memory Bank already exists for this repository and is ready.";
-      const phase = syncRequired
-        ? "sync_required"
-        : improvementEntryPoint
-          ? "ready_to_improve"
-          : getCreateFlowPhase(effectiveIteration);
       const creationPrompt =
-        effectiveIteration === 0
+        adjustedFinalEffectiveIteration === 0
           ? buildCreateBankPrompt({
               projectName: identity.projectName,
               projectPath: identity.projectPath,
@@ -258,18 +294,18 @@ const registerCreateLikeTool = (
         rulesDirectory,
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
-        phase,
-        iteration: effectiveIteration,
+        phase: finalPhase,
+        iteration: adjustedFinalEffectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
         currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,
         confirmedSourceStrategies,
-        stepCompletionRequired,
+        stepCompletionRequired: finalStepCompletionRequired,
         sourceStrategyRequired,
-        stepOutcomeRequired,
-        mustContinue,
-        nextIteration,
+        stepOutcomeRequired: finalStepOutcomeRequired,
+        mustContinue: finalMustContinue,
+        nextIteration: finalNextIteration,
         existingBankUpdatedAt,
         existingBankUpdatedDaysAgo,
         applyResults,
@@ -278,14 +314,14 @@ const registerCreateLikeTool = (
         text: buildCreateBankResponseText({
           syncRequired,
           applyResults,
-          stepCompletionRequired,
+          stepCompletionRequired: finalStepCompletionRequired,
           sourceStrategyRequired,
-          stepOutcomeRequired,
-          nextIteration,
+          stepOutcomeRequired: finalStepOutcomeRequired,
+          nextIteration: finalNextIteration,
           improvementEntryPoint,
-          mustContinue,
-          completedFlowThisCall,
-          phase,
+          mustContinue: finalMustContinue,
+          completedFlowThisCall: finalCompletedFlowThisCall,
+          phase: finalPhase,
         }),
       } as const;
 
