@@ -344,6 +344,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
+  assert.match(deriveProjectStructured.prompt, /provider-local skills, provider-global skills, or built-in model instructions/i);
   assert.match(deriveProjectStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(deriveProjectStructured.creationPrompt, null);
 
@@ -376,14 +377,13 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.stepOutcomeRequired, false);
   assert.equal(finalizeStructured.mustContinue, true);
   assert.equal(finalizeStructured.nextIteration, 5);
-  assert.equal(
-    finalizeStructured.text,
-    "Continue the create flow at phase `finalize`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 5 and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use `create_bank.apply` for changes or set `stepOutcome` when no new mutations are needed.",
-  );
+  assert.match(finalizeStructured.text, /Continue the create flow at phase `finalize`/i);
+  assert.match(finalizeStructured.text, /strongest skipped or already-covered high-value candidates/i);
   assert.match(finalizeStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
+  assert.match(finalizeStructured.prompt, /provider-local skills, provider-global skills, or model-native instructions/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
@@ -401,6 +401,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedCompletedStructured.phase, "finalize");
   assert.equal(blockedCompletedStructured.stepOutcomeRequired, true);
   assert.match(blockedCompletedStructured.text, /Record an explicit outcome for phase `finalize`/i);
+  assert.match(blockedCompletedStructured.text, /strongest remaining or skipped high-value candidates/i);
 
   const completedStructured = await callToolStructured(
     client,
@@ -538,6 +539,79 @@ When adding a feature.
     z.object({ path: z.string(), content: z.string() }),
   );
   assert.match(projectRule.content, /Demo Project General Rules/);
+});
+
+test("create_bank blocks apply during review_existing_guidance and kickoff with external sources", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const kickoffBlocked = await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    apply: {
+      writes: [
+        {
+          kind: "rules",
+          scope: "project",
+          path: "core/general.md",
+          content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+        },
+      ],
+      deletions: [],
+    },
+  });
+
+  assert.equal(kickoffBlocked.isError, true);
+  const kickoffText = kickoffBlocked.content.find((item) => item.type === "text")?.text ?? "";
+  assert.match(kickoffText, /during kickoff while external guidance sources still need review/i);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+
+  const reviewBlocked = await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    iteration: 1,
+    stepCompleted: true,
+    apply: {
+      writes: [
+        {
+          kind: "rules",
+          scope: "project",
+          path: "core/general.md",
+          content: `---
+id: demo-project-general
+kind: rule
+title: Demo Project General Rules
+stacks: [other]
+topics: [architecture]
+---
+
+- Keep the project bank canonical.
+`,
+        },
+      ],
+      deletions: [],
+    },
+  });
+
+  assert.equal(reviewBlocked.isError, true);
+  const reviewText = reviewBlocked.content.find((item) => item.type === "text")?.text ?? "";
+  assert.match(reviewText, /Cannot apply create-flow changes during review_existing_guidance/i);
 });
 
 test("create_bank apply accepts singular rule and skill kinds as aliases", async (t) => {

@@ -106,6 +106,7 @@ Important:
 - Do not duplicate or mirror provider-native guidance into the Memory Bank blindly
 - Repository-local guidance may be reviewed explicitly in later \`create_bank\` iterations, but it must not appear in normal runtime context returned by \`resolve_context\`
 - Provider-global skills, built-in model knowledge, or agent-local tooling must not be used as a reason to skip project- or shared-Memory-Bank coverage
+- Provider-local or model-native skills may help analysis, but they never count as canonical coverage and must not reduce the project/shared Memory Bank you create
 - During the iterative create/improve flow, write canonical Memory Bank changes through \`create_bank\` using its \`apply\` payload for batched writes and deletions
 - Reserve the standalone MCP mutation tools for targeted updates outside the full create/improve flow
 - Use \`delete_guidance_source\` only after the user explicitly approves moving a repository-local or provider-project guidance source into Memory Bank
@@ -160,7 +161,7 @@ If you discover guidance that is clearly reusable across repositories or across 
 
 If the right scope is unclear, ask the user explicitly whether the entry should live only in this project or in the shared layer.
 
-Do not treat provider-global skills or project-external model instructions as if they were already part of Memory Bank. Only shared/project Memory Bank entries and explicitly reviewed external sources count as canonical coverage.
+Do not treat provider-global skills, provider-local skills, or project-external model instructions as if they were already part of Memory Bank. Only shared/project Memory Bank entries and explicitly reviewed external sources count as canonical coverage.
 
 ## Quality Gates
 
@@ -173,6 +174,7 @@ Do not treat provider-global skills or project-external model instructions as if
 - Keep rules and skills clearly separated
 - Before the first substantial \`create_bank.apply\`, build a candidate list of the high-value rules and skills this project appears to support, then write the strongest batch first
 - If an obvious high-value candidate is skipped, keep an explicit reason in your working notes and mention the skip in later step outcomes when it materially affects coverage
+- When a content phase ends with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest remaining or skipped candidates and why no mutation was needed
 
 ## Rule and Skill Quality Contract
 

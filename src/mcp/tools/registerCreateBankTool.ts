@@ -153,6 +153,12 @@ const registerCreateLikeTool = (
         hasApply: parsedArgs.data.apply !== undefined,
         syncRequired,
         improvementEntryPoint,
+        phase: syncRequired
+          ? "sync_required"
+          : improvementEntryPoint
+            ? "ready_to_improve"
+            : getCreateFlowPhase(effectiveIteration),
+        hasDiscoveredSources: extendedContext.discoveredSources.length > 0,
         stepCompletionRequired,
         sourceStrategyRequired,
         stepOutcomeRequired,

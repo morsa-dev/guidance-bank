@@ -61,6 +61,8 @@ export const getCreateBankApplyBlockedMessage = ({
   hasApply,
   syncRequired,
   improvementEntryPoint,
+  phase,
+  hasDiscoveredSources,
   stepCompletionRequired,
   sourceStrategyRequired,
   stepOutcomeRequired,
@@ -68,6 +70,8 @@ export const getCreateBankApplyBlockedMessage = ({
   hasApply: boolean;
   syncRequired: boolean;
   improvementEntryPoint: boolean;
+  phase: CreateFlowPhase;
+  hasDiscoveredSources: boolean;
   stepCompletionRequired: boolean;
   sourceStrategyRequired: boolean;
   stepOutcomeRequired: boolean;
@@ -82,6 +86,14 @@ export const getCreateBankApplyBlockedMessage = ({
 
   if (improvementEntryPoint) {
     return "Cannot apply create-flow changes from the ready-to-improve entry point. Ask the user whether to improve the existing bank first, then continue with iteration: 1.";
+  }
+
+  if (phase === "review_existing_guidance") {
+    return "Cannot apply create-flow changes during review_existing_guidance. First gather and confirm source-level strategies, then continue into import_selected_guidance.";
+  }
+
+  if (phase === "kickoff" && hasDiscoveredSources) {
+    return "Cannot apply create-flow changes during kickoff while external guidance sources still need review. Finish the source review first, then continue with import or derive.";
   }
 
   if (stepCompletionRequired) {
@@ -203,6 +215,14 @@ export const buildCreateBankResponseText = ({
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {
+    if (phase === "finalize") {
+      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\` here, stepOutcomeNote should summarize the strongest remaining or skipped high-value candidates and why the bank is already complete enough.`;
+    }
+
+    if (phase === "derive_from_project") {
+      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\`, stepOutcomeNote should explain which strongest remaining candidates were reviewed and why they were skipped.`;
+    }
+
     return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\` (with stepOutcomeNote for \`no_changes\`).`;
   }
 
@@ -211,7 +231,11 @@ export const buildCreateBankResponseText = ({
   }
 
   if (mustContinue && nextIteration !== null) {
-    return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use \`create_bank.apply\` for changes or set \`stepOutcome\` when no new mutations are needed.`;
+    const coverageReminder =
+      phase === "finalize"
+        ? " If no new mutations are needed, use stepOutcomeNote to summarize the strongest skipped or already-covered high-value candidates."
+        : "";
+    return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use \`create_bank.apply\` for changes or set \`stepOutcome\` when no new mutations are needed.${coverageReminder}`;
   }
 
   if (completedFlowThisCall) {

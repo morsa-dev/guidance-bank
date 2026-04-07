@@ -45,11 +45,29 @@ A project Memory Bank already exists for this repository. Treat the current proj
 `
     : "";
 
-const appendContinuationInstruction = (prompt: string, iteration: number): string => `${prompt}
+const appendContinuationInstruction = (prompt: string, iteration: number): string => {
+  const continuationSuffix = (() => {
+    if (!requiresCreateFlowStepOutcome(iteration)) {
+      return ".";
+    }
+
+    if (iteration === 3) {
+      return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes`. If you use `no_changes`, use `stepOutcomeNote` to explain which strongest remaining candidates were reviewed and why they were skipped.";
+    }
+
+    if (iteration === 4) {
+      return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes`. If you use `no_changes`, use `stepOutcomeNote` to summarize the strongest skipped or already-covered high-value candidates and why the bank is complete enough.";
+    }
+
+    return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes` (with `stepOutcomeNote` for `no_changes`).";
+  })();
+
+  return `${prompt}
 
 ## Continuation
 
-After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`${requiresCreateFlowStepOutcome(iteration) ? ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes` (with `stepOutcomeNote` for `no_changes`)." : "."}`;
+After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`${continuationSuffix}`;
+};
 
 const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
   if (discoveredSources.length === 0) {
@@ -256,6 +274,7 @@ What to do:
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
 - Before applying a major batch, perform a gap review against the strongest remaining candidate rules and skills for this project
 - Treat a bank as incomplete if obvious high-value entries are still missing without a clear skip reason
+- Do not treat provider-local skills, provider-global skills, or built-in model instructions as a reason to skip project/shared canonical coverage
 
 Quality rules:
 - Do not rely on a server-provided file checklist; gather your own evidence from the real repository
@@ -284,6 +303,7 @@ What to do:
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
 - Run an explicit gap-and-coverage review before declaring the bank done
+- Do not treat provider-local skills, provider-global skills, or model-native instructions as a reason to mark a topic or workflow covered
 
 Final pass checklist:
 - Remove near-duplicate entries and merge them into the clearest canonical version
@@ -294,7 +314,8 @@ Final pass checklist:
 - Check whether high-value topics were considered where applicable: architecture, routing, state/data flow, services/API, styling, i18n, SSR/browser boundaries, testing, performance
 - Check whether high-value skills were considered where applicable: adding-feature, adding-service, code-review, task-based-reading, troubleshooting, common-anti-patterns, and stack-specific workflows
 - If any obvious candidate was skipped, keep the clearest reason rather than silently omitting it
-- In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates`;
+- In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates
+- If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered high-value candidates and why no further mutation was needed`;
 
 const buildCompletedPrompt = (): string => `# Create Flow Completed
 
