@@ -210,10 +210,11 @@ const buildMissingText = ({
       ? `\n\nBefore creating a new project Memory Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
       : "";
 
-  return `No project Memory Bank exists for this repository. Ask the user whether to create one before doing substantial project-specific work.${referenceSection}
+  return `No project Memory Bank exists for this repository yet. Before doing substantial project-specific work, ask the user a short direct question such as: "Create a project Memory Bank for this repository now, or skip it for now?"${referenceSection}
 
+Internal next steps after the user answers:
 - If the user wants to create it, call \`create_bank\`.
-- If the user does not want to create it, call \`set_project_state\` with \`creationState: "declined"\`.
+- If the user does not want to create it, record that choice with \`set_project_state\` using \`creationState: "declined"\`.
 - After the user decision is recorded, call \`resolve_context\` again.`;
 };
 

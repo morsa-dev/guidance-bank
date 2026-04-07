@@ -82,9 +82,10 @@ test("resolve_context returns missing status when no project bank exists", async
     MissingContextSchema,
   );
 
-  assert.match(structured.text, /No project Memory Bank exists for this repository/i);
+  assert.match(structured.text, /No project Memory Bank exists for this repository yet/i);
+  assert.match(structured.text, /Create a project Memory Bank for this repository now, or skip it for now\?/i);
   assert.match(structured.text, /call `create_bank`/i);
-  assert.match(structured.text, /call `set_project_state`/i);
+  assert.match(structured.text, /record that choice with `set_project_state`/i);
   assert.match(structured.text, /call `resolve_context` again/i);
   assert.equal(structured.referenceProjects?.length ?? 0, 0);
 });
