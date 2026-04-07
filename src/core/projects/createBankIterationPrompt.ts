@@ -193,7 +193,6 @@ What to do:
 - Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
 - If additional provider-global guidance is directly visible in the current agent session, include it in the same review and label it separately
 - Treat provider-project guidance as legacy project-specific input that should usually be migrated into Memory Bank, not left as the long-term canonical source
-- Do not treat provider-global skills or model-native instructions as a substitute for project or shared Memory Bank coverage
 - Skip purely empty, obsolete, or trivial sources without bothering the user
 - For each meaningful source, summarize:
   - what the source covers
@@ -258,7 +257,7 @@ Safety rules:
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
 - If the chosen strategy was \`keep source, fill gaps in bank\`, avoid re-copying material that already lives in the source clearly enough
-- Do not count provider-global skills or agent-local built-in guidance as existing Memory Bank coverage when deciding what still needs to be written`;
+- Do not count provider-local or provider-global guidance as existing Memory Bank coverage when deciding what still needs to be written`;
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,
@@ -279,7 +278,6 @@ What to do:
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
 - Before applying a major batch, perform a gap review against the strongest remaining candidate rules and skills for this project
 - Treat a bank as incomplete if obvious high-value entries are still missing without a clear skip reason
-- Do not treat provider-local skills, provider-global skills, or built-in model instructions as a reason to skip project/shared canonical coverage
 
 Quality rules:
 - Do not rely on a server-provided file checklist; gather your own evidence from the real repository
@@ -308,7 +306,6 @@ What to do:
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
 - Run an explicit gap-and-coverage review before declaring the bank done
-- Do not treat provider-local skills, provider-global skills, or model-native instructions as a reason to mark a topic or workflow covered
 
 Final pass checklist:
 - Remove near-duplicate entries and merge them into the clearest canonical version

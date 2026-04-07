@@ -44,8 +44,7 @@ Common high-value starting points when evidence supports them:
 Before concluding derive/finalize:
 - review the strongest missing rule and skill candidates
 - either create them, merge them into clearer existing entries, or record why they should be skipped
-- prefer an explicit coverage decision over silent omission
-- never treat provider-local skills, provider-global skills, or built-in agent instructions as if they already satisfied project/shared Memory Bank coverage`;
+- prefer an explicit coverage decision over silent omission`;
 
 export const renderCreateDeriveGuidance = (detectedStacks: readonly DetectableStack[]): string => {
   const sections = [GENERAL_DERIVE_GUIDANCE];

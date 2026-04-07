@@ -347,7 +347,6 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
-  assert.match(deriveProjectStructured.prompt, /provider-local skills, provider-global skills, or built-in model instructions/i);
   assert.match(deriveProjectStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(deriveProjectStructured.creationPrompt, null);
 
@@ -386,7 +385,6 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
-  assert.match(finalizeStructured.prompt, /provider-local skills, provider-global skills, or model-native instructions/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
