@@ -89,7 +89,7 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   if (phase === "review_existing_guidance") {
-    return "Cannot apply create-flow changes during review_existing_guidance. First gather and confirm source-level strategies, then continue into import_selected_guidance.";
+    return "Cannot apply create-flow changes during review_existing_guidance. First confirm the external guidance review decision, then continue into import_selected_guidance.";
   }
 
   if (phase === "kickoff" && hasDiscoveredSources) {
@@ -101,7 +101,7 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   if (sourceStrategyRequired) {
-    return "Cannot apply create-flow changes until explicit source strategies are recorded for the discovered guidance sources. Re-call create_bank for the review phase with sourceStrategies before importing or applying changes.";
+    return "Cannot apply create-flow changes until the external guidance review decision is recorded. Re-call create_bank for the review phase with sourceReviewDecision (`ok` or `not_ok`), or use sourceStrategies only when source-by-source handling is truly needed.";
   }
 
   if (stepOutcomeRequired) {
@@ -211,7 +211,7 @@ export const buildCreateBankResponseText = ({
   }
 
   if (sourceStrategyRequired && nextIteration !== null) {
-    return `Record explicit source strategies for the discovered guidance sources before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and sourceStrategies that map each discovered sourceRef to \`ignore\`, \`copy\`, \`move\`, or \`keep_source_fill_gaps\`.`;
+    return `Record an external guidance review decision before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either sourceReviewDecision: \`ok\` or \`not_ok\`. Use sourceStrategies only when you need explicit source-by-source handling.`;
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {

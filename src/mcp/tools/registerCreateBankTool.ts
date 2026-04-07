@@ -75,6 +75,7 @@ const registerCreateLikeTool = (
         hasApply: parsedArgs.data.apply !== undefined,
         stepOutcome: parsedArgs.data.stepOutcome ?? null,
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
+        ...(parsedArgs.data.sourceReviewDecision ? { sourceReviewDecision: parsedArgs.data.sourceReviewDecision } : {}),
         ...(parsedArgs.data.sourceStrategies
           ? {
               sourceStrategies: parsedArgs.data.sourceStrategies.map((strategy) => ({

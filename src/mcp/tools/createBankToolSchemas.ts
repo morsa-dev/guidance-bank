@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
-import { GUIDANCE_SOURCE_STRATEGIES } from "../../core/projects/guidanceStrategies.js";
+import { GUIDANCE_SOURCE_STRATEGIES, SOURCE_REVIEW_DECISIONS } from "../../core/projects/guidanceStrategies.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const CreateBankSourceStrategyInputSchema = z
   .object({
     sourceRef: z.string().trim().min(1),
@@ -148,8 +149,11 @@ export const CreateBankInputShape = {
     .max(50)
     .optional()
     .describe(
-      "Confirmed source-level strategies for discovered external guidance sources. Each sourceRef must match a discoveredSources relativePath from the review step.",
+      "Optional source-level decisions for discovered external guidance sources. Use this only when you need source-by-source handling; otherwise prefer sourceReviewDecision.",
     ),
+  sourceReviewDecision: SourceReviewDecisionSchema.optional().describe(
+    "Simple user confirmation for external guidance review. Use `ok` to make Memory Bank canonical and migrate useful guidance by the default policy, or `not_ok` to leave legacy guidance untouched.",
+  ),
   apply: z
     .object({
       writes: z

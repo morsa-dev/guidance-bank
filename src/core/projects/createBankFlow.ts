@@ -6,7 +6,11 @@ import { getNextCreateFlowIteration, isCreateFlowComplete, requiresCreateFlowSte
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
-import type { ConfirmedGuidanceSourceStrategy } from "./guidanceStrategies.js";
+import {
+  buildDefaultSourceStrategies,
+  type ConfirmedGuidanceSourceStrategy,
+  type SourceReviewDecision,
+} from "./guidanceStrategies.js";
 import { resolveProjectIdentity } from "./identity.js";
 
 type CreateBankExtendedContext = {
@@ -24,6 +28,7 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
   sourceStrategies?: ConfirmedGuidanceSourceStrategy[];
+  sourceReviewDecision?: SourceReviewDecision;
 };
 
 type ResolvedCreateBankFlowContext = {
@@ -177,6 +182,7 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcomeNote,
   referenceProjectIds,
   sourceStrategies,
+  sourceReviewDecision,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const [manifest, projectContext, existingManifest, existingState] = await Promise.all([
@@ -247,9 +253,13 @@ export const resolveCreateBankFlowContext = async ({
   const unknownSourceStrategyRefs =
     sourceStrategies?.filter((strategy) => !knownSourceRefs.has(strategy.sourceRef)).map((strategy) => strategy.sourceRef) ?? [];
 
-  const confirmedSourceStrategies = (sourceStrategies ?? existingState?.sourceStrategies ?? []).filter((strategy) =>
-    knownSourceRefs.has(strategy.sourceRef),
-  );
+  const resolvedSourceStrategies =
+    sourceStrategies ??
+    (sourceReviewDecision
+      ? buildDefaultSourceStrategies(extendedContext.discoveredSources, sourceReviewDecision)
+      : existingState?.sourceStrategies ?? []);
+
+  const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) => knownSourceRefs.has(strategy.sourceRef));
   const confirmedSourceStrategyRefs = new Set(confirmedSourceStrategies.map((strategy) => strategy.sourceRef));
   const sourceReviewAdvanceRequested =
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;

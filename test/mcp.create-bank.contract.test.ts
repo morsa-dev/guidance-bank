@@ -254,11 +254,12 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /source-level strategy/i);
+  assert.match(reviewStructured.prompt, /by default, do not expose internal strategy labels/i);
   assert.match(reviewStructured.prompt, /short and action-oriented/i);
   assert.match(reviewStructured.prompt, /one explicit CTA question/i);
-  assert.match(reviewStructured.prompt, /recommend one default strategy/i);
-  assert.match(reviewStructured.prompt, /`keep source, fill gaps in bank`/);
+  assert.match(reviewStructured.prompt, /recommend one default action/i);
+  assert.match(reviewStructured.prompt, /sourceReviewDecision: "ok"/i);
+  assert.match(reviewStructured.prompt, /source-by-source handling/i);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
@@ -274,8 +275,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedImportStructured.stepCompletionRequired, false);
   assert.equal(blockedImportStructured.sourceStrategyRequired, true);
   assert.equal(blockedImportStructured.stepOutcomeRequired, false);
-  assert.match(blockedImportStructured.text, /Record explicit source strategies/i);
-  assert.match(blockedImportStructured.text, /sourceStrategies/i);
+  assert.match(blockedImportStructured.text, /Record an external guidance review decision/i);
+  assert.match(blockedImportStructured.text, /sourceReviewDecision/i);
 
   const importStructured = await callToolStructured(
     client,
@@ -284,11 +285,7 @@ test("create_bank later iterations expose review import derive and finalize prom
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceStrategies: [
-        { sourceRef: ".cursor", strategy: "ignore" },
-        { sourceRef: ".cursor/rules.md", strategy: "copy", note: "Import the useful parts into Memory Bank." },
-        { sourceRef: "AGENTS.md", strategy: "move" },
-      ],
+      sourceReviewDecision: "ok",
     },
     CreateBankSchema,
   );
@@ -302,14 +299,14 @@ test("create_bank later iterations expose review import derive and finalize prom
     [
       [".cursor", "ignore"],
       [".cursor/rules.md", "copy"],
-      ["AGENTS.md", "move"],
+      ["AGENTS.md", "copy"],
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(importStructured.prompt, /Apply the source-level strategies/i);
-  assert.match(importStructured.prompt, /Confirmed Source Strategies/i);
+  assert.match(importStructured.prompt, /internal execution plan/i);
+  assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
-  assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
+  assert.match(importStructured.prompt, /If the user simply confirmed `ok`/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 

@@ -92,12 +92,12 @@ const renderConfirmedSourceStrategiesSection = (
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
 ): string => {
   if (confirmedSourceStrategies.length === 0) {
-    return `## Confirmed Source Strategies
+    return `## Confirmed Source Decisions
 
-No confirmed source strategies are stored yet for this flow.`;
+No confirmed source decisions are stored yet for this flow.`;
   }
 
-  return `## Confirmed Source Strategies
+  return `## Confirmed Source Decisions
 
 ${confirmedSourceStrategies
   .map(
@@ -194,20 +194,21 @@ ${renderDiscoveredSourcesSection(discoveredSources)}
 What to do:
 - Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
 - Skip purely empty, obsolete, or trivial sources without bothering the user
-- For the remaining meaningful sources, ask the user to choose a source-level strategy:
-  - \`ignore\`: keep the source as-is and do not duplicate it into Memory Bank
-  - \`copy\`: convert the useful parts into canonical Memory Bank entries and keep the original source
-  - \`move\`: convert the useful parts into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
-  - \`keep source, fill gaps in bank\`: leave the source as the primary record and add only uncovered high-value guidance to Memory Bank
-- When advancing to the import phase, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
+- By default, do not expose internal strategy labels to the user
+- Ask for one simple confirmation:
+  - \`ok\`: make Memory Bank the canonical source for this project and migrate useful guidance by the default policy
+  - \`not ok\`: leave legacy guidance untouched and do not treat it as canonical Memory Bank coverage
+- When the simple confirmation is enough, advance with \`sourceReviewDecision: "ok"\` or \`sourceReviewDecision: "not_ok"\`
+- Only ask for explicit source-by-source handling when there is real ambiguity, risky deletion, or the user asks for that control
+- If you need source-by-source handling, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
 - Keep the user-facing review short and action-oriented:
   - start with a 1-2 sentence summary of what sources were found
-  - recommend one default strategy when it clearly fits most sources
-  - end with one explicit CTA question telling the user exactly how to answer
-  - avoid long protocol dumps, long per-source heuristics, or repeating the same source list multiple times
+  - recommend one default action
+  - end with one explicit CTA question telling the user to answer \`ok\` or \`not ok\`
+  - avoid long protocol dumps, source-strategy labels, or repeating the same source list multiple times
 
 Decision rules:
-- Ask for source-level strategy decisions, not per-rule micro-decisions
+- Keep source-level strategies internal unless they are actually needed
 - Treat provider-project guidance as legacy project-specific input that usually needs review or migration
 - Never delete or rewrite any original source during this review step`;
 
@@ -225,7 +226,7 @@ ${renderDiscoveredSourcesSection(discoveredSources)}
 ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
 
 What to do:
-- For each source the user reviewed, follow the confirmed strategy exactly
+- Treat the confirmed source decisions below as the internal execution plan for this import step
 - Convert approved guidance into canonical Memory Bank rules and skills
 - Split entries between project scope and shared scope when appropriate
 - Assign stable ids, titles, topics, and stacks
@@ -236,6 +237,8 @@ What to do:
 - If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
 - If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
 - If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
+- If the user simply confirmed \`ok\`, follow the default policy: make Memory Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and keep deletions conservative unless a source was explicitly approved for removal
+- If the user confirmed \`not ok\`, leave the legacy sources untouched and only write clearly missing Memory Bank coverage when the user still wants that
 - When replacing or deleting an existing Memory Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
