@@ -170,17 +170,15 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 What to do in this step:
 - inspect the repository and selected reference projects
-- form a working plan for which canonical entries are likely needed first
-- build a broad candidate list before the first major write batch: which rule files and which skills appear justified by project evidence
-- start writing canonical entries only when the evidence is already strong
-- do not import or delete repository-local guidance yet; that review happens in later iterations
-- do not stop at a thin summary plan if the repository obviously supports a richer canonical bank
+- form a candidate list for the first high-value rules and skills
+- start writing only when the evidence is already strong
+- delay external guidance import or deletion until the dedicated review step
+- do not stop at a thin summary if the repository clearly supports a richer bank
 
 Step output:
-- one line per created or updated file
-- short purpose for each file or planned file
-- note the strongest high-value candidates that still remain open after this step
-- major uncertainties or skipped areas that should be handled in later iterations`;
+- short list of created, updated, or planned files
+- short purpose for each item
+- strongest remaining candidates or uncertainties to handle next`;
 
 const buildReviewExistingPrompt = (projectPath: string, discoveredSources: readonly ExistingGuidanceSource[]): string => `# Existing Guidance Review
 

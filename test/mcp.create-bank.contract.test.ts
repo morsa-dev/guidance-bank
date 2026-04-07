@@ -150,7 +150,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.deepEqual(structured.applyResults, { writes: [], deletions: [] });
   assert.match(structured.prompt, /Create Flow Kickoff/i);
   assert.match(structured.prompt, /stable create-flow contract/i);
-  assert.match(structured.prompt, /do not import or delete repository-local guidance yet/i);
+  assert.match(structured.prompt, /delay external guidance import or deletion until the dedicated review step/i);
   assert.doesNotMatch(structured.prompt, /Supported Stack Ids/i);
   assert.doesNotMatch(structured.prompt, /Expected Bank Density/i);
   assert.match(structured.creationPrompt ?? "", /Supported Stack Ids/i);
