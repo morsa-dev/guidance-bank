@@ -23,7 +23,15 @@ const CreateBankSchema = z.object({
   phase: z.string(),
   iteration: z.number(),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+  confirmedSourceStrategies: z.array(
+    z.object({
+      sourceRef: z.string(),
+      strategy: z.enum(["ignore", "copy", "move", "keep_source_fill_gaps"]),
+      note: z.string().nullable(),
+    }),
+  ),
   stepCompletionRequired: z.boolean(),
+  sourceStrategyRequired: z.boolean(),
   stepOutcomeRequired: z.boolean(),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),
@@ -243,6 +251,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.iteration, 1);
   assert.equal(reviewStructured.phase, "review_existing_guidance");
   assert.equal(reviewStructured.stepCompletionRequired, false);
+  assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
@@ -252,18 +261,51 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
 
-  const importStructured = await callToolStructured(
+  const blockedImportStructured = await callToolStructured(
     client,
     "create_bank",
     { projectPath: projectRoot, iteration: 2, stepCompleted: true },
     CreateBankSchema,
   );
+  assert.equal(blockedImportStructured.iteration, 1);
+  assert.equal(blockedImportStructured.phase, "review_existing_guidance");
+  assert.equal(blockedImportStructured.stepCompletionRequired, false);
+  assert.equal(blockedImportStructured.sourceStrategyRequired, true);
+  assert.equal(blockedImportStructured.stepOutcomeRequired, false);
+  assert.match(blockedImportStructured.text, /Record explicit source strategies/i);
+  assert.match(blockedImportStructured.text, /sourceStrategies/i);
+
+  const importStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceStrategies: [
+        { sourceRef: ".cursor", strategy: "ignore" },
+        { sourceRef: ".cursor/rules.md", strategy: "copy", note: "Import the useful parts into Memory Bank." },
+        { sourceRef: "AGENTS.md", strategy: "move" },
+      ],
+    },
+    CreateBankSchema,
+  );
   assert.equal(importStructured.iteration, 2);
   assert.equal(importStructured.phase, "import_selected_guidance");
   assert.equal(importStructured.stepCompletionRequired, false);
+  assert.equal(importStructured.sourceStrategyRequired, false);
   assert.equal(importStructured.stepOutcomeRequired, false);
+  assert.deepEqual(
+    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy]),
+    [
+      [".cursor", "ignore"],
+      [".cursor/rules.md", "copy"],
+      ["AGENTS.md", "move"],
+    ],
+  );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(importStructured.prompt, /Apply the source-level strategies/i);
+  assert.match(importStructured.prompt, /Confirmed Source Strategies/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
   assert.match(importStructured.prompt, /keep source, fill gaps in bank/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
@@ -1045,7 +1087,21 @@ test("resolve_context blocks normal runtime context until the create flow is com
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceStrategies: [
+        { sourceRef: ".cursor", strategy: "ignore" },
+        { sourceRef: ".cursor/rules.md", strategy: "copy" },
+        { sourceRef: "AGENTS.md", strategy: "ignore" },
+      ],
+    },
+    CreateBankSchema,
+  );
   await callToolStructured(
     client,
     "create_bank",

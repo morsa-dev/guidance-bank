@@ -4,6 +4,10 @@ import { CREATE_FLOW_COMPLETED_ITERATION, requiresCreateFlowStepOutcome } from "
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
+import {
+  formatGuidanceSourceStrategy,
+  type ConfirmedGuidanceSourceStrategy,
+} from "./guidanceStrategies.js";
 
 type BuildCreateBankIterationPromptInput = {
   iteration: number;
@@ -15,6 +19,7 @@ type BuildCreateBankIterationPromptInput = {
   detectedStacks: DetectableStack[];
   selectedReferenceProjects: ReferenceProjectCandidate[];
   discoveredSources: ExistingGuidanceSource[];
+  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   currentBankSnapshot: CurrentProjectBankSnapshot;
   hasExistingProjectBank?: boolean;
 };
@@ -57,6 +62,25 @@ No repository-local or provider-project guidance sources were discovered for thi
 
 ${discoveredSources
   .map((source) => `- [${source.kind}${source.scope === "provider-project" && source.provider ? `/${source.provider}` : ""}] ${source.relativePath} (${source.entryType}, ${source.scope})`)
+  .join("\n")}`;
+};
+
+const renderConfirmedSourceStrategiesSection = (
+  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
+): string => {
+  if (confirmedSourceStrategies.length === 0) {
+    return `## Confirmed Source Strategies
+
+No confirmed source strategies are stored yet for this flow.`;
+  }
+
+  return `## Confirmed Source Strategies
+
+${confirmedSourceStrategies
+  .map(
+    (strategy) =>
+      `- ${strategy.sourceRef} -> ${formatGuidanceSourceStrategy(strategy.strategy)}${strategy.note ? ` (${strategy.note})` : ""}`,
+  )
   .join("\n")}`;
 };
 
@@ -162,6 +186,7 @@ What to do:
   - \`copy\`: convert the useful parts into canonical Memory Bank entries and keep the original source
   - \`move\`: convert the useful parts into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
   - \`keep source, fill gaps in bank\`: leave the source as the primary record and add only uncovered high-value guidance to Memory Bank
+- When advancing to the import phase, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
 - Keep the user-facing review concise: one source, summary, recommended scope, recommended strategy
 
 Decision rules:
@@ -171,13 +196,18 @@ Decision rules:
 - Ask for source-level strategy decisions, not per-rule micro-decisions
 - Never delete or rewrite any original source during this review step`;
 
-const buildImportSelectedPrompt = (discoveredSources: readonly ExistingGuidanceSource[]): string => `# Import Selected Guidance
+const buildImportSelectedPrompt = (
+  discoveredSources: readonly ExistingGuidanceSource[],
+  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
+): string => `# Import Selected Guidance
 
 ${STABLE_CONTRACT_NOTE}
 
 Apply the source-level strategies the user approved for external guidance.
 
 ${renderDiscoveredSourcesSection(discoveredSources)}
+
+${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
 
 What to do:
 - For each source the user reviewed, follow the confirmed strategy exactly
@@ -287,7 +317,7 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
       selectedReferenceProjects,
     }),
   ({ projectPath, discoveredSources }) => buildReviewExistingPrompt(projectPath, discoveredSources),
-  ({ discoveredSources }) => buildImportSelectedPrompt(discoveredSources),
+  ({ discoveredSources, confirmedSourceStrategies }) => buildImportSelectedPrompt(discoveredSources, confirmedSourceStrategies),
   ({ projectPath, detectedStacks }) =>
     buildDeriveFromProjectPrompt(projectPath, detectedStacks),
   () => buildFinalizePrompt(),
@@ -328,6 +358,7 @@ export const buildCreateBankIterationPrompt = ({
   detectedStacks,
   selectedReferenceProjects,
   discoveredSources,
+  confirmedSourceStrategies,
   currentBankSnapshot,
   hasExistingProjectBank = false,
 }: BuildCreateBankIterationPromptInput): string => {
@@ -343,6 +374,7 @@ export const buildCreateBankIterationPrompt = ({
     detectedStacks,
     selectedReferenceProjects,
     discoveredSources,
+    confirmedSourceStrategies,
     currentBankSnapshot,
     hasExistingProjectBank,
   });

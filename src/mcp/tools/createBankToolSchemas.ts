@@ -1,7 +1,25 @@
 import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
+import { GUIDANCE_SOURCE_STRATEGIES } from "../../core/projects/guidanceStrategies.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+
+const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const CreateBankSourceStrategyInputSchema = z
+  .object({
+    sourceRef: z.string().trim().min(1),
+    strategy: GuidanceSourceStrategySchema,
+    note: z.string().trim().min(1).nullable().optional(),
+  })
+  .strict();
+
+const ConfirmedGuidanceSourceStrategySchema = z
+  .object({
+    sourceRef: z.string(),
+    strategy: GuidanceSourceStrategySchema,
+    note: z.string().nullable(),
+  })
+  .strict();
 
 const CreateBankApplyEntryKindSchema = z
   .enum(["rule", "rules", "skill", "skills"])
@@ -125,6 +143,13 @@ export const CreateBankInputShape = {
     .max(5)
     .optional()
     .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
+  sourceStrategies: z
+    .array(CreateBankSourceStrategyInputSchema)
+    .max(50)
+    .optional()
+    .describe(
+      "Confirmed source-level strategies for discovered external guidance sources. Each sourceRef must match a discoveredSources relativePath from the review step.",
+    ),
   apply: z
     .object({
       writes: z
@@ -217,7 +242,9 @@ export const CreateBankOutputShape = {
     }),
   ),
   creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+  confirmedSourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema),
   stepCompletionRequired: z.boolean(),
+  sourceStrategyRequired: z.boolean(),
   stepOutcomeRequired: z.boolean(),
   mustContinue: z.boolean(),
   nextIteration: z.number().int().nonnegative().nullable(),

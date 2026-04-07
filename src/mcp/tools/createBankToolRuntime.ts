@@ -2,9 +2,11 @@ import {
   createProjectBankState,
   markProjectBankSynced,
   setProjectBankCreateIteration,
+  setProjectBankSourceStrategies,
 } from "../../core/bank/project.js";
 import type { ProjectBankManifest, ProjectBankState, ProjectCreationState } from "../../core/bank/types.js";
 import type { CreateFlowPhase } from "../../core/projects/createFlowPhases.js";
+import type { ConfirmedGuidanceSourceStrategy } from "../../core/projects/guidanceStrategies.js";
 import type { CreateBankApplyResults } from "./createBankApply.js";
 import type { CreateBankArgs } from "./createBankToolSchemas.js";
 
@@ -13,12 +15,17 @@ export const shouldWarnAboutIterationMismatch = (
   requestedIteration: number,
   effectiveIteration: number,
   stepCompletionRequired: boolean,
+  sourceStrategyRequired: boolean,
 ): boolean => {
   if (storedIteration === null) {
     return false;
   }
 
   if (stepCompletionRequired) {
+    return false;
+  }
+
+  if (sourceStrategyRequired) {
     return false;
   }
 
@@ -55,12 +62,14 @@ export const getCreateBankApplyBlockedMessage = ({
   syncRequired,
   improvementEntryPoint,
   stepCompletionRequired,
+  sourceStrategyRequired,
   stepOutcomeRequired,
 }: {
   hasApply: boolean;
   syncRequired: boolean;
   improvementEntryPoint: boolean;
   stepCompletionRequired: boolean;
+  sourceStrategyRequired: boolean;
   stepOutcomeRequired: boolean;
 }): string | null => {
   if (!hasApply) {
@@ -79,6 +88,10 @@ export const getCreateBankApplyBlockedMessage = ({
     return "Cannot apply create-flow changes while step completion is unresolved. Re-call create_bank for the current step before applying changes or advancing.";
   }
 
+  if (sourceStrategyRequired) {
+    return "Cannot apply create-flow changes until explicit source strategies are recorded for the discovered guidance sources. Re-call create_bank for the review phase with sourceStrategies before importing or applying changes.";
+  }
+
   if (stepOutcomeRequired) {
     return "Cannot apply create-flow changes while the previous phase still needs an explicit outcome. Re-call create_bank for the current phase, then advance with either create_bank.apply results or stepOutcome.";
   }
@@ -93,6 +106,7 @@ export const resolveNextCreateBankState = ({
   nextCreationState,
   manifestStorageVersion,
   effectiveIteration,
+  confirmedSourceStrategies,
 }: {
   existingManifest: ProjectBankManifest | null;
   existingState: ProjectBankState | null;
@@ -100,6 +114,7 @@ export const resolveNextCreateBankState = ({
   nextCreationState: ProjectCreationState;
   manifestStorageVersion: number;
   effectiveIteration: number;
+  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
 }): ProjectBankState => {
   let nextState = existingState;
 
@@ -116,6 +131,10 @@ export const resolveNextCreateBankState = ({
 
   if (shouldTrackCreateFlow) {
     nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
+    nextState = setProjectBankSourceStrategies(
+      nextState,
+      nextCreationState === "ready" ? [] : confirmedSourceStrategies,
+    );
   }
 
   return nextState;
@@ -132,6 +151,7 @@ export const buildCreateBankResponseText = ({
   syncRequired,
   applyResults,
   stepCompletionRequired,
+  sourceStrategyRequired,
   stepOutcomeRequired,
   nextIteration,
   improvementEntryPoint,
@@ -142,6 +162,7 @@ export const buildCreateBankResponseText = ({
   syncRequired: boolean;
   applyResults: CreateBankApplyResults;
   stepCompletionRequired: boolean;
+  sourceStrategyRequired: boolean;
   stepOutcomeRequired: boolean;
   nextIteration: number | null;
   improvementEntryPoint: boolean;
@@ -175,6 +196,10 @@ export const buildCreateBankResponseText = ({
 
   if (stepCompletionRequired && nextIteration !== null) {
     return `Mark the current create step complete before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration} and stepCompleted: true once the current step is actually done.`;
+  }
+
+  if (sourceStrategyRequired && nextIteration !== null) {
+    return `Record explicit source strategies for the discovered guidance sources before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and sourceStrategies that map each discovered sourceRef to \`ignore\`, \`copy\`, \`move\`, or \`keep_source_fill_gaps\`.`;
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {

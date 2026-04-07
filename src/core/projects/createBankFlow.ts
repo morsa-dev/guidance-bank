@@ -6,6 +6,7 @@ import { getNextCreateFlowIteration, isCreateFlowComplete, requiresCreateFlowSte
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
+import type { ConfirmedGuidanceSourceStrategy } from "./guidanceStrategies.js";
 import { resolveProjectIdentity } from "./identity.js";
 
 type CreateBankExtendedContext = {
@@ -22,6 +23,7 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcome: "applied" | "no_changes" | null;
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
+  sourceStrategies?: ConfirmedGuidanceSourceStrategy[];
 };
 
 type ResolvedCreateBankFlowContext = {
@@ -36,6 +38,7 @@ type ResolvedCreateBankFlowContext = {
   existingBankUpdatedDaysAgo: number | null;
   effectiveIteration: number;
   stepCompletionRequired: boolean;
+  sourceStrategyRequired: boolean;
   stepOutcomeRequired: boolean;
   lifecycleStatus: ReturnType<typeof resolveProjectBankLifecycleStatus>;
   shouldTrackCreateFlow: boolean;
@@ -46,6 +49,8 @@ type ResolvedCreateBankFlowContext = {
   nextIteration: number | null;
   completedFlowThisCall: boolean;
   extendedContext: CreateBankExtendedContext;
+  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
+  unknownSourceStrategyRefs: string[];
 };
 
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
@@ -171,6 +176,7 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcome,
   stepOutcomeNote,
   referenceProjectIds,
+  sourceStrategies,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const [manifest, projectContext, existingManifest, existingState] = await Promise.all([
@@ -237,6 +243,39 @@ export const resolveCreateBankFlowContext = async ({
     mustContinue || completedFlowThisCall,
   );
 
+  const knownSourceRefs = new Set(extendedContext.discoveredSources.map((source) => source.relativePath));
+  const unknownSourceStrategyRefs =
+    sourceStrategies?.filter((strategy) => !knownSourceRefs.has(strategy.sourceRef)).map((strategy) => strategy.sourceRef) ?? [];
+
+  const confirmedSourceStrategies = (sourceStrategies ?? existingState?.sourceStrategies ?? []).filter((strategy) =>
+    knownSourceRefs.has(strategy.sourceRef),
+  );
+  const confirmedSourceStrategyRefs = new Set(confirmedSourceStrategies.map((strategy) => strategy.sourceRef));
+  const sourceReviewAdvanceRequested =
+    (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
+  const sourceStrategyRequired =
+    !syncRequired &&
+    unknownSourceStrategyRefs.length === 0 &&
+    sourceReviewAdvanceRequested &&
+    extendedContext.discoveredSources.length > 0 &&
+    extendedContext.discoveredSources.some((source) => !confirmedSourceStrategyRefs.has(source.relativePath));
+
+  const adjustedEffectiveIteration = sourceStrategyRequired ? existingState?.createIteration ?? effectiveIteration : effectiveIteration;
+  const adjustedIsFlowComplete = isCreateFlowComplete(adjustedEffectiveIteration);
+  const adjustedMustContinue =
+    !syncRequired &&
+    (nextCreationState === "creating" ||
+      (lifecycleStatus === "ready" && adjustedEffectiveIteration > 0 && !adjustedIsFlowComplete));
+  const adjustedNextIteration = syncRequired
+    ? null
+    : improvementEntryPoint
+      ? 1
+      : adjustedMustContinue
+        ? getNextCreateFlowIteration(adjustedEffectiveIteration)
+        : null;
+  const adjustedCompletedFlowThisCall =
+    !adjustedMustContinue && existingState?.creationState === "creating" && adjustedIsFlowComplete;
+
   return {
     identity,
     manifestStorageVersion: manifest.storageVersion,
@@ -247,17 +286,20 @@ export const resolveCreateBankFlowContext = async ({
     unknownReferenceIds,
     existingBankUpdatedAt,
     existingBankUpdatedDaysAgo,
-    effectiveIteration,
+    effectiveIteration: adjustedEffectiveIteration,
     stepCompletionRequired,
+    sourceStrategyRequired,
     stepOutcomeRequired,
     lifecycleStatus,
     shouldTrackCreateFlow,
     nextCreationState,
     syncRequired,
     improvementEntryPoint,
-    mustContinue,
-    nextIteration,
-    completedFlowThisCall,
+    mustContinue: adjustedMustContinue,
+    nextIteration: adjustedNextIteration,
+    completedFlowThisCall: adjustedCompletedFlowThisCall,
     extendedContext,
+    confirmedSourceStrategies,
+    unknownSourceStrategyRefs,
   };
 };

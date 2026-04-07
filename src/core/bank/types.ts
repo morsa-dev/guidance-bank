@@ -1,4 +1,5 @@
 import type { DetectableStack } from "../context/types.js";
+import type { ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrategies.js";
 
 export const PROVIDER_IDS = ["codex", "cursor", "claude-code"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -42,6 +43,7 @@ export type ProjectBankState = {
   schemaVersion: 1;
   creationState: ProjectCreationState;
   createIteration: number | null;
+  sourceStrategies: ConfirmedGuidanceSourceStrategy[];
   postponedUntil: string | null;
   lastSyncedAt: string | null;
   lastSyncedStorageVersion: number | null;

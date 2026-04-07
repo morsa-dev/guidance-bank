@@ -7,9 +7,18 @@ import {
   type ProjectCreationState,
 } from "./types.js";
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
+import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrategies.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
+const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const ConfirmedGuidanceSourceStrategySchema = z
+  .object({
+    sourceRef: z.string().trim().min(1),
+    strategy: GuidanceSourceStrategySchema,
+    note: z.string().trim().min(1).nullable(),
+  })
+  .strict();
 
 export const ProjectBankManifestSchema = z
   .object({
@@ -28,6 +37,7 @@ export const ProjectBankStateSchema = z
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
     createIteration: z.number().int().nonnegative().nullable().default(null),
+    sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
     postponedUntil: z.iso.datetime().nullable(),
     lastSyncedAt: z.iso.datetime().nullable(),
     lastSyncedStorageVersion: z.number().int().positive().nullable(),
@@ -59,6 +69,7 @@ export const createProjectBankState = (
   creationState: ProjectCreationState,
   options?: {
     createIteration?: number | null;
+    sourceStrategies?: ConfirmedGuidanceSourceStrategy[];
     postponedUntil?: string | null;
     lastSyncedAt?: string | null;
     lastSyncedStorageVersion?: number | null;
@@ -68,6 +79,7 @@ export const createProjectBankState = (
   schemaVersion: 1,
   creationState,
   createIteration: options?.createIteration ?? null,
+  sourceStrategies: options?.sourceStrategies ?? [],
   postponedUntil: options?.postponedUntil ?? null,
   lastSyncedAt: options?.lastSyncedAt ?? null,
   lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
@@ -91,6 +103,16 @@ export const setProjectBankCreateIteration = (
 ): ProjectBankState => ({
   ...state,
   createIteration,
+  updatedAt: now.toISOString(),
+});
+
+export const setProjectBankSourceStrategies = (
+  state: ProjectBankState,
+  sourceStrategies: ConfirmedGuidanceSourceStrategy[],
+  now = new Date(),
+): ProjectBankState => ({
+  ...state,
+  sourceStrategies,
   updatedAt: now.toISOString(),
 });
 

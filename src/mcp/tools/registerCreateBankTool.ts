@@ -75,6 +75,15 @@ const registerCreateLikeTool = (
         hasApply: parsedArgs.data.apply !== undefined,
         stepOutcome: parsedArgs.data.stepOutcome ?? null,
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
+        ...(parsedArgs.data.sourceStrategies
+          ? {
+              sourceStrategies: parsedArgs.data.sourceStrategies.map((strategy) => ({
+                sourceRef: strategy.sourceRef,
+                strategy: strategy.strategy,
+                note: strategy.note ?? null,
+              })),
+            }
+          : {}),
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -90,6 +99,18 @@ const registerCreateLikeTool = (
         };
       }
 
+      if (flowContext.unknownSourceStrategyRefs.length > 0) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Unknown sourceRefs for tool ${toolName}: ${flowContext.unknownSourceStrategyRefs.join(", ")}`,
+            },
+          ],
+        };
+      }
+
       const {
         identity,
         projectContext,
@@ -100,6 +121,7 @@ const registerCreateLikeTool = (
         existingBankUpdatedDaysAgo,
         effectiveIteration,
         stepCompletionRequired,
+        sourceStrategyRequired,
         stepOutcomeRequired,
         shouldTrackCreateFlow,
         nextCreationState,
@@ -110,6 +132,7 @@ const registerCreateLikeTool = (
         completedFlowThisCall,
         extendedContext,
         manifestStorageVersion,
+        confirmedSourceStrategies,
       } = flowContext;
 
       if (
@@ -119,6 +142,7 @@ const registerCreateLikeTool = (
           requestedIteration,
           effectiveIteration,
           stepCompletionRequired,
+          sourceStrategyRequired,
         )
       ) {
         console.warn(
@@ -130,6 +154,7 @@ const registerCreateLikeTool = (
         syncRequired,
         improvementEntryPoint,
         stepCompletionRequired,
+        sourceStrategyRequired,
         stepOutcomeRequired,
       });
       if (applyBlockedMessage !== null) {
@@ -164,6 +189,7 @@ const registerCreateLikeTool = (
         nextCreationState,
         manifestStorageVersion,
         effectiveIteration,
+        confirmedSourceStrategies,
       });
       await options.repository.writeProjectState(identity.projectId, nextState);
 
@@ -213,6 +239,7 @@ const registerCreateLikeTool = (
                 detectedStacks: projectContext.detectedStacks,
                 selectedReferenceProjects,
                 discoveredSources: extendedContext.discoveredSources,
+                confirmedSourceStrategies,
                 currentBankSnapshot,
                 hasExistingProjectBank: existingManifest !== null,
               })
@@ -251,7 +278,9 @@ const registerCreateLikeTool = (
         currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,
+        confirmedSourceStrategies,
         stepCompletionRequired,
+        sourceStrategyRequired,
         stepOutcomeRequired,
         mustContinue,
         nextIteration,
@@ -264,6 +293,7 @@ const registerCreateLikeTool = (
           syncRequired,
           applyResults,
           stepCompletionRequired,
+          sourceStrategyRequired,
           stepOutcomeRequired,
           nextIteration,
           improvementEntryPoint,
