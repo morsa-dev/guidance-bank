@@ -189,16 +189,9 @@ Project path:
 ${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
-- Build a concise source-level picture of guidance that already exists for this project
 - Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
-- If additional provider-global guidance is directly visible in the current agent session, include it in the same review and label it separately
-- Treat provider-project guidance as legacy project-specific input that should usually be migrated into Memory Bank, not left as the long-term canonical source
 - Skip purely empty, obsolete, or trivial sources without bothering the user
-- For each meaningful source, summarize:
-  - what the source covers
-  - whether it looks project-specific or reusable across projects
-  - whether Memory Bank should absorb it fully, partially, or not at all
-- Ask the user to choose one strategy per meaningful source:
+- For the remaining meaningful sources, ask the user to choose a source-level strategy:
   - \`ignore\`: keep the source as-is and do not duplicate it into Memory Bank
   - \`copy\`: convert the useful parts into canonical Memory Bank entries and keep the original source
   - \`move\`: convert the useful parts into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
@@ -206,16 +199,13 @@ What to do:
 - When advancing to the import phase, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
 - Keep the user-facing review short and action-oriented:
   - start with a 1-2 sentence summary of what sources were found
-  - give one recommended default strategy when it is reasonable
+  - recommend one default strategy when it clearly fits most sources
   - end with one explicit CTA question telling the user exactly how to answer
-  - avoid long protocol dumps or repeating the same source list multiple times
-- If one strategy clearly fits most sources, ask for one concise decision first instead of forcing the user through multiple per-source questions
+  - avoid long protocol dumps, long per-source heuristics, or repeating the same source list multiple times
 
 Decision rules:
-- Recommend \`project\` scope when the guidance depends on this repository's structure, tooling, or workflow
-- Recommend \`shared\` scope when the guidance is clearly reusable across repositories
-- If scope is unclear, ask the user explicitly instead of guessing
 - Ask for source-level strategy decisions, not per-rule micro-decisions
+- Treat provider-project guidance as legacy project-specific input that usually needs review or migration
 - Never delete or rewrite any original source during this review step`;
 
 const buildImportSelectedPrompt = (

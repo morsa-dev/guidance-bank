@@ -254,11 +254,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /source-level picture of guidance/i);
-  assert.match(reviewStructured.prompt, /choose one strategy per meaningful source/i);
+  assert.match(reviewStructured.prompt, /source-level strategy/i);
   assert.match(reviewStructured.prompt, /short and action-oriented/i);
   assert.match(reviewStructured.prompt, /one explicit CTA question/i);
-  assert.match(reviewStructured.prompt, /recommended default strategy/i);
+  assert.match(reviewStructured.prompt, /recommend one default strategy/i);
   assert.match(reviewStructured.prompt, /`keep source, fill gaps in bank`/);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
   assert.equal(reviewStructured.creationPrompt, null);
