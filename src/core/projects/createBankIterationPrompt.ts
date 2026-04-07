@@ -45,28 +45,33 @@ A project Memory Bank already exists for this repository. Treat the current proj
 `
     : "";
 
+const buildContinuationOutcomeInstruction = (iteration: number): string => {
+  if (!requiresCreateFlowStepOutcome(iteration)) {
+    return "";
+  }
+
+  const baseInstruction =
+    " Also provide an explicit result for this content phase: use `create_bank.apply` for changes or set `stepOutcome` to `applied` or `no_changes`.";
+
+  if (iteration === 3) {
+    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to name the strongest remaining candidates you reviewed and why they were skipped.`;
+  }
+
+  if (iteration === 4) {
+    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered candidates and why the bank is complete enough.`;
+  }
+
+  return `${baseInstruction} If you use \`no_changes\`, include \`stepOutcomeNote\`.`;
+};
+
 const appendContinuationInstruction = (prompt: string, iteration: number): string => {
-  const continuationSuffix = (() => {
-    if (!requiresCreateFlowStepOutcome(iteration)) {
-      return ".";
-    }
-
-    if (iteration === 3) {
-      return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes`. If you use `no_changes`, use `stepOutcomeNote` to explain which strongest remaining candidates were reviewed and why they were skipped.";
-    }
-
-    if (iteration === 4) {
-      return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes`. If you use `no_changes`, use `stepOutcomeNote` to summarize the strongest skipped or already-covered high-value candidates and why the bank is complete enough.";
-    }
-
-    return ". For this content phase, also provide an explicit result: include `create_bank.apply` changes for the step or set `stepOutcome` to `applied` or `no_changes` (with `stepOutcomeNote` for `no_changes`).";
-  })();
+  const continuationSuffix = buildContinuationOutcomeInstruction(iteration);
 
   return `${prompt}
 
 ## Continuation
 
-After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`${continuationSuffix}`;
+After completing this step, call \`create_bank\` again with \`iteration: ${iteration + 1}\` and \`stepCompleted: true\`.${continuationSuffix}`;
 };
 
 const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
