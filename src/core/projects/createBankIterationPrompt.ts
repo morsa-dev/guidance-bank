@@ -205,7 +205,12 @@ What to do:
   - \`move\`: convert the useful parts into canonical Memory Bank entries and delete the original source only after explicit confirmation in this chat
   - \`keep source, fill gaps in bank\`: leave the source as the primary record and add only uncovered high-value guidance to Memory Bank
 - When advancing to the import phase, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
-- Keep the user-facing review concise: one source, summary, recommended scope, recommended strategy
+- Keep the user-facing review short and action-oriented:
+  - start with a 1-2 sentence summary of what sources were found
+  - give one recommended default strategy when it is reasonable
+  - end with one explicit CTA question telling the user exactly how to answer
+  - avoid long protocol dumps or repeating the same source list multiple times
+- If one strategy clearly fits most sources, ask for one concise decision first instead of forcing the user through multiple per-source questions
 
 Decision rules:
 - Recommend \`project\` scope when the guidance depends on this repository's structure, tooling, or workflow
