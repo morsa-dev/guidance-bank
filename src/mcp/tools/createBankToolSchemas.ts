@@ -6,13 +6,6 @@ import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
 const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
-const CreateBankSourceStrategyInputSchema = z
-  .object({
-    sourceRef: z.string().trim().min(1),
-    strategy: GuidanceSourceStrategySchema,
-    note: z.string().trim().min(1).nullable().optional(),
-  })
-  .strict();
 
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
@@ -144,15 +137,8 @@ export const CreateBankInputShape = {
     .max(5)
     .optional()
     .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
-  sourceStrategies: z
-    .array(CreateBankSourceStrategyInputSchema)
-    .max(50)
-    .optional()
-    .describe(
-      "Optional source-level decisions for discovered external guidance sources. Use this only when you need source-by-source handling; otherwise prefer sourceReviewDecision.",
-    ),
   sourceReviewDecision: SourceReviewDecisionSchema.optional().describe(
-    "Simple user confirmation for external guidance review. Use `ok` to make Memory Bank canonical and migrate useful guidance by the default policy, or `not_ok` to leave legacy guidance untouched.",
+    "Simple user confirmation for external guidance review. Use `ok` to migrate useful guidance into the canonical Memory Bank and allow cleanup of legacy sources when the flow deems it safe, or `not_ok` to keep legacy sources in place after migration.",
   ),
   apply: z
     .object({

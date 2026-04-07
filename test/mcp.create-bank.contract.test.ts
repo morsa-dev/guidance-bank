@@ -259,7 +259,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(reviewStructured.prompt, /one explicit CTA question/i);
   assert.match(reviewStructured.prompt, /recommend one default action/i);
   assert.match(reviewStructured.prompt, /sourceReviewDecision: "ok"/i);
-  assert.match(reviewStructured.prompt, /source-by-source handling/i);
+  assert.match(reviewStructured.prompt, /detailed follow-up/i);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
@@ -298,8 +298,8 @@ test("create_bank later iterations expose review import derive and finalize prom
     importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy]),
     [
       [".cursor", "ignore"],
-      [".cursor/rules.md", "copy"],
-      ["AGENTS.md", "copy"],
+      [".cursor/rules.md", "move"],
+      ["AGENTS.md", "move"],
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
@@ -1165,11 +1165,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceStrategies: [
-        { sourceRef: ".cursor", strategy: "ignore" },
-        { sourceRef: ".cursor/rules.md", strategy: "copy" },
-        { sourceRef: "AGENTS.md", strategy: "ignore" },
-      ],
+      sourceReviewDecision: "ok",
     },
     CreateBankSchema,
   );

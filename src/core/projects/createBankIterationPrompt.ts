@@ -199,8 +199,7 @@ What to do:
   - \`ok\`: make Memory Bank the canonical source for this project and migrate useful guidance by the default policy
   - \`not ok\`: leave legacy guidance untouched and do not treat it as canonical Memory Bank coverage
 - When the simple confirmation is enough, advance with \`sourceReviewDecision: "ok"\` or \`sourceReviewDecision: "not_ok"\`
-- Only ask for explicit source-by-source handling when there is real ambiguity, risky deletion, or the user asks for that control
-- If you need source-by-source handling, pass the confirmed decisions back through \`sourceStrategies\` using each source's \`relativePath\` as \`sourceRef\`
+- Ask a more detailed follow-up only when deletion is risky enough that the simple confirmation is not safe
 - Keep the user-facing review short and action-oriented:
   - start with a 1-2 sentence summary of what sources were found
   - recommend one default action
@@ -208,7 +207,6 @@ What to do:
   - avoid long protocol dumps, source-strategy labels, or repeating the same source list multiple times
 
 Decision rules:
-- Keep source-level strategies internal unless they are actually needed
 - Treat provider-project guidance as legacy project-specific input that usually needs review or migration
 - Never delete or rewrite any original source during this review step`;
 
@@ -233,12 +231,8 @@ What to do:
 - Deduplicate against existing Memory Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`topics/example.md\` or \`adding-feature\`, not \`rules/topics/example.md\` or \`skills/adding-feature\`
-- After the user explicitly approves \`move\`, use \`delete_guidance_source\` to remove the original repository-local or provider-project source only after the canonical Memory Bank entries are already written successfully
-- If the user approved \`copy\`, preserve the original source and absorb only the useful guidance into Memory Bank
-- If the user approved \`move\`, write the canonical entries first and delete the original source only after the deletion is explicitly confirmed
-- If the user approved \`keep source, fill gaps in bank\`, preserve the source and write only the uncovered high-value guidance that is missing from Memory Bank
-- If the user simply confirmed \`ok\`, follow the default policy: make Memory Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and keep deletions conservative unless a source was explicitly approved for removal
-- If the user confirmed \`not ok\`, leave the legacy sources untouched and only write clearly missing Memory Bank coverage when the user still wants that
+- If the user simply confirmed \`ok\`, follow the default policy: make Memory Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
+- If the user confirmed \`not ok\`, still migrate useful guidance into the canonical Memory Bank but leave the legacy sources untouched even if that creates temporary duplication
 - When replacing or deleting an existing Memory Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
@@ -249,10 +243,9 @@ Write rules:
 - If a source duplicates existing canonical content, update or skip instead of cloning it
 
 Safety rules:
-- Do not delete, rewrite, or trim any original source unless the user explicitly chose \`move\`
+- Do not delete, rewrite, or trim any original source unless the confirmed review decision allows cleanup and the migration was already written and verified successfully
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
-- If the chosen strategy was \`keep source, fill gaps in bank\`, avoid re-copying material that already lives in the source clearly enough
 - Do not count provider-local or provider-global guidance as existing Memory Bank coverage when deciding what still needs to be written`;
 
 const buildDeriveFromProjectPrompt = (

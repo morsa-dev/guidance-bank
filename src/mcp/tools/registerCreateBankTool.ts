@@ -76,15 +76,6 @@ const registerCreateLikeTool = (
         stepOutcome: parsedArgs.data.stepOutcome ?? null,
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         ...(parsedArgs.data.sourceReviewDecision ? { sourceReviewDecision: parsedArgs.data.sourceReviewDecision } : {}),
-        ...(parsedArgs.data.sourceStrategies
-          ? {
-              sourceStrategies: parsedArgs.data.sourceStrategies.map((strategy) => ({
-                sourceRef: strategy.sourceRef,
-                strategy: strategy.strategy,
-                note: strategy.note ?? null,
-              })),
-            }
-          : {}),
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -95,18 +86,6 @@ const registerCreateLikeTool = (
             {
               type: "text",
               text: `Unknown reference project ids for tool ${toolName}: ${flowContext.unknownReferenceIds.join(", ")}`,
-            },
-          ],
-        };
-      }
-
-      if (flowContext.unknownSourceStrategyRefs.length > 0) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Unknown sourceRefs for tool ${toolName}: ${flowContext.unknownSourceStrategyRefs.join(", ")}`,
             },
           ],
         };

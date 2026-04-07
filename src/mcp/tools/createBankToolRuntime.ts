@@ -101,7 +101,7 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   if (sourceStrategyRequired) {
-    return "Cannot apply create-flow changes until the external guidance review decision is recorded. Re-call create_bank for the review phase with sourceReviewDecision (`ok` or `not_ok`), or use sourceStrategies only when source-by-source handling is truly needed.";
+    return "Cannot apply create-flow changes until the external guidance review decision is recorded. Re-call create_bank for the review phase with sourceReviewDecision (`ok` or `not_ok`) before importing or applying changes.";
   }
 
   if (stepOutcomeRequired) {
@@ -211,7 +211,7 @@ export const buildCreateBankResponseText = ({
   }
 
   if (sourceStrategyRequired && nextIteration !== null) {
-    return `Record an external guidance review decision before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either sourceReviewDecision: \`ok\` or \`not_ok\`. Use sourceStrategies only when you need explicit source-by-source handling.`;
+    return `Record an external guidance review decision before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either sourceReviewDecision: \`ok\` or \`not_ok\`.`;
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {

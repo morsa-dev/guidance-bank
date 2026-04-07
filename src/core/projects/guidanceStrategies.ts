@@ -32,20 +32,19 @@ export const buildDefaultSourceStrategies = (
   sources: readonly ExistingGuidanceSourceLike[],
   decision: SourceReviewDecision,
 ): ConfirmedGuidanceSourceStrategy[] => {
-  if (decision === "not_ok") {
-    return sources.map((source) => ({
-      sourceRef: source.relativePath,
-      strategy: "ignore",
-      note: "User chose to keep legacy guidance as-is.",
-    }));
-  }
-
   return sources.map((source) => ({
     sourceRef: source.relativePath,
-    strategy: source.entryType === "directory" ? "ignore" : "copy",
+    strategy:
+      source.entryType === "directory"
+        ? "ignore"
+        : decision === "ok"
+          ? "move"
+          : "copy",
     note:
       source.entryType === "directory"
         ? "Handled as a container while file-level guidance is migrated."
-        : "Confirmed by the default canonicalization flow.",
+        : decision === "ok"
+          ? "Confirmed by the default canonicalization flow with legacy cleanup allowed."
+          : "Confirmed by the default canonicalization flow while keeping legacy guidance in place.",
   }));
 };

@@ -27,7 +27,6 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcome: "applied" | "no_changes" | null;
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
-  sourceStrategies?: ConfirmedGuidanceSourceStrategy[];
   sourceReviewDecision?: SourceReviewDecision;
 };
 
@@ -55,7 +54,6 @@ type ResolvedCreateBankFlowContext = {
   completedFlowThisCall: boolean;
   extendedContext: CreateBankExtendedContext;
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
-  unknownSourceStrategyRefs: string[];
 };
 
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
@@ -181,7 +179,6 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcome,
   stepOutcomeNote,
   referenceProjectIds,
-  sourceStrategies,
   sourceReviewDecision,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
@@ -250,14 +247,10 @@ export const resolveCreateBankFlowContext = async ({
   );
 
   const knownSourceRefs = new Set(extendedContext.discoveredSources.map((source) => source.relativePath));
-  const unknownSourceStrategyRefs =
-    sourceStrategies?.filter((strategy) => !knownSourceRefs.has(strategy.sourceRef)).map((strategy) => strategy.sourceRef) ?? [];
-
   const resolvedSourceStrategies =
-    sourceStrategies ??
-    (sourceReviewDecision
+    sourceReviewDecision
       ? buildDefaultSourceStrategies(extendedContext.discoveredSources, sourceReviewDecision)
-      : existingState?.sourceStrategies ?? []);
+      : existingState?.sourceStrategies ?? [];
 
   const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) => knownSourceRefs.has(strategy.sourceRef));
   const confirmedSourceStrategyRefs = new Set(confirmedSourceStrategies.map((strategy) => strategy.sourceRef));
@@ -265,7 +258,6 @@ export const resolveCreateBankFlowContext = async ({
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
   const sourceStrategyRequired =
     !syncRequired &&
-    unknownSourceStrategyRefs.length === 0 &&
     sourceReviewAdvanceRequested &&
     extendedContext.discoveredSources.length > 0 &&
     extendedContext.discoveredSources.some((source) => !confirmedSourceStrategyRefs.has(source.relativePath));
@@ -310,6 +302,5 @@ export const resolveCreateBankFlowContext = async ({
     completedFlowThisCall: adjustedCompletedFlowThisCall,
     extendedContext,
     confirmedSourceStrategies,
-    unknownSourceStrategyRefs,
   };
 };
