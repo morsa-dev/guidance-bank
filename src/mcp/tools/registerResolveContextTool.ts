@@ -2,13 +2,16 @@ import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
 import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
+import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { writeToolAuditEvent } from "./auditUtils.js";
 
 const ResolveContextArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: SessionRefSchema,
   })
   .strict();
 
@@ -25,6 +28,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: SessionRefSchema,
       },
       outputSchema: {
         text: z.string(),
@@ -102,9 +106,23 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       }
 
       try {
+        const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
         const resolvedContext = await resolveMemoryBankContext({
           repository: options.repository,
           projectPath: parsedArgs.data.projectPath,
+        });
+        await writeToolAuditEvent({
+          auditLogger: options.auditLogger,
+          sessionRef: parsedArgs.data.sessionRef,
+          tool: "resolve_context",
+          action: "resolve",
+          projectId: identity.projectId,
+          projectPath: identity.projectPath,
+          details: {
+            creationState: resolvedContext.creationState ?? null,
+            requiredAction: resolvedContext.requiredAction ?? null,
+            createFlowPhase: resolvedContext.createFlowPhase ?? null,
+          },
         });
 
         return {

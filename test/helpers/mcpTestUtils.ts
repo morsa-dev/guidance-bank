@@ -78,11 +78,39 @@ export const initGitRepo = async (projectRoot: string, message = "init project")
   await execFileAsync("git", ["commit", "-m", message], { cwd: projectRoot });
 };
 
+const TOOLS_REQUIRING_SESSION_REF = new Set([
+  "create_bank",
+  "improve_bank",
+  "resolve_context",
+  "upsert_rule",
+  "upsert_skill",
+  "delete_entry",
+  "set_project_state",
+  "sync_bank",
+  "clear_project_bank",
+  "delete_guidance_source",
+]);
+
+const withTestSessionRef = (name: string, args: Record<string, unknown>): Record<string, unknown> => {
+  if (!TOOLS_REQUIRING_SESSION_REF.has(name)) {
+    return args;
+  }
+
+  if (typeof args.sessionRef === "string" && args.sessionRef.trim().length > 0) {
+    return args;
+  }
+
+  return {
+    ...args,
+    sessionRef: `test-session:${name}`,
+  };
+};
+
 export const callToolResult = async (
   client: Client,
   name: string,
   args: Record<string, unknown>,
-) => CallToolResultSchema.parse(await client.callTool({ name, arguments: args }));
+) => CallToolResultSchema.parse(await client.callTool({ name, arguments: withTestSessionRef(name, args) }));
 
 export const callToolStructured = async <TSchema extends z.ZodTypeAny>(
   client: Client,

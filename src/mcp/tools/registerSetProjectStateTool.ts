@@ -4,11 +4,13 @@ import { createProjectBankState, updateProjectBankState } from "../../core/bank/
 import { PROJECT_CREATION_STATES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { writeToolAuditEvent } from "./auditUtils.js";
 
 const SetProjectStateArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: SessionRefSchema,
     creationState: z
       .enum(PROJECT_CREATION_STATES)
       .describe("Project Memory Bank creation state to persist for this repository."),
@@ -28,6 +30,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: SessionRefSchema,
         creationState: z
           .enum(PROJECT_CREATION_STATES)
           .describe("Project Memory Bank creation state to persist for this repository."),
@@ -61,6 +64,17 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
           : updateProjectBankState(existingState, parsedArgs.data.creationState);
 
       await options.repository.writeProjectState(identity.projectId, nextState);
+      await writeToolAuditEvent({
+        auditLogger: options.auditLogger,
+        sessionRef: parsedArgs.data.sessionRef,
+        tool: "set_project_state",
+        action: "set_state",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        details: {
+          creationState: nextState.creationState,
+        },
+      });
 
       const payload = {
         projectId: identity.projectId,

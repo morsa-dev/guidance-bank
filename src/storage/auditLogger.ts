@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { ProviderId } from "../core/bank/types.js";
 import { resolveBankPaths } from "../core/bank/layout.js";
-import type { AuditEvent } from "../core/audit/types.js";
+import type { AuditEvent, EntryAuditEvent, ToolAuditEvent } from "../core/audit/types.js";
 import { appendManagedTextFile } from "./safeFs.js";
 
 type AuditLoggerOptions = {
@@ -10,7 +10,9 @@ type AuditLoggerOptions = {
   provider: ProviderId | null;
 };
 
-type WriteAuditEventInput = Omit<AuditEvent, "schemaVersion" | "eventId" | "timestamp" | "provider">;
+type WriteAuditEventInput =
+  | Omit<EntryAuditEvent, "schemaVersion" | "eventId" | "timestamp" | "provider">
+  | Omit<ToolAuditEvent, "schemaVersion" | "eventId" | "timestamp" | "provider">;
 
 export class AuditLogger {
   private readonly paths;

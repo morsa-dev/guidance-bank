@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
   buildInvalidToolArgsResult,
@@ -16,7 +16,7 @@ const DeleteEntryArgsSchema = z
     scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
     kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
+    sessionRef: SessionRefSchema,
     path: z
       .string()
       .trim()
@@ -40,7 +40,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
         kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
+        sessionRef: SessionRefSchema,
         path: z
           .string()
           .trim()
@@ -98,7 +98,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
       if (result.status === "deleted") {
         await writeEntryAuditEvent({
           auditLogger: options.auditLogger,
-          sessionRef: parsedArgs.data.sessionRef ?? null,
+          sessionRef: parsedArgs.data.sessionRef,
           tool: "delete_entry",
           action: "delete",
           scope: parsedArgs.data.scope,

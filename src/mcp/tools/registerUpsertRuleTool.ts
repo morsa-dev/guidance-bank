@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
   buildInvalidToolArgsResult,
@@ -15,7 +15,7 @@ const UpsertRuleArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
+    sessionRef: SessionRefSchema,
     path: z
       .string()
       .trim()
@@ -42,7 +42,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
+        sessionRef: SessionRefSchema,
         path: z
           .string()
           .trim()
@@ -97,7 +97,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
 
       await writeEntryAuditEvent({
         auditLogger: options.auditLogger,
-        sessionRef: parsedArgs.data.sessionRef ?? null,
+        sessionRef: parsedArgs.data.sessionRef,
         tool: "upsert_rule",
         action: "upsert",
         scope: parsedArgs.data.scope,

@@ -502,7 +502,8 @@ test("entry mutations append audit events with provider and sessionRef metadata"
   const events = auditLogContent
     .trim()
     .split("\n")
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((event) => event.sessionRef === "cursor:thread-123");
 
   assert.equal(events.length, 3);
   assert.deepEqual(

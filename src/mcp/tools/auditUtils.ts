@@ -53,6 +53,47 @@ export const writeEntryAuditEvent = async ({
   }
 };
 
+type WriteToolAuditEventInput = {
+  auditLogger: AuditLogger;
+  sessionRef: string;
+  tool:
+    | "create_bank"
+    | "improve_bank"
+    | "resolve_context"
+    | "set_project_state"
+    | "sync_bank"
+    | "clear_project_bank"
+    | "delete_guidance_source";
+  action: "create_flow" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
+  projectId: string;
+  projectPath: string;
+  details: Record<string, unknown>;
+};
+
+export const writeToolAuditEvent = async ({
+  auditLogger,
+  sessionRef,
+  tool,
+  action,
+  projectId,
+  projectPath,
+  details,
+}: WriteToolAuditEventInput): Promise<void> => {
+  try {
+    await auditLogger.writeEvent({
+      sessionRef,
+      tool,
+      action,
+      projectId,
+      projectPath,
+      details,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown audit logging error.";
+    console.warn(`Failed to write Memory Bank audit event for ${tool} ${projectPath}: ${message}`);
+  }
+};
+
 export const toSkillDocumentPath = (skillPath: string): string => {
   const trimmedPath = skillPath.replaceAll("\\", "/").trim().replace(/\/+$/u, "");
   const lowerCasePath = trimmedPath.toLowerCase();

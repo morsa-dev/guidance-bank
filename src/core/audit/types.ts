@@ -12,7 +12,7 @@ export type AuditEntrySnapshot = {
   topics: string[];
 };
 
-export type AuditEvent = {
+export type EntryAuditEvent = {
   schemaVersion: 1;
   eventId: string;
   timestamp: string;
@@ -30,3 +30,25 @@ export type AuditEvent = {
   deltaChars: number;
   deltaLines: number;
 };
+
+export type ToolAuditEvent = {
+  schemaVersion: 1;
+  eventId: string;
+  timestamp: string;
+  provider: ProviderId | null;
+  sessionRef: string | null;
+  tool:
+    | "create_bank"
+    | "improve_bank"
+    | "resolve_context"
+    | "set_project_state"
+    | "sync_bank"
+    | "clear_project_bank"
+    | "delete_guidance_source";
+  action: "create_flow" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
+  projectId: string;
+  projectPath: string;
+  details: Record<string, unknown>;
+};
+
+export type AuditEvent = EntryAuditEvent | ToolAuditEvent;

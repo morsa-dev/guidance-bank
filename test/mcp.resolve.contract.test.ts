@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { z } from "zod";
@@ -78,7 +78,7 @@ test("resolve_context returns missing status when no project bank exists", async
   const structured = await callToolStructured(
     client,
     "resolve_context",
-    { projectPath: projectRoot },
+    { projectPath: projectRoot, sessionRef: "resolve:missing-status" },
     MissingContextSchema,
   );
 
@@ -88,6 +88,15 @@ test("resolve_context returns missing status when no project bank exists", async
   assert.match(structured.text, /record that choice with `set_project_state`/i);
   assert.match(structured.text, /call `resolve_context` again/i);
   assert.equal(structured.referenceProjects?.length ?? 0, 0);
+
+  const events = (await readFile(path.join(bankRoot, "audit", "events.ndjson"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const resolveEvent = events.find((event) => event.tool === "resolve_context");
+  assert.ok(resolveEvent);
+  assert.equal(resolveEvent?.sessionRef, "resolve:missing-status");
+  assert.equal(resolveEvent?.action, "resolve");
 });
 
 test("resolve_context includes always-on shared rules outside stacks folders", async (t) => {

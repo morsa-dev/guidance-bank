@@ -7,12 +7,14 @@ import { discoverExistingGuidance } from "../../core/projects/discoverExistingGu
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { writeToolAuditEvent } from "./auditUtils.js";
 import { buildInvalidToolArgsResult, buildStructuredToolResult } from "./entryMutationHelpers.js";
 
 const DeleteGuidanceSourceArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: SessionRefSchema,
     sourcePath: z
       .string()
       .trim()
@@ -49,7 +51,7 @@ const deleteGuidancePath = async (targetPath: string): Promise<"deleted" | "not_
   }
 };
 
-export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server) => {
+export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "delete_guidance_source",
     {
@@ -62,6 +64,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server) => {
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: SessionRefSchema,
         sourcePath: z
           .string()
           .trim()
@@ -104,6 +107,21 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server) => {
       }
 
       const status = await deleteGuidancePath(targetPath);
+      await writeToolAuditEvent({
+        auditLogger: options.auditLogger,
+        sessionRef: parsedArgs.data.sessionRef,
+        tool: "delete_guidance_source",
+        action: "delete_guidance",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        details: {
+          status,
+          sourcePath: targetPath,
+          relativePath: source.relativePath,
+          scope: source.scope,
+          provider: source.provider,
+        },
+      });
 
       return buildStructuredToolResult({
         status,

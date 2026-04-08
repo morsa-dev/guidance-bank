@@ -2,11 +2,13 @@ import { z } from "zod";
 
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { writeToolAuditEvent } from "./auditUtils.js";
 
 const ClearProjectBankArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
+    sessionRef: SessionRefSchema,
   })
   .strict();
 
@@ -23,6 +25,7 @@ export const registerClearProjectBankTool: ToolRegistrar = (server, options) => 
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
+        sessionRef: SessionRefSchema,
       },
       outputSchema: {
         status: z.enum(["cleared", "not_found"]),
@@ -48,6 +51,17 @@ export const registerClearProjectBankTool: ToolRegistrar = (server, options) => 
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
       const deleted = await options.repository.deleteProjectBank(identity.projectId);
+      await writeToolAuditEvent({
+        auditLogger: options.auditLogger,
+        sessionRef: parsedArgs.data.sessionRef,
+        tool: "clear_project_bank",
+        action: "clear",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        details: {
+          status: deleted ? "cleared" : "not_found",
+        },
+      });
       const payload = {
         status: deleted ? "cleared" : "not_found",
         projectId: identity.projectId,

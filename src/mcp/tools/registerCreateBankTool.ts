@@ -20,6 +20,7 @@ import {
   normalizeApplyWrites,
   shouldWarnAboutIterationMismatch,
 } from "./createBankToolRuntime.js";
+import { writeToolAuditEvent } from "./auditUtils.js";
 import {
   CreateBankArgsSchema,
   CreateBankInputShape,
@@ -284,6 +285,24 @@ const registerCreateLikeTool = (
           phase: finalPhase,
         }),
       } as const;
+
+      await writeToolAuditEvent({
+        auditLogger: options.auditLogger,
+        sessionRef: parsedArgs.data.sessionRef,
+        tool: toolName,
+        action: "create_flow",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        details: {
+          phase: finalPhase,
+          iteration: finalEffectiveIteration,
+          creationState: nextState.creationState,
+          syncRequired,
+          mustContinue: finalMustContinue,
+          applyWrites: applyResults.writes.length,
+          applyDeletions: applyResults.deletions.length,
+        },
+      });
 
       return {
         content: [

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
 import { GUIDANCE_SOURCE_STRATEGIES, SOURCE_REVIEW_DECISIONS } from "../../core/projects/guidanceStrategies.js";
-import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
 const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
@@ -115,7 +115,7 @@ export const CreateBankApplyDeletionSchema = z
 export const CreateBankInputShape = {
   projectPath: AbsoluteProjectPathSchema,
   iteration: z.number().int().nonnegative().optional().describe("Current create-flow iteration. Defaults to 0."),
-  sessionRef: z.string().trim().min(1).optional().describe("Optional agent session reference for audit logging."),
+  sessionRef: SessionRefSchema,
   stepCompleted: z
     .boolean()
     .optional()
