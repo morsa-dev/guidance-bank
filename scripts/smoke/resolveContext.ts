@@ -1,3 +1,4 @@
+import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
@@ -7,10 +8,13 @@ const printUsage = (): void => {
   console.info(`Usage:
   npm run smoke:resolve -- <project-path> [--out <path>] [--bank-root <path>] [--provider <id>]
 
-Default output:
-  .smoke/resolve-context.json
+Default outputs:
+  .smoke/resolve-context-<timestamp>.json
+  .smoke/resolve-context.latest.json
 `);
 };
+
+const buildTimestampLabel = (): string => new Date().toISOString().replaceAll(":", "-");
 
 const main = async (): Promise<void> => {
   const parsed = parseArgs({
@@ -34,7 +38,7 @@ const main = async (): Promise<void> => {
     throw new Error("Missing project path.");
   }
 
-  const outputPath = parsed.values.out ?? path.join(".smoke", "resolve-context.json");
+  const outputPath = parsed.values.out ?? path.join(".smoke", `resolve-context-${buildTimestampLabel()}.json`);
   const callOptions: {
     toolName: string;
     args: Record<string, unknown>;
@@ -61,6 +65,13 @@ const main = async (): Promise<void> => {
   }
 
   await callLocalMcpTool(callOptions);
+
+  if (!parsed.values.out) {
+    const latestPath = path.join(".smoke", "resolve-context.latest.json");
+    await mkdir(path.dirname(latestPath), { recursive: true });
+    await copyFile(outputPath, latestPath);
+    console.info(`Updated latest smoke result at ${path.resolve(latestPath)}`);
+  }
 };
 
 main().catch((error: unknown) => {
