@@ -1,17 +1,29 @@
 #!/usr/bin/env node
 
+import { createRequire } from "node:module";
 import { parseArgs } from "node:util";
 
 import { runInitCommand } from "./commands/init.js";
 import { runMcpServeCommand } from "./commands/mcpServe.js";
 import { MbCliError } from "../shared/errors.js";
 
+type PackageJson = {
+  version: string;
+};
+
+const require = createRequire(import.meta.url);
+const packageJson = require("../../package.json") as PackageJson;
+
 const printUsage = (): void => {
-  console.info(`mb-cli
+  console.info(`memory-bank-local
 
 Usage:
   mb init
   mb mcp serve
+
+Options:
+  -h, --help
+  -v, --version
 `);
 };
 
@@ -23,11 +35,20 @@ const main = async (): Promise<void> => {
         type: "boolean",
         short: "h",
       },
+      version: {
+        type: "boolean",
+        short: "v",
+      },
     },
   });
 
   if (parsedArgs.values.help) {
     printUsage();
+    return;
+  }
+
+  if (parsedArgs.values.version) {
+    console.info(packageJson.version);
     return;
   }
 

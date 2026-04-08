@@ -1,6 +1,6 @@
-# mb-cli
+# memory-bank-local
 
-`mb-cli` is a local Memory Bank runtime and bootstrap package for coding agents.
+`memory-bank-local` is a local Memory Bank runtime and MCP host for coding agents.
 
 It gives the agent one managed, canonical place for reusable rules and skills outside the repository, while still allowing repository-local guidance such as `AGENTS.md`, `.cursor`, `.claude`, or `.codex` to coexist separately.
 
@@ -8,7 +8,7 @@ It gives the agent one managed, canonical place for reusable rules and skills ou
 
 Memory Bank solves one practical problem: project guidance is usually scattered.
 
-Some instructions live in provider-specific files inside repositories. Some are reusable across many repositories. Some are stable project conventions that should survive across sessions. `mb-cli` gives the agent a local MCP-backed Memory Bank for that durable guidance.
+Some instructions live in provider-specific files inside repositories. Some are reusable across many repositories. Some are stable project conventions that should survive across sessions. `memory-bank-local` gives the agent a local MCP-backed Memory Bank for that durable guidance.
 
 In practice, it provides:
 
@@ -38,7 +38,7 @@ Important boundaries:
 Install the package globally so the `mb` command is available on your `PATH`:
 
 ```bash
-npm install -g mb-cli
+npm install -g memory-bank-local
 ```
 
 After installation, the public CLI is:
