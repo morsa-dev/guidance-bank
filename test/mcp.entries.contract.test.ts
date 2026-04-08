@@ -188,12 +188,49 @@ test("upsert tools write shared and project entries that resolve_context exposes
   );
   assert.equal(projectSkill.scope, "project");
 
-  const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
+  const resolved = await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot },
+    z.object({
+      text: z.string(),
+      rulesCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("rules"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            preview: z.string().nullable().optional(),
+          }),
+        )
+        .optional(),
+      skillsCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("skills"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            description: z.string().optional(),
+          }),
+        )
+        .optional(),
+    }),
+  );
 
-  assert.match(resolved.text, /### shared\/topics\/angular-architecture\.md/);
-  assert.match(resolved.text, /### project\/topics\/admin-dashboard\.md/);
-  assert.match(resolved.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
-  assert.match(resolved.text, /### project\/stacks\/angular\/adding-admin-widget\/SKILL\.md/);
+  assert.match(resolved.text, /Rule Catalog/);
+  assert.match(resolved.text, /Skill Catalog/);
+  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/angular-architecture.md"), true);
+  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/admin-dashboard.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/component-audit/SKILL.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/adding-admin-widget/SKILL.md"), true);
 });
 
 test("delete_entry removes previously written entries", async (t) => {

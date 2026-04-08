@@ -1319,7 +1319,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(resolveStructured.creationState, "ready");
-  assert.match(resolveStructured.text, /Use the following Memory Bank context as the primary user-managed context/i);
+  assert.match(resolveStructured.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
   assert.doesNotMatch(resolveStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(resolveStructured.text, /\.cursor/i);
 });
@@ -1444,7 +1444,7 @@ test("ready project banks ask the user whether to run an improvement pass before
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "ready");
-  assert.match(resolveStructured.text, /Use the following Memory Bank context as the primary user-managed context/i);
+  assert.match(resolveStructured.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
 });
 
 test("improve_bank aliases the guided existing-bank flow", async (t) => {

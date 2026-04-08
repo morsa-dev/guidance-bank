@@ -1,21 +1,41 @@
-import type { ResolvedContextEntry } from "./types.js";
+import type { ResolvedContextCatalogEntry, ResolvedContextInlineRule } from "./types.js";
 
-const renderEntrySection = (title: string, entries: readonly ResolvedContextEntry[]): string => {
+const renderAlwaysOnRules = (rules: readonly ResolvedContextInlineRule[]): string => {
+  if (rules.length === 0) {
+    return `## Always-On Rules
+
+No always-on rules matched for this repository.`;
+  }
+
+  const blocks = rules.map(
+    (rule) => `### ${rule.scope}/${rule.path}
+
+${rule.content.trim()}`,
+  );
+
+  return `## Always-On Rules
+
+${blocks.join("\n\n")}`;
+};
+
+const renderCatalogEntry = (entry: ResolvedContextCatalogEntry): string => {
+  const stacks = entry.stacks.length > 0 ? `stacks: ${entry.stacks.join(", ")}` : "always-on";
+  const topics = entry.topics.length > 0 ? `topics: ${entry.topics.join(", ")}` : "topics: none";
+  const detail = entry.kind === "skills" ? entry.description ?? "No description." : entry.preview ?? "No preview.";
+
+  return `- ${entry.scope}/${entry.path} (${entry.id}) — ${entry.title}. ${stacks}; ${topics}. ${detail}`;
+};
+
+const renderCatalogSection = (title: string, entries: readonly ResolvedContextCatalogEntry[]): string => {
   if (entries.length === 0) {
     return `## ${title}
 
 No ${title.toLowerCase()} matched for this repository.`;
   }
 
-  const blocks = entries.map(
-    (entry) => `### ${entry.layer}/${entry.path}
-
-${entry.content.trim()}`,
-  );
-
   return `## ${title}
 
-${blocks.join("\n\n")}`;
+${entries.map(renderCatalogEntry).join("\n")}`;
 };
 
 const renderReferenceProjects = (projectPaths: readonly string[]): string =>
@@ -24,27 +44,33 @@ const renderReferenceProjects = (projectPaths: readonly string[]): string =>
 export const buildReadyContextText = ({
   projectPath,
   detectedStacks,
-  rules,
-  skills,
+  alwaysOnRules,
+  rulesCatalog,
+  skillsCatalog,
 }: {
   projectPath: string;
   detectedStacks: readonly string[];
-  rules: readonly ResolvedContextEntry[];
-  skills: readonly ResolvedContextEntry[];
+  alwaysOnRules: readonly ResolvedContextInlineRule[];
+  rulesCatalog: readonly ResolvedContextCatalogEntry[];
+  skillsCatalog: readonly ResolvedContextCatalogEntry[];
 }): string => {
   const detectedStacksLine =
     detectedStacks.length > 0
       ? `Detected stack signals: ${detectedStacks.join(", ")}.`
       : "No stable stack signals were detected automatically.";
 
-  return `Use the following Memory Bank context as the primary user-managed context for this repository.
+  return `Use the following Memory Bank context catalog as the primary user-managed context for this repository.
 
 Repository: ${projectPath}
 ${detectedStacksLine}
 
-${renderEntrySection("Rules", rules)}
+Always-on rules are expanded inline below. For other rules and skills, use the catalogs and call \`read_entry\` when you need the full canonical document.
 
-${renderEntrySection("Skills", skills)}`;
+${renderAlwaysOnRules(alwaysOnRules)}
+
+${renderCatalogSection("Rule Catalog", rulesCatalog)}
+
+${renderCatalogSection("Skill Catalog", skillsCatalog)}`;
 };
 
 export const buildMissingContextText = ({

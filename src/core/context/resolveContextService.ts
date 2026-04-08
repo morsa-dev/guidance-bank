@@ -10,8 +10,10 @@ import { getCreateFlowPhase } from "../projects/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
 import {
   assertUniqueResolvedEntryIds,
+  buildResolvedContextCatalog,
   loadResolvedContextEntries,
   mergeResolvedLayerEntries,
+  selectAlwaysOnRules,
 } from "./contextEntryResolver.js";
 import {
   buildCreatingContextText,
@@ -121,13 +123,24 @@ export const resolveMemoryBankContext = async ({
   assertUniqueResolvedEntryIds(projectRules, "project", "rules");
   assertUniqueResolvedEntryIds(projectSkills, "project", "skills");
 
+  const mergedRules = mergeResolvedLayerEntries(sharedRules, projectRules);
+  const mergedSkills = mergeResolvedLayerEntries(sharedSkills, projectSkills);
+  const alwaysOnRules = selectAlwaysOnRules(mergedRules);
+  const rulesCatalog = buildResolvedContextCatalog("rules", mergedRules);
+  const skillsCatalog = buildResolvedContextCatalog("skills", mergedSkills);
+
   return {
     text: buildReadyContextText({
       projectPath: identity.projectPath,
       detectedStacks: detectedProjectContext.detectedStacks,
-      rules: mergeResolvedLayerEntries(sharedRules, projectRules),
-      skills: mergeResolvedLayerEntries(sharedSkills, projectSkills),
+      alwaysOnRules,
+      rulesCatalog,
+      skillsCatalog,
     }),
     creationState: "ready",
+    detectedStacks: detectedProjectContext.detectedStacks,
+    alwaysOnRules,
+    rulesCatalog,
+    skillsCatalog,
   };
 };

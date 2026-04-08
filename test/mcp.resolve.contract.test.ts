@@ -110,12 +110,67 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
       "---\nid: shared-user-praise\nkind: rule\ntitle: User Praise\nstacks: []\ntopics: [preferences]\n---\n\n# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
   });
 
-  const structured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
+  const structured = await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot },
+    z.object({
+      text: z.string(),
+      creationState: z.enum(["unknown", "declined", "creating", "ready"]).optional(),
+      detectedStacks: z.array(z.string()).optional(),
+      alwaysOnRules: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            topics: z.array(z.string()),
+            content: z.string(),
+          }),
+        )
+        .optional(),
+      rulesCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("rules"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            preview: z.string().nullable().optional(),
+          }),
+        )
+        .optional(),
+      skillsCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("skills"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            description: z.string().optional(),
+          }),
+        )
+        .optional(),
+    }),
+  );
 
   assert.equal(structured.creationState, "ready");
-  assert.equal(structured.createFlowPhase, undefined);
-  assert.match(structured.text, /### shared\/preferences\/user-praise\.md/);
-  assert.match(structured.text, /Ты хорош/);
+  assert.ok(structured.detectedStacks?.includes("nodejs"));
+  assert.match(structured.text, /Memory Bank context catalog/i);
+  assert.match(structured.text, /Always-On Rules/i);
+  assert.match(structured.text, /Rule Catalog/i);
+  assert.match(structured.text, /Skill Catalog/i);
+  assert.match(structured.text, /call `read_entry` when you need the full canonical document/i);
+  assert.equal(structured.alwaysOnRules?.some((entry) => entry.path === "preferences/user-praise.md"), true);
+  assert.equal(structured.alwaysOnRules?.some((entry) => entry.content.includes("[Ты хорош]")), true);
+  assert.equal(structured.rulesCatalog?.some((entry) => entry.path === "preferences/user-praise.md"), true);
 });
 
 test("resolve_context returns a tool error for non-canonical bank entries", async (t) => {
@@ -257,5 +312,5 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
 
   const afterPostpone = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.doesNotMatch(afterPostpone.text, /synchronization is required/i);
-  assert.match(afterPostpone.text, /Use the following Memory Bank context as the primary user-managed context/i);
+  assert.match(afterPostpone.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
 });

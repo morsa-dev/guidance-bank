@@ -1,7 +1,11 @@
 import { parseCanonicalRuleDocument, parseCanonicalSkillDocument } from "../bank/canonicalEntry.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { BankRepository } from "../../storage/bankRepository.js";
-import type { ResolvedContextEntry } from "./types.js";
+import type {
+  ResolvedContextCatalogEntry,
+  ResolvedContextEntry,
+  ResolvedContextInlineRule,
+} from "./types.js";
 
 type CandidateReason = {
   selected: boolean;
@@ -139,3 +143,49 @@ export const mergeResolvedLayerEntries = (
     return left.path.localeCompare(right.path);
   });
 };
+
+const stripFrontmatter = (content: string): string => content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/u, "");
+
+const toPreview = (content: string): string | null => {
+  const body = stripFrontmatter(content);
+  const lines = body
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
+  const previewSource = lines[0] ?? null;
+  if (previewSource === null) {
+    return null;
+  }
+
+  return previewSource.length > 180 ? `${previewSource.slice(0, 177)}...` : previewSource;
+};
+
+export const selectAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): ResolvedContextInlineRule[] =>
+  entries
+    .filter((entry) => entry.metadata.kind === "rule" && entry.metadata.stacks.length === 0)
+    .map((entry) => ({
+      scope: entry.layer,
+      path: entry.path,
+      id: entry.metadata.id,
+      title: entry.metadata.title,
+      topics: [...entry.metadata.topics],
+      content: entry.content,
+    }));
+
+export const buildResolvedContextCatalog = (
+  kind: "rules" | "skills",
+  entries: readonly ResolvedContextEntry[],
+): ResolvedContextCatalogEntry[] =>
+  entries.map((entry) => ({
+    scope: entry.layer,
+    kind,
+    path: entry.path,
+    id: entry.metadata.id,
+    title: entry.metadata.title,
+    stacks: [...entry.metadata.stacks],
+    topics: [...entry.metadata.topics],
+    ...(entry.metadata.kind === "skill"
+      ? { description: entry.metadata.description }
+      : { preview: toPreview(entry.content) }),
+  }));

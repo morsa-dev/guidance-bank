@@ -31,6 +31,27 @@ export type ResolvedContextEntry = {
   metadata: CanonicalRuleFrontmatter | CanonicalSkillFrontmatter;
 };
 
+export type ResolvedContextInlineRule = {
+  scope: "shared" | "project";
+  path: string;
+  id: string;
+  title: string;
+  topics: string[];
+  content: string;
+};
+
+export type ResolvedContextCatalogEntry = {
+  scope: "shared" | "project";
+  kind: "rules" | "skills";
+  path: string;
+  id: string;
+  title: string;
+  stacks: DetectableStack[];
+  topics: string[];
+  description?: string;
+  preview?: string | null;
+};
+
 export type ReferenceProjectCandidate = {
   projectId: string;
   projectName: string;
@@ -46,5 +67,9 @@ export type ResolvedMemoryBankContext = {
   requiredAction?: "create_bank" | "continue_create_bank" | "sync_bank";
   createFlowPhase?: CreateFlowPhase;
   nextIteration?: number;
+  detectedStacks?: DetectableStack[];
+  alwaysOnRules?: ResolvedContextInlineRule[];
+  rulesCatalog?: ResolvedContextCatalogEntry[];
+  skillsCatalog?: ResolvedContextCatalogEntry[];
   referenceProjects?: ReferenceProjectCandidate[];
 };
