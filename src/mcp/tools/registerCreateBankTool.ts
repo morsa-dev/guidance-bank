@@ -4,13 +4,13 @@ import {
   createProjectBankManifest,
 } from "../../core/bank/project.js";
 import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
-import { resolveCreateBankFlowContext, resolveCreateFlowProgress } from "../../core/projects/createBankFlow.js";
+import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../core/projects/createBankFlow.js";
 import { discoverCurrentProjectBank } from "../../core/projects/discoverCurrentProjectBank.js";
 import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
 } from "../../core/projects/createBankIterationPrompt.js";
-import { getCreateFlowPhase, getNextCreateFlowIteration, isCreateFlowComplete } from "../../core/projects/createFlowPhases.js";
+import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
 import {
@@ -18,7 +18,6 @@ import {
   getCreateBankApplyBlockedMessage,
   normalizeApplyDeletions,
   normalizeApplyWrites,
-  resolveNextCreateBankState,
   shouldWarnAboutIterationMismatch,
 } from "./createBankToolRuntime.js";
 import {
@@ -40,13 +39,6 @@ const registerCreateLikeTool = (
     description: string;
   },
 ) => {
-  const hasAppliedChanges = (applyResults: Awaited<ReturnType<typeof applyCreateBankChanges>>): boolean =>
-    applyResults.writes.length > 0 || applyResults.deletions.length > 0;
-
-  const hasApplyConflicts = (applyResults: Awaited<ReturnType<typeof applyCreateBankChanges>>): boolean =>
-    applyResults.writes.some((item) => item.status === "conflict") ||
-    applyResults.deletions.some((item) => item.status === "conflict");
-
   server.registerTool(
     toolName,
     {
@@ -110,12 +102,9 @@ const registerCreateLikeTool = (
         stepCompletionRequired,
         sourceStrategyRequired,
         stepOutcomeRequired,
-        shouldTrackCreateFlow,
-        lifecycleStatus,
         syncRequired,
         improvementEntryPoint,
         extendedContext,
-        manifestStorageVersion,
         confirmedSourceStrategies,
       } = flowContext;
 
@@ -201,50 +190,20 @@ const registerCreateLikeTool = (
       }
       const {
         effectiveIteration: finalEffectiveIteration,
+        phase: finalPhase,
         stepCompletionRequired: finalStepCompletionRequired,
         stepOutcomeRequired: finalStepOutcomeRequired,
-      } = resolveCreateFlowProgress({
-        storedIteration: existingState?.createIteration ?? null,
+        mustContinue: finalMustContinue,
+        nextIteration: finalNextIteration,
+        completedFlowThisCall: finalCompletedFlowThisCall,
+        nextState,
+      } = finalizeCreateBankExecution({
+        flowContext,
         requestedIteration,
         stepCompleted: parsedArgs.data.stepCompleted ?? false,
-        stepOutcomeSatisfied:
-          (hasAppliedChanges(applyResults) && !hasApplyConflicts(applyResults)) ||
-          parsedArgs.data.stepOutcome === "applied" ||
-          (parsedArgs.data.stepOutcome === "no_changes" && parsedArgs.data.stepOutcomeNote !== undefined),
-      });
-      const adjustedFinalEffectiveIteration = sourceStrategyRequired
-        ? existingState?.createIteration ?? finalEffectiveIteration
-        : finalEffectiveIteration;
-      const finalPhase = syncRequired
-        ? "sync_required"
-        : improvementEntryPoint
-          ? "ready_to_improve"
-          : getCreateFlowPhase(adjustedFinalEffectiveIteration);
-      const finalIsFlowComplete = isCreateFlowComplete(adjustedFinalEffectiveIteration);
-      const finalNextCreationState = shouldTrackCreateFlow
-        ? (finalIsFlowComplete ? "ready" : "creating")
-        : "ready";
-      const finalMustContinue =
-        !syncRequired &&
-        (finalNextCreationState === "creating" ||
-          (lifecycleStatus === "ready" && adjustedFinalEffectiveIteration > 0 && !finalIsFlowComplete));
-      const finalNextIteration = syncRequired
-        ? null
-        : improvementEntryPoint
-          ? 1
-          : finalMustContinue
-            ? getNextCreateFlowIteration(adjustedFinalEffectiveIteration)
-            : null;
-      const finalCompletedFlowThisCall =
-        !finalMustContinue && existingState?.creationState === "creating" && finalIsFlowComplete;
-      const nextState = resolveNextCreateBankState({
-        existingManifest,
-        existingState,
-        shouldTrackCreateFlow,
-        nextCreationState: finalNextCreationState,
-        manifestStorageVersion,
-        effectiveIteration: adjustedFinalEffectiveIteration,
-        confirmedSourceStrategies,
+        stepOutcome: parsedArgs.data.stepOutcome ?? null,
+        stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
+        applyResults,
       });
       await options.repository.writeProjectState(identity.projectId, nextState);
       const prompt =
@@ -257,7 +216,7 @@ const registerCreateLikeTool = (
               })
           : finalMustContinue || finalCompletedFlowThisCall
             ? buildCreateBankIterationPrompt({
-                iteration: adjustedFinalEffectiveIteration,
+                iteration: finalEffectiveIteration,
                 projectName: identity.projectName,
                 projectPath: identity.projectPath,
                 projectBankPath,
@@ -272,7 +231,7 @@ const registerCreateLikeTool = (
               })
             : "Project Memory Bank already exists for this repository and is ready.";
       const creationPrompt =
-        adjustedFinalEffectiveIteration === 0
+        finalEffectiveIteration === 0
           ? buildCreateBankPrompt({
               projectName: identity.projectName,
               projectPath: identity.projectPath,
@@ -295,7 +254,7 @@ const registerCreateLikeTool = (
         skillsDirectory,
         detectedStacks: projectContext.detectedStacks,
         phase: finalPhase,
-        iteration: adjustedFinalEffectiveIteration,
+        iteration: finalEffectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
         currentBankSnapshot,
         selectedReferenceProjects,

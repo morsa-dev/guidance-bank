@@ -1,12 +1,4 @@
-import {
-  createProjectBankState,
-  markProjectBankSynced,
-  setProjectBankCreateIteration,
-  setProjectBankSourceStrategies,
-} from "../../core/bank/project.js";
-import type { ProjectBankManifest, ProjectBankState, ProjectCreationState } from "../../core/bank/types.js";
 import type { CreateFlowPhase } from "../../core/projects/createFlowPhases.js";
-import type { ConfirmedGuidanceSourceStrategy } from "../../core/projects/guidanceStrategies.js";
 import type { CreateBankApplyResults } from "./createBankApply.js";
 import type { CreateBankArgs } from "./createBankToolSchemas.js";
 
@@ -109,47 +101,6 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   return null;
-};
-
-export const resolveNextCreateBankState = ({
-  existingManifest,
-  existingState,
-  shouldTrackCreateFlow,
-  nextCreationState,
-  manifestStorageVersion,
-  effectiveIteration,
-  confirmedSourceStrategies,
-}: {
-  existingManifest: ProjectBankManifest | null;
-  existingState: ProjectBankState | null;
-  shouldTrackCreateFlow: boolean;
-  nextCreationState: ProjectCreationState;
-  manifestStorageVersion: number;
-  effectiveIteration: number;
-  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
-}): ProjectBankState => {
-  let nextState = existingState;
-
-  if (existingManifest === null) {
-    nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifestStorageVersion);
-  } else if (nextState === null) {
-    nextState = createProjectBankState(nextCreationState);
-  } else if (shouldTrackCreateFlow) {
-    nextState = {
-      ...nextState,
-      creationState: nextCreationState,
-    };
-  }
-
-  if (shouldTrackCreateFlow) {
-    nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
-    nextState = setProjectBankSourceStrategies(
-      nextState,
-      nextCreationState === "ready" ? [] : confirmedSourceStrategies,
-    );
-  }
-
-  return nextState;
 };
 
 const hasAppliedChanges = (applyResults: CreateBankApplyResults): boolean =>

@@ -1,8 +1,19 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../bank/lifecycle.js";
-import type { ProjectCreationState } from "../bank/types.js";
+import {
+  createProjectBankState,
+  markProjectBankSynced,
+  setProjectBankCreateIteration,
+  setProjectBankSourceStrategies,
+} from "../bank/project.js";
+import type { ProjectBankState, ProjectCreationState } from "../bank/types.js";
 import { detectProjectContext } from "../context/detectProjectContext.js";
-import { getNextCreateFlowIteration, isCreateFlowComplete, requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
+import {
+  getCreateFlowPhase,
+  getNextCreateFlowIteration,
+  isCreateFlowComplete,
+  requiresCreateFlowStepOutcome,
+} from "./createFlowPhases.js";
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
@@ -30,7 +41,7 @@ type ResolveCreateBankFlowContextOptions = {
   sourceReviewDecision?: SourceReviewDecision;
 };
 
-type ResolvedCreateBankFlowContext = {
+export type ResolvedCreateBankFlowContext = {
   identity: ReturnType<typeof resolveProjectIdentity>;
   manifestStorageVersion: number;
   projectContext: Awaited<ReturnType<typeof detectProjectContext>>;
@@ -54,6 +65,132 @@ type ResolvedCreateBankFlowContext = {
   completedFlowThisCall: boolean;
   extendedContext: CreateBankExtendedContext;
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
+};
+
+type CreateBankApplyOutcome = {
+  writes: Array<{ status: "created" | "updated" | "conflict" }>;
+  deletions: Array<{ status: "deleted" | "not_found" | "conflict" }>;
+};
+
+export const resolveNextCreateBankState = ({
+  existingManifest,
+  existingState,
+  shouldTrackCreateFlow,
+  nextCreationState,
+  manifestStorageVersion,
+  effectiveIteration,
+  confirmedSourceStrategies,
+}: {
+  existingManifest: ResolvedCreateBankFlowContext["existingManifest"];
+  existingState: ProjectBankState | null;
+  shouldTrackCreateFlow: boolean;
+  nextCreationState: ProjectCreationState;
+  manifestStorageVersion: number;
+  effectiveIteration: number;
+  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
+}): ProjectBankState => {
+  let nextState = existingState;
+
+  if (existingManifest === null) {
+    nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifestStorageVersion);
+  } else if (nextState === null) {
+    nextState = createProjectBankState(nextCreationState);
+  } else if (shouldTrackCreateFlow) {
+    nextState = {
+      ...nextState,
+      creationState: nextCreationState,
+    };
+  }
+
+  if (shouldTrackCreateFlow) {
+    nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
+    nextState = setProjectBankSourceStrategies(
+      nextState,
+      nextCreationState === "ready" ? [] : confirmedSourceStrategies,
+    );
+  }
+
+  return nextState;
+};
+
+export const finalizeCreateBankExecution = ({
+  flowContext,
+  requestedIteration,
+  stepCompleted,
+  stepOutcome,
+  stepOutcomeNote,
+  applyResults,
+}: {
+  flowContext: ResolvedCreateBankFlowContext;
+  requestedIteration: number;
+  stepCompleted: boolean;
+  stepOutcome: "applied" | "no_changes" | null;
+  stepOutcomeNote: string | null;
+  applyResults: CreateBankApplyOutcome;
+}) => {
+  const hasAppliedChanges = applyResults.writes.length > 0 || applyResults.deletions.length > 0;
+  const hasApplyConflicts =
+    applyResults.writes.some((item) => item.status === "conflict") ||
+    applyResults.deletions.some((item) => item.status === "conflict");
+  const {
+    effectiveIteration: resolvedEffectiveIteration,
+    stepCompletionRequired,
+    stepOutcomeRequired,
+  } = resolveCreateFlowProgress({
+    storedIteration: flowContext.existingState?.createIteration ?? null,
+    requestedIteration,
+    stepCompleted,
+    stepOutcomeSatisfied:
+      (hasAppliedChanges && !hasApplyConflicts) ||
+      stepOutcome === "applied" ||
+      (stepOutcome === "no_changes" && stepOutcomeNote !== null),
+  });
+  const effectiveIteration = flowContext.sourceStrategyRequired
+    ? flowContext.existingState?.createIteration ?? resolvedEffectiveIteration
+    : resolvedEffectiveIteration;
+  const phase = flowContext.syncRequired
+    ? "sync_required"
+    : flowContext.improvementEntryPoint
+      ? "ready_to_improve"
+      : getCreateFlowPhase(effectiveIteration);
+  const isFlowComplete = isCreateFlowComplete(effectiveIteration);
+  const nextCreationState = flowContext.shouldTrackCreateFlow
+    ? (isFlowComplete ? "ready" : "creating")
+    : "ready";
+  const mustContinue =
+    !flowContext.syncRequired &&
+    (nextCreationState === "creating" ||
+      (flowContext.lifecycleStatus === "ready" && effectiveIteration > 0 && !isFlowComplete));
+  const nextIteration = flowContext.syncRequired
+    ? null
+    : flowContext.improvementEntryPoint
+      ? 1
+      : mustContinue
+        ? getNextCreateFlowIteration(effectiveIteration)
+        : null;
+  const completedFlowThisCall =
+    !mustContinue && flowContext.existingState?.creationState === "creating" && isFlowComplete;
+  const nextState = resolveNextCreateBankState({
+    existingManifest: flowContext.existingManifest,
+    existingState: flowContext.existingState,
+    shouldTrackCreateFlow: flowContext.shouldTrackCreateFlow,
+    nextCreationState,
+    manifestStorageVersion: flowContext.manifestStorageVersion,
+    effectiveIteration,
+    confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
+  });
+
+  return {
+    effectiveIteration,
+    phase,
+    stepCompletionRequired,
+    stepOutcomeRequired,
+    nextCreationState,
+    mustContinue,
+    nextIteration,
+    completedFlowThisCall,
+    nextState,
+  };
 };
 
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
@@ -222,13 +359,6 @@ export const resolveCreateBankFlowContext = async ({
     !syncRequired &&
     (nextCreationState === "creating" ||
       (lifecycleStatus === "ready" && effectiveIteration > 0 && !isFlowComplete));
-  const nextIteration = syncRequired
-    ? null
-    : improvementEntryPoint
-      ? 1
-      : mustContinue
-        ? getNextCreateFlowIteration(effectiveIteration)
-        : null;
   const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
   const extendedContext = await loadExtendedCreateBankContext(
     repository,
