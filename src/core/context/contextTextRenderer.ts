@@ -75,19 +75,27 @@ ${renderCatalogSection("Skill Catalog", skillsCatalog)}`;
 
 export const buildMissingContextText = ({
   referenceProjectPaths,
+  creationState,
 }: {
   referenceProjectPaths: readonly string[];
+  creationState: "unknown" | "postponed";
 }): string => {
   const referenceSection =
     referenceProjectPaths.length > 0
       ? `\n\nBefore creating a new project Memory Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
       : "";
 
-  return `No project Memory Bank exists for this repository yet. Before doing substantial project-specific work, ask the user a short direct question such as: "Create a project Memory Bank for this repository now, or skip it for now?"${referenceSection}
+  const userInteractionSection =
+    creationState === "postponed"
+      ? `No project Memory Bank exists for this repository yet, and Memory Bank creation was previously postponed. Continue the current task normally and do not interrupt the user just to ask again. If the user explicitly asks for Memory Bank setup or project-bank editing, call \`create_bank\`.`
+      : `No project Memory Bank exists for this repository yet. Continue the current task normally; do not interrupt the user just to ask about Memory Bank creation. If it fits naturally after your current useful response, add one short note that a project Memory Bank can be created now or postponed for later.`;
+
+  return `${userInteractionSection}${referenceSection}
 
 Internal next steps after the user answers:
 - If the user wants to create it, call \`create_bank\`.
-- If the user does not want to create it, record that choice with \`set_project_state\` using \`creationState: "declined"\`.
+- If the user wants to postpone the question for later, record that choice with \`set_project_state\` using \`creationState: "postponed"\`.
+- If the user does not want to be asked again, record that choice with \`set_project_state\` using \`creationState: "declined"\`.
 - After the user decision is recorded, call \`resolve_context\` again.`;
 };
 

@@ -65,6 +65,7 @@ export type ResolvedMemoryBankContext = {
   text: string;
   creationState?: ProjectCreationState;
   requiredAction?: "create_bank" | "continue_create_bank" | "sync_bank";
+  recommendedAction?: "create_bank";
   createFlowPhase?: CreateFlowPhase;
   nextIteration?: number;
   detectedStacks?: DetectableStack[];

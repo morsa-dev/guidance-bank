@@ -83,9 +83,11 @@ test("resolve_context returns missing status when no project bank exists", async
   );
 
   assert.match(structured.text, /No project Memory Bank exists for this repository yet/i);
-  assert.match(structured.text, /Create a project Memory Bank for this repository now, or skip it for now\?/i);
+  assert.match(structured.text, /Continue the current task normally/i);
+  assert.match(structured.text, /do not interrupt the user just to ask about Memory Bank creation/i);
   assert.match(structured.text, /call `create_bank`/i);
-  assert.match(structured.text, /record that choice with `set_project_state`/i);
+  assert.match(structured.text, /creationState: "postponed"/i);
+  assert.match(structured.text, /creationState: "declined"/i);
   assert.match(structured.text, /call `resolve_context` again/i);
   assert.equal(structured.referenceProjects?.length ?? 0, 0);
 
@@ -125,7 +127,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
     { projectPath: projectRoot },
     z.object({
       text: z.string(),
-      creationState: z.enum(["unknown", "declined", "creating", "ready"]).optional(),
+      creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
       detectedStacks: z.array(z.string()).optional(),
       alwaysOnRules: z
         .array(
@@ -206,7 +208,7 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
   assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /shared\/preferences\/legacy-rule\.md/i);
 });
 
-test("set_project_state persists declined creation and resolve_context stops asking again", async (t) => {
+test("set_project_state persists postponed creation and resolve_context stops prompting proactively for missing banks", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -217,29 +219,24 @@ test("set_project_state persists declined creation and resolve_context stops ask
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
 
-  await callToolStructured(
-    client,
-    "create_bank",
-    { projectPath: projectRoot },
-    z.object({ projectId: z.string() }),
-  );
-
   const stateStructured = await callToolStructured(
     client,
     "set_project_state",
-    { projectPath: projectRoot, creationState: "declined" },
+    { projectPath: projectRoot, creationState: "postponed" },
     z.object({
-      creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+      creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
     }),
   );
-  assert.equal(stateStructured.creationState, "declined");
+  assert.equal(stateStructured.creationState, "postponed");
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
-  assert.equal(resolveStructured.creationState, "declined");
+  assert.equal(resolveStructured.creationState, "postponed");
   assert.equal(resolveStructured.requiredAction, undefined);
-  assert.match(resolveStructured.text, /Project Memory Bank creation was previously declined/i);
-  assert.match(resolveStructured.text, /Do not ask again/i);
+  assert.equal(resolveStructured.recommendedAction, "create_bank");
+  assert.match(resolveStructured.text, /Memory Bank creation was previously postponed/i);
+  assert.match(resolveStructured.text, /Continue the current task normally/i);
+  assert.doesNotMatch(resolveStructured.text, /ask the user a short direct question/i);
 });
 
 test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {
@@ -262,7 +259,7 @@ test("sync_bank runs explicit reconcile and reports the current bank summary", a
       bankRoot: z.string(),
       action: z.enum(["run", "postpone"]),
       projectPath: z.string(),
-      projectState: z.enum(["unknown", "declined", "creating", "ready"]),
+      projectState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
       externalGuidanceSources: z.array(
         z.object({
           kind: z.string(),
@@ -311,7 +308,7 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
     z.object({
       action: z.enum(["run", "postpone"]),
       postponedUntil: z.string().nullable(),
-      projectState: z.enum(["unknown", "declined", "creating", "ready"]),
+      projectState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
     }),
   );
 

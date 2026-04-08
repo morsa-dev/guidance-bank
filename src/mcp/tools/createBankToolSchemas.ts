@@ -231,7 +231,7 @@ export const CreateBankOutputShape = {
       sharedStacks: z.array(z.string()),
     }),
   ),
-  creationState: z.enum(["unknown", "declined", "creating", "ready"]),
+  creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
   confirmedSourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema),
   stepCompletionRequired: z.boolean(),
   sourceStrategyRequired: z.boolean(),

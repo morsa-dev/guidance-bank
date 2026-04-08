@@ -66,22 +66,24 @@ export const resolveMemoryBankContext = async ({
       currentProjectId: identity.projectId,
       detectedStacks: detectedProjectContext.detectedStacks,
     });
+    const creationState = projectState?.creationState === "postponed" ? "postponed" : "unknown";
 
     const text = buildMissingContextText({
       referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
+      creationState,
     });
 
     return referenceProjects.length > 0
       ? {
           text,
-          creationState: projectState?.creationState ?? "unknown",
-          requiredAction: "create_bank",
+          creationState,
+          recommendedAction: "create_bank",
           referenceProjects,
         }
       : {
           text,
-          creationState: projectState?.creationState ?? "unknown",
-          requiredAction: "create_bank",
+          creationState,
+          recommendedAction: "create_bank",
         };
   }
 

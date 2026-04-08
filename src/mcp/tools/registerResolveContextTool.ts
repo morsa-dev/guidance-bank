@@ -32,8 +32,9 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       },
       outputSchema: {
         text: z.string(),
-        creationState: z.enum(["unknown", "declined", "creating", "ready"]).optional(),
+        creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
         requiredAction: z.enum(["create_bank", "continue_create_bank", "sync_bank"]).optional(),
+        recommendedAction: z.enum(["create_bank"]).optional(),
         createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
         detectedStacks: z.array(z.string()).optional(),
@@ -121,6 +122,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
           details: {
             creationState: resolvedContext.creationState ?? null,
             requiredAction: resolvedContext.requiredAction ?? null,
+            recommendedAction: resolvedContext.recommendedAction ?? null,
             createFlowPhase: resolvedContext.createFlowPhase ?? null,
           },
         });

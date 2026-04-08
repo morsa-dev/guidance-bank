@@ -36,7 +36,7 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
         bankRoot: z.string(),
         projectPath: z.string(),
         detectedStacks: z.array(z.string()),
-        projectState: z.enum(["unknown", "declined", "creating", "ready"]),
+        projectState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
         postponedUntil: z.string().nullable(),
         projectManifestUpdated: z.boolean(),
         validatedEntries: z.object({

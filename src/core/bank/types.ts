@@ -8,7 +8,7 @@ export const ENTRY_KINDS = ["rules", "skills"] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
 export const ENTRY_SCOPES = ["shared", "project"] as const;
 export type EntryScope = (typeof ENTRY_SCOPES)[number];
-export const PROJECT_CREATION_STATES = ["unknown", "declined", "creating", "ready"] as const;
+export const PROJECT_CREATION_STATES = ["unknown", "postponed", "declined", "creating", "ready"] as const;
 export type ProjectCreationState = (typeof PROJECT_CREATION_STATES)[number];
 
 export type MemoryBankManifest = {

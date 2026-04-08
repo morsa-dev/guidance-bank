@@ -9,13 +9,22 @@ import {
 } from "../src/core/bank/lifecycle.js";
 import { createProjectBankManifest, createProjectBankState } from "../src/core/bank/project.js";
 
-test("project bank lifecycle resolves missing declined creating sync_required and ready states", () => {
+test("project bank lifecycle resolves missing postponed declined creating sync_required and ready states", () => {
   const projectManifest = createProjectBankManifest("demo", "Demo", "/tmp/demo", [], new Date("2026-04-01T00:00:00.000Z"));
 
   assert.equal(
     resolveProjectBankLifecycleStatus({
       projectManifest: null,
       projectState: null,
+      expectedStorageVersion: 1,
+    }),
+    "missing",
+  );
+
+  assert.equal(
+    resolveProjectBankLifecycleStatus({
+      projectManifest: null,
+      projectState: createProjectBankState("postponed"),
       expectedStorageVersion: 1,
     }),
     "missing",
