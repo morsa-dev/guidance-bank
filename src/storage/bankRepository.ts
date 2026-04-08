@@ -1,10 +1,8 @@
 import path from "node:path";
 
-import { parseCanonicalRuleDocument, parseCanonicalSkillDocument } from "../core/bank/canonicalEntry.js";
 import { parseProviderIntegrationDescriptor } from "../core/bank/integration.js";
 import { createStarterFiles, resolveBankPaths } from "../core/bank/layout.js";
 import { parseManifest } from "../core/bank/manifest.js";
-import { parseProjectBankManifest, parseProjectBankState } from "../core/bank/project.js";
 import type {
   EntryKind,
   EntryScope,
@@ -16,26 +14,25 @@ import type {
   ProviderId,
   ProviderIntegrationDescriptor,
 } from "../core/bank/types.js";
-import { ValidationError } from "../shared/errors.js";
 import {
-  deleteManagedDirectory,
-  deleteManagedFile,
   ensureManagedDirectory,
-  listManagedChildDirectories,
-  listManagedFilesRecursively,
   managedPathExists,
   readManagedJsonFile,
-  readManagedTextFile,
-  writeManagedTextFile,
   writeManagedJsonFile,
   writeManagedTextFileIfMissing,
 } from "./safeFs.js";
+import { EntryStore } from "./entryStore.js";
+import { ProjectBankStore } from "./projectBankStore.js";
 
 export class BankRepository {
   readonly paths: ReturnType<typeof resolveBankPaths>;
+  private readonly projectBanks: ProjectBankStore;
+  private readonly entries: EntryStore;
 
   constructor(readonly rootPath: string) {
     this.paths = resolveBankPaths(rootPath);
+    this.projectBanks = new ProjectBankStore(rootPath, this.paths);
+    this.entries = new EntryStore(rootPath, this.paths);
   }
 
   // TODO: Multi-agent concurrency is still last-write-wins at the entry level.
@@ -64,12 +61,7 @@ export class BankRepository {
   }
 
   async ensureProjectStructure(projectId: string): Promise<void> {
-    await ensureManagedDirectory(this.rootPath, this.paths.projectDirectory(projectId));
-    await ensureManagedDirectory(this.rootPath, this.paths.projectRulesDirectory(projectId));
-    await ensureManagedDirectory(this.rootPath, this.paths.projectSkillsDirectory(projectId));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "core"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "stacks"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "topics"));
+    await this.projectBanks.ensureProjectStructure(projectId);
   }
 
   async hasManifest(): Promise<boolean> {
@@ -115,78 +107,33 @@ export class BankRepository {
   }
 
   async writeProjectManifest(projectId: string, manifest: ProjectBankManifest): Promise<void> {
-    await this.ensureProjectStructure(projectId);
-    await writeManagedJsonFile(this.rootPath, this.paths.projectManifestFile(projectId), manifest);
+    await this.projectBanks.writeProjectManifest(projectId, manifest);
   }
 
   async readProjectManifestOptional(projectId: string): Promise<ProjectBankManifest | null> {
-    const manifestFilePath = this.paths.projectManifestFile(projectId);
-    if (!(await managedPathExists(this.rootPath, manifestFilePath))) {
-      return null;
-    }
-
-    const manifest = await readManagedJsonFile<unknown>(this.rootPath, manifestFilePath);
-    return parseProjectBankManifest(manifest);
+    return this.projectBanks.readProjectManifestOptional(projectId);
   }
 
   async listProjectManifests(): Promise<ProjectBankManifest[]> {
-    const projectDirectoryPaths = await listManagedChildDirectories(this.rootPath, this.paths.projectsDirectory);
-    const manifests = await Promise.all(
-      projectDirectoryPaths.map(async (projectDirectoryPath) => {
-        const projectId = path.basename(projectDirectoryPath);
-        return this.readProjectManifestOptional(projectId);
-      }),
-    );
-
-    return manifests.filter((manifest): manifest is ProjectBankManifest => manifest !== null);
+    return this.projectBanks.listProjectManifests();
   }
 
   async writeProjectState(projectId: string, state: ProjectBankState): Promise<void> {
-    await this.ensureProjectStructure(projectId);
-    await writeManagedJsonFile(this.rootPath, this.paths.projectStateFile(projectId), state);
+    await this.projectBanks.writeProjectState(projectId, state);
   }
 
   async readProjectStateOptional(projectId: string): Promise<ProjectBankState | null> {
-    const stateFilePath = this.paths.projectStateFile(projectId);
-    if (!(await managedPathExists(this.rootPath, stateFilePath))) {
-      return null;
-    }
-
-    const state = await readManagedJsonFile<unknown>(this.rootPath, stateFilePath);
-    return parseProjectBankState(state);
+    return this.projectBanks.readProjectStateOptional(projectId);
   }
 
   async deleteProjectBank(projectId: string): Promise<boolean> {
-    const deleted = await deleteManagedDirectory(this.rootPath, this.paths.projectDirectory(projectId));
+    const deleted = await this.projectBanks.deleteProjectBank(projectId);
 
     if (deleted) {
       await this.touchManifest();
     }
 
     return deleted;
-  }
-
-  private resolveEntryBasePath(kind: EntryKind, layer: EntryScope, projectId?: string): string {
-    if (layer === "shared") {
-      return kind === "rules" ? this.paths.sharedRulesDirectory : this.paths.sharedSkillsDirectory;
-    }
-
-    if (!projectId) {
-      throw new ValidationError("Project id is required for project-layer entries.");
-    }
-
-    return kind === "rules" ? this.paths.projectRulesDirectory(projectId) : this.paths.projectSkillsDirectory(projectId);
-  }
-
-  private resolvePathWithinEntryBase(basePath: string, relativePath: string): string {
-    const resolvedPath = path.resolve(basePath, relativePath);
-    const normalizedRelativePath = path.relative(basePath, resolvedPath);
-
-    if (normalizedRelativePath.startsWith("..") || path.isAbsolute(normalizedRelativePath)) {
-      throw new ValidationError(`Entry path escapes ${path.basename(basePath)}: ${relativePath}`);
-    }
-
-    return resolvedPath;
   }
 
   async listEntries(kind: EntryKind, groupPath?: string): Promise<ListedEntry[]> {
@@ -199,13 +146,7 @@ export class BankRepository {
     projectId?: string,
     groupPath?: string,
   ): Promise<ListedEntry[]> {
-    const basePath = this.resolveEntryBasePath(kind, layer, projectId);
-    const resolvedBasePath = groupPath ? this.resolvePathWithinEntryBase(basePath, groupPath) : basePath;
-    const filePaths = await listManagedFilesRecursively(this.rootPath, resolvedBasePath);
-
-    return filePaths.map((filePath) => ({
-      path: path.relative(basePath, filePath),
-    }));
+    return this.entries.listLayerEntries(layer, kind, projectId, groupPath);
   }
 
   async readEntry(kind: EntryKind, entryPath: string): Promise<string> {
@@ -213,14 +154,7 @@ export class BankRepository {
   }
 
   async readLayerEntry(layer: EntryScope, kind: EntryKind, entryPath: string, projectId?: string): Promise<string> {
-    const basePath = this.resolveEntryBasePath(kind, layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
-
-    if (!(await managedPathExists(this.rootPath, resolvedEntryPath))) {
-      throw new ValidationError(`Entry not found: ${kind}/${entryPath}`);
-    }
-
-    return readManagedTextFile(this.rootPath, resolvedEntryPath);
+    return this.entries.readLayerEntry(layer, kind, entryPath, projectId);
   }
 
   async readLayerEntryOptional(
@@ -229,14 +163,7 @@ export class BankRepository {
     entryPath: string,
     projectId?: string,
   ): Promise<string | null> {
-    const basePath = this.resolveEntryBasePath(kind, layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
-
-    if (!(await managedPathExists(this.rootPath, resolvedEntryPath))) {
-      return null;
-    }
-
-    return readManagedTextFile(this.rootPath, resolvedEntryPath);
+    return this.entries.readLayerEntryOptional(layer, kind, entryPath, projectId);
   }
 
   private async touchManifest(): Promise<void> {
@@ -263,60 +190,19 @@ export class BankRepository {
     });
   }
 
-  private validateRuleEntryPath(entryPath: string): void {
-    const normalizedPath = entryPath.replaceAll("\\", "/").trim();
-
-    if (!normalizedPath.endsWith(".md")) {
-      throw new ValidationError("Rule path must end with .md.");
-    }
-
-    if (path.posix.basename(normalizedPath).toLowerCase() === "skill.md") {
-      throw new ValidationError("Rule path cannot target SKILL.md.");
-    }
-  }
-
-  private normalizeSkillPath(skillPath: string): string {
-    const trimmedPath = skillPath.replaceAll("\\", "/").trim().replace(/\/+$/u, "");
-    const lowerCasePath = trimmedPath.toLowerCase();
-
-    if (trimmedPath.length === 0) {
-      throw new ValidationError("Skill path must not be empty.");
-    }
-
-    if (lowerCasePath === "skill.md") {
-      throw new ValidationError("Skill path must reference a skill folder, not SKILL.md directly.");
-    }
-
-    if (lowerCasePath.endsWith("/skill.md")) {
-      return trimmedPath.slice(0, -"/SKILL.md".length);
-    }
-
-    return trimmedPath;
-  }
-
   async upsertRule(
     layer: EntryScope,
     entryPath: string,
     content: string,
     projectId?: string,
   ): Promise<{ status: "created" | "updated"; path: string; absolutePath: string }> {
-    this.validateRuleEntryPath(entryPath);
-    parseCanonicalRuleDocument(content);
-    const basePath = this.resolveEntryBasePath("rules", layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
-    const existed = await managedPathExists(this.rootPath, resolvedEntryPath);
-
-    await writeManagedTextFile(this.rootPath, resolvedEntryPath, content);
+    const result = await this.entries.upsertRule(layer, entryPath, content, projectId);
     await this.touchManifest();
     if (layer === "project" && projectId) {
       await this.touchProjectManifest(projectId);
     }
 
-    return {
-      status: existed ? "updated" : "created",
-      path: path.relative(basePath, resolvedEntryPath),
-      absolutePath: resolvedEntryPath,
-    };
+    return result;
   }
 
   async upsertSkill(
@@ -325,25 +211,13 @@ export class BankRepository {
     content: string,
     projectId?: string,
   ): Promise<{ status: "created" | "updated"; path: string; filePath: string; absolutePath: string }> {
-    const normalizedSkillPath = this.normalizeSkillPath(skillPath);
-    parseCanonicalSkillDocument(content);
-    const basePath = this.resolveEntryBasePath("skills", layer, projectId);
-    const resolvedSkillDirectory = this.resolvePathWithinEntryBase(basePath, normalizedSkillPath);
-    const resolvedEntryPath = path.join(resolvedSkillDirectory, "SKILL.md");
-    const existed = await managedPathExists(this.rootPath, resolvedEntryPath);
-
-    await writeManagedTextFile(this.rootPath, resolvedEntryPath, content);
+    const result = await this.entries.upsertSkill(layer, skillPath, content, projectId);
     await this.touchManifest();
     if (layer === "project" && projectId) {
       await this.touchProjectManifest(projectId);
     }
 
-    return {
-      status: existed ? "updated" : "created",
-      path: path.relative(basePath, resolvedSkillDirectory),
-      filePath: path.relative(basePath, resolvedEntryPath),
-      absolutePath: resolvedEntryPath,
-    };
+    return result;
   }
 
   async deleteRule(
@@ -351,22 +225,16 @@ export class BankRepository {
     entryPath: string,
     projectId?: string,
   ): Promise<{ status: "deleted" | "not_found"; path: string }> {
-    this.validateRuleEntryPath(entryPath);
-    const basePath = this.resolveEntryBasePath("rules", layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
-    const deleted = await deleteManagedFile(this.rootPath, resolvedEntryPath);
+    const result = await this.entries.deleteRule(layer, entryPath, projectId);
 
-    if (deleted) {
+    if (result.status === "deleted") {
       await this.touchManifest();
       if (layer === "project" && projectId) {
         await this.touchProjectManifest(projectId);
       }
     }
 
-    return {
-      status: deleted ? "deleted" : "not_found",
-      path: path.relative(basePath, resolvedEntryPath),
-    };
+    return result;
   }
 
   async deleteSkill(
@@ -374,21 +242,15 @@ export class BankRepository {
     skillPath: string,
     projectId?: string,
   ): Promise<{ status: "deleted" | "not_found"; path: string }> {
-    const normalizedSkillPath = this.normalizeSkillPath(skillPath);
-    const basePath = this.resolveEntryBasePath("skills", layer, projectId);
-    const resolvedSkillDirectory = this.resolvePathWithinEntryBase(basePath, normalizedSkillPath);
-    const deleted = await deleteManagedDirectory(this.rootPath, resolvedSkillDirectory);
+    const result = await this.entries.deleteSkill(layer, skillPath, projectId);
 
-    if (deleted) {
+    if (result.status === "deleted") {
       await this.touchManifest();
       if (layer === "project" && projectId) {
         await this.touchProjectManifest(projectId);
       }
     }
 
-    return {
-      status: deleted ? "deleted" : "not_found",
-      path: path.relative(basePath, resolvedSkillDirectory),
-    };
+    return result;
   }
 }
