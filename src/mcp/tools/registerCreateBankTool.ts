@@ -116,6 +116,7 @@ const registerCreateLikeTool = (
           effectiveIteration,
           stepCompletionRequired,
           sourceStrategyRequired,
+          stepOutcomeRequired,
         )
       ) {
         console.warn(

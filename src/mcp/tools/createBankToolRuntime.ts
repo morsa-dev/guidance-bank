@@ -8,6 +8,7 @@ export const shouldWarnAboutIterationMismatch = (
   effectiveIteration: number,
   stepCompletionRequired: boolean,
   sourceStrategyRequired: boolean,
+  stepOutcomeRequired: boolean,
 ): boolean => {
   if (storedIteration === null) {
     return false;
@@ -18,6 +19,14 @@ export const shouldWarnAboutIterationMismatch = (
   }
 
   if (sourceStrategyRequired) {
+    return false;
+  }
+
+  if (stepOutcomeRequired) {
+    return false;
+  }
+
+  if (requestedIteration === storedIteration + 1 && effectiveIteration === storedIteration) {
     return false;
   }
 
