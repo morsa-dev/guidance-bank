@@ -1,5 +1,8 @@
 import type { ResolvedContextCatalogEntry, ResolvedContextInlineRule } from "./types.js";
 
+const renderScopedEntryPath = (scope: "shared" | "project", entryPath: string): string =>
+  entryPath.startsWith(`${scope}/`) ? entryPath : `${scope}/${entryPath}`;
+
 const renderAlwaysOnRules = (rules: readonly ResolvedContextInlineRule[]): string => {
   if (rules.length === 0) {
     return `## Always-On Rules
@@ -8,7 +11,7 @@ No always-on rules matched for this repository.`;
   }
 
   const blocks = rules.map(
-    (rule) => `### ${rule.scope}/${rule.path}
+    (rule) => `### ${renderScopedEntryPath(rule.scope, rule.path)}
 
 ${rule.content.trim()}`,
   );
@@ -23,7 +26,7 @@ const renderCatalogEntry = (entry: ResolvedContextCatalogEntry): string => {
   const topics = entry.topics.length > 0 ? `topics: ${entry.topics.join(", ")}` : "topics: none";
   const detail = entry.kind === "skills" ? entry.description ?? "No description." : entry.preview ?? "No preview.";
 
-  return `- ${entry.scope}/${entry.path} (${entry.id}) — ${entry.title}. ${stacks}; ${topics}. ${detail}`;
+  return `- ${renderScopedEntryPath(entry.scope, entry.path)} (${entry.id}) — ${entry.title}. ${stacks}; ${topics}. ${detail}`;
 };
 
 const renderCatalogSection = (title: string, entries: readonly ResolvedContextCatalogEntry[]): string => {

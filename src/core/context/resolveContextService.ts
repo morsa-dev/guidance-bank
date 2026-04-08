@@ -11,6 +11,7 @@ import { resolveProjectIdentity } from "../projects/identity.js";
 import {
   assertUniqueResolvedEntryIds,
   buildResolvedContextCatalog,
+  excludeAlwaysOnRules,
   loadResolvedContextEntries,
   mergeResolvedLayerEntries,
   selectAlwaysOnRules,
@@ -128,7 +129,7 @@ export const resolveMemoryBankContext = async ({
   const mergedRules = mergeResolvedLayerEntries(sharedRules, projectRules);
   const mergedSkills = mergeResolvedLayerEntries(sharedSkills, projectSkills);
   const alwaysOnRules = selectAlwaysOnRules(mergedRules);
-  const rulesCatalog = buildResolvedContextCatalog("rules", mergedRules);
+  const rulesCatalog = buildResolvedContextCatalog("rules", excludeAlwaysOnRules(mergedRules));
   const skillsCatalog = buildResolvedContextCatalog("skills", mergedSkills);
 
   return {
@@ -141,7 +142,6 @@ export const resolveMemoryBankContext = async ({
     }),
     creationState: "ready",
     detectedStacks: detectedProjectContext.detectedStacks,
-    alwaysOnRules,
     rulesCatalog,
     skillsCatalog,
   };

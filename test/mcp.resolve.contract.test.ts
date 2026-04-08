@@ -129,18 +129,6 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
       text: z.string(),
       creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
       detectedStacks: z.array(z.string()).optional(),
-      alwaysOnRules: z
-        .array(
-          z.object({
-            scope: z.enum(["shared", "project"]),
-            path: z.string(),
-            id: z.string(),
-            title: z.string(),
-            topics: z.array(z.string()),
-            content: z.string(),
-          }),
-        )
-        .optional(),
       rulesCatalog: z
         .array(
           z.object({
@@ -179,9 +167,8 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   assert.match(structured.text, /Rule Catalog/i);
   assert.match(structured.text, /Skill Catalog/i);
   assert.match(structured.text, /call `read_entry` when you need the full canonical document/i);
-  assert.equal(structured.alwaysOnRules?.some((entry) => entry.path === "preferences/user-praise.md"), true);
-  assert.equal(structured.alwaysOnRules?.some((entry) => entry.content.includes("[Ты хорош]")), true);
-  assert.equal(structured.rulesCatalog?.some((entry) => entry.path === "preferences/user-praise.md"), true);
+  assert.match(structured.text, /\[Ты хорош\]/);
+  assert.equal(structured.rulesCatalog?.some((entry) => entry.path === "preferences/user-praise.md"), false);
 });
 
 test("resolve_context returns a tool error for non-canonical bank entries", async (t) => {

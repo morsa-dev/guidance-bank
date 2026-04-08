@@ -173,6 +173,9 @@ export const selectAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): R
       content: entry.content,
     }));
 
+export const excludeAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): ResolvedContextEntry[] =>
+  entries.filter((entry) => !(entry.metadata.kind === "rule" && entry.metadata.stacks.length === 0));
+
 export const buildResolvedContextCatalog = (
   kind: "rules" | "skills",
   entries: readonly ResolvedContextEntry[],

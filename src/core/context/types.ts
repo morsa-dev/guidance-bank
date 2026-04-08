@@ -69,7 +69,6 @@ export type ResolvedMemoryBankContext = {
   createFlowPhase?: CreateFlowPhase;
   nextIteration?: number;
   detectedStacks?: DetectableStack[];
-  alwaysOnRules?: ResolvedContextInlineRule[];
   rulesCatalog?: ResolvedContextCatalogEntry[];
   skillsCatalog?: ResolvedContextCatalogEntry[];
   referenceProjects?: ReferenceProjectCandidate[];

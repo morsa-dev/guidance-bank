@@ -38,18 +38,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
         detectedStacks: z.array(z.string()).optional(),
-        alwaysOnRules: z
-          .array(
-            z.object({
-              scope: z.enum(["shared", "project"]),
-              path: z.string(),
-              id: z.string(),
-              title: z.string(),
-              topics: z.array(z.string()),
-              content: z.string(),
-            }),
-          )
-          .optional(),
         rulesCatalog: z
           .array(
             z.object({
