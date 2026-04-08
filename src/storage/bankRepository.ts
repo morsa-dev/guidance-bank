@@ -1,8 +1,6 @@
 import path from "node:path";
 
-import { parseProviderIntegrationDescriptor } from "../core/bank/integration.js";
 import { createStarterFiles, resolveBankPaths } from "../core/bank/layout.js";
-import { parseManifest } from "../core/bank/manifest.js";
 import type {
   EntryKind,
   EntryScope,
@@ -16,23 +14,26 @@ import type {
 } from "../core/bank/types.js";
 import {
   ensureManagedDirectory,
-  managedPathExists,
-  readManagedJsonFile,
-  writeManagedJsonFile,
   writeManagedTextFileIfMissing,
 } from "./safeFs.js";
 import { EntryStore } from "./entryStore.js";
+import { ManifestStore } from "./manifestStore.js";
 import { ProjectBankStore } from "./projectBankStore.js";
+import { ProviderIntegrationStore } from "./providerIntegrationStore.js";
 
 export class BankRepository {
   readonly paths: ReturnType<typeof resolveBankPaths>;
+  private readonly manifestStore: ManifestStore;
   private readonly projectBanks: ProjectBankStore;
   private readonly entries: EntryStore;
+  private readonly providerIntegrations: ProviderIntegrationStore;
 
   constructor(readonly rootPath: string) {
     this.paths = resolveBankPaths(rootPath);
+    this.manifestStore = new ManifestStore(rootPath, this.paths);
     this.projectBanks = new ProjectBankStore(rootPath, this.paths);
     this.entries = new EntryStore(rootPath, this.paths);
+    this.providerIntegrations = new ProviderIntegrationStore(rootPath, this.paths);
   }
 
   // TODO: Multi-agent concurrency is still last-write-wins at the entry level.
@@ -65,45 +66,34 @@ export class BankRepository {
   }
 
   async hasManifest(): Promise<boolean> {
-    return managedPathExists(this.rootPath, this.paths.manifestFile);
+    return this.manifestStore.hasManifest();
   }
 
   async readManifest(): Promise<MemoryBankManifest> {
-    const manifest = await readManagedJsonFile<unknown>(this.rootPath, this.paths.manifestFile);
-    return parseManifest(manifest);
+    return this.manifestStore.readManifest();
   }
 
   async readManifestOptional(): Promise<MemoryBankManifest | null> {
-    if (!(await this.hasManifest())) {
-      return null;
-    }
-
-    return this.readManifest();
+    return this.manifestStore.readManifestOptional();
   }
 
   async writeManifest(manifest: MemoryBankManifest): Promise<void> {
-    await writeManagedJsonFile(this.rootPath, this.paths.manifestFile, manifest);
+    await this.manifestStore.writeManifest(manifest);
   }
 
   async writeMcpServerConfig(config: McpServerConfig): Promise<void> {
-    await writeManagedJsonFile(this.rootPath, this.paths.mcpServerConfigFile, config);
+    await this.manifestStore.writeMcpServerConfig(config);
   }
 
   async writeProviderIntegration(
     providerId: ProviderId,
     descriptor: ProviderIntegrationDescriptor,
   ): Promise<void> {
-    await writeManagedJsonFile(this.rootPath, this.paths.integrationFile(providerId), descriptor);
+    await this.providerIntegrations.writeProviderIntegration(providerId, descriptor);
   }
 
   async readProviderIntegrationOptional(providerId: ProviderId): Promise<ProviderIntegrationDescriptor | null> {
-    const integrationFilePath = this.paths.integrationFile(providerId);
-    if (!(await managedPathExists(this.rootPath, integrationFilePath))) {
-      return null;
-    }
-
-    const descriptor = await readManagedJsonFile<unknown>(this.rootPath, integrationFilePath);
-    return parseProviderIntegrationDescriptor(descriptor);
+    return this.providerIntegrations.readProviderIntegrationOptional(providerId);
   }
 
   async writeProjectManifest(projectId: string, manifest: ProjectBankManifest): Promise<void> {
