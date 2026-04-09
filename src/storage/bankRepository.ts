@@ -20,6 +20,8 @@ import { EntryStore } from "./entryStore.js";
 import { ManifestStore } from "./manifestStore.js";
 import { ProjectBankStore } from "./projectBankStore.js";
 import { ProviderIntegrationStore } from "./providerIntegrationStore.js";
+import { AuditStore } from "./auditStore.js";
+import type { AuditEvent } from "../core/audit/types.js";
 
 export class BankRepository {
   readonly paths: ReturnType<typeof resolveBankPaths>;
@@ -27,6 +29,7 @@ export class BankRepository {
   private readonly projectBanks: ProjectBankStore;
   private readonly entries: EntryStore;
   private readonly providerIntegrations: ProviderIntegrationStore;
+  private readonly auditStore: AuditStore;
 
   constructor(readonly rootPath: string) {
     this.paths = resolveBankPaths(rootPath);
@@ -34,6 +37,7 @@ export class BankRepository {
     this.projectBanks = new ProjectBankStore(rootPath, this.paths);
     this.entries = new EntryStore(rootPath, this.paths);
     this.providerIntegrations = new ProviderIntegrationStore(rootPath, this.paths);
+    this.auditStore = new AuditStore(rootPath, this.paths);
   }
 
   // TODO: Multi-agent concurrency is still last-write-wins at the entry level.
@@ -124,6 +128,10 @@ export class BankRepository {
     }
 
     return deleted;
+  }
+
+  async readAuditEventsOptional(): Promise<AuditEvent[]> {
+    return this.auditStore.readEventsOptional();
   }
 
   async listEntries(kind: EntryKind, groupPath?: string): Promise<ListedEntry[]> {

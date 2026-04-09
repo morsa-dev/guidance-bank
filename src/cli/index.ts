@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 
 import { runInitCommand } from "./commands/init.js";
 import { runMcpServeCommand } from "./commands/mcpServe.js";
+import { runStatsCommand } from "./commands/stats.js";
 import { MbCliError } from "../shared/errors.js";
 
 type PackageJson = {
@@ -19,6 +20,7 @@ const printUsage = (): void => {
 
 Usage:
   mb init
+  mb stats [--project /absolute/project/path] [--json]
   mb mcp serve
 
 Options:
@@ -28,6 +30,14 @@ Options:
 };
 
 const main = async (): Promise<void> => {
+  const rawArgv = process.argv.slice(2);
+  const [rawCommand, rawSubcommand] = rawArgv;
+
+  if (rawCommand === "stats" && !["serve"].includes(rawSubcommand ?? "")) {
+    await runStatsCommand(rawArgv);
+    return;
+  }
+
   const parsedArgs = parseArgs({
     allowPositionals: true,
     options: {

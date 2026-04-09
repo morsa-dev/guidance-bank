@@ -45,6 +45,7 @@ After installation, the public CLI is:
 
 ```bash
 mb init
+mb stats
 mb mcp serve
 ```
 
@@ -115,6 +116,25 @@ Current MCP tools include:
 - `delete_entry`
 - `list_entries`
 - `read_entry`
+
+## Stats
+
+Use `mb stats` for a local overview of the Memory Bank state and recent audit activity.
+
+Examples:
+
+```bash
+mb stats
+mb stats --project /absolute/project/path
+mb stats --json
+```
+
+The command shows:
+
+- shared rule and skill counts
+- project bank counts and creation states
+- recent audit events
+- tool and provider activity breakdowns
 
 The important ones for normal agent work are:
 
