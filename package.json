@@ -10,7 +10,7 @@
     "LICENSE"
   ],
   "bin": {
-    "mb": "./bin/mb.js"
+    "mb": "bin/mb.js"
   },
   "engines": {
     "node": ">=22.9.0"
