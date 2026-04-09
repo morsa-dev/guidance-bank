@@ -200,11 +200,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
             scope: z.enum(["shared", "project"]),
             kind: z.literal("rules"),
             path: z.string(),
-            id: z.string(),
             title: z.string(),
-            stacks: z.array(z.string()),
             topics: z.array(z.string()),
-            preview: z.string().nullable().optional(),
+            description: z.string().nullable().optional(),
           }),
         )
         .optional(),
@@ -214,11 +212,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
             scope: z.enum(["shared", "project"]),
             kind: z.literal("skills"),
             path: z.string(),
-            id: z.string(),
             title: z.string(),
-            stacks: z.array(z.string()),
             topics: z.array(z.string()),
-            description: z.string().optional(),
+            description: z.string().nullable().optional(),
           }),
         )
         .optional(),
@@ -275,11 +271,9 @@ test("resolve_context normalizes legacy scoped skill paths and read_entry accept
             scope: z.enum(["shared", "project"]),
             kind: z.literal("skills"),
             path: z.string(),
-            id: z.string(),
             title: z.string(),
-            stacks: z.array(z.string()),
             topics: z.array(z.string()),
-            description: z.string().optional(),
+            description: z.string().nullable().optional(),
           }),
         )
         .optional(),
@@ -537,20 +531,19 @@ test("project entries override shared entries by canonical id instead of path", 
             scope: z.enum(["shared", "project"]),
             kind: z.literal("rules"),
             path: z.string(),
-            id: z.string(),
             title: z.string(),
-            stacks: z.array(z.string()),
             topics: z.array(z.string()),
-            preview: z.string().nullable().optional(),
+            description: z.string().nullable().optional(),
           }),
         )
         .optional(),
     }),
   );
-  const architectureEntries = resolved.rulesCatalog?.filter((entry) => entry.id === "architecture-boundaries") ?? [];
+  const architectureEntries =
+    resolved.rulesCatalog?.filter((entry) => entry.path === "topics/admin-architecture.md") ?? [];
   assert.equal(architectureEntries.length, 1);
   assert.equal(architectureEntries[0]?.scope, "project");
-  assert.match(architectureEntries[0]?.preview ?? "", /Project-specific architecture override\./);
+  assert.match(architectureEntries[0]?.description ?? "", /Project-specific architecture override\./);
   assert.doesNotMatch(resolved.text, /Shared baseline architecture rule\./);
 });
 

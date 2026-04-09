@@ -201,11 +201,7 @@ export const buildResolvedContextCatalog = (
     scope: entry.layer,
     kind,
     path: normalizeCatalogEntryPath(kind, entry.layer, entry.path),
-    id: entry.metadata.id,
     title: entry.metadata.title,
-    stacks: [...entry.metadata.stacks],
     topics: [...entry.metadata.topics],
-    ...(entry.metadata.kind === "skill"
-      ? { description: entry.metadata.description }
-      : { preview: toPreview(entry.content) }),
+    description: entry.metadata.kind === "skill" ? entry.metadata.description : toPreview(entry.content),
   }));

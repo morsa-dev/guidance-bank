@@ -44,12 +44,9 @@ export type ResolvedContextCatalogEntry = {
   scope: "shared" | "project";
   kind: "rules" | "skills";
   path: string;
-  id: string;
   title: string;
-  stacks: DetectableStack[];
   topics: string[];
-  description?: string;
-  preview?: string | null;
+  description?: string | null;
 };
 
 export type ReferenceProjectCandidate = {
