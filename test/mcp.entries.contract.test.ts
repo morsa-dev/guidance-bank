@@ -225,8 +225,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
     }),
   );
 
-  assert.match(resolved.text, /Rule Catalog/);
-  assert.match(resolved.text, /Skill Catalog/);
+  assert.match(resolved.text, /Catalog Summary/);
+  assert.match(resolved.text, /- Rules: \d+ entries\./i);
+  assert.match(resolved.text, /- Skills: \d+ entries\./i);
   assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/angular-architecture.md"), true);
   assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/admin-dashboard.md"), true);
   assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/component-audit/SKILL.md"), true);
@@ -524,8 +525,32 @@ test("project entries override shared entries by canonical id instead of path", 
     EntryMutationSchema,
   );
 
-  const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.match(resolved.text, /Project-specific architecture override\./);
+  const resolved = await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot },
+    z.object({
+      text: z.string(),
+      rulesCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("rules"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            preview: z.string().nullable().optional(),
+          }),
+        )
+        .optional(),
+    }),
+  );
+  const architectureEntries = resolved.rulesCatalog?.filter((entry) => entry.id === "architecture-boundaries") ?? [];
+  assert.equal(architectureEntries.length, 1);
+  assert.equal(architectureEntries[0]?.scope, "project");
+  assert.match(architectureEntries[0]?.preview ?? "", /Project-specific architecture override\./);
   assert.doesNotMatch(resolved.text, /Shared baseline architecture rule\./);
 });
 

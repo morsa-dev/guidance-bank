@@ -164,8 +164,9 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
   assert.ok(structured.detectedStacks?.includes("nodejs"));
   assert.match(structured.text, /Memory Bank context catalog/i);
   assert.match(structured.text, /Always-On Rules/i);
-  assert.match(structured.text, /Rule Catalog/i);
-  assert.match(structured.text, /Skill Catalog/i);
+  assert.match(structured.text, /Catalog Summary/i);
+  assert.match(structured.text, /- Rules: \d+ entries\./i);
+  assert.match(structured.text, /- Skills: \d+ entries\./i);
   assert.match(structured.text, /call `read_entry` when you need the full canonical document/i);
   assert.match(structured.text, /\[Ты хорош\]/);
   assert.equal(structured.rulesCatalog?.some((entry) => entry.path === "preferences/user-praise.md"), false);

@@ -21,24 +21,15 @@ ${rule.content.trim()}`,
 ${blocks.join("\n\n")}`;
 };
 
-const renderCatalogEntry = (entry: ResolvedContextCatalogEntry): string => {
-  const stacks = entry.stacks.length > 0 ? `stacks: ${entry.stacks.join(", ")}` : "always-on";
-  const topics = entry.topics.length > 0 ? `topics: ${entry.topics.join(", ")}` : "topics: none";
-  const detail = entry.kind === "skills" ? entry.description ?? "No description." : entry.preview ?? "No preview.";
-
-  return `- ${renderScopedEntryPath(entry.scope, entry.path)} (${entry.id}) — ${entry.title}. ${stacks}; ${topics}. ${detail}`;
-};
-
-const renderCatalogSection = (title: string, entries: readonly ResolvedContextCatalogEntry[]): string => {
+const renderCatalogSummary = (title: string, entries: readonly ResolvedContextCatalogEntry[]): string => {
   if (entries.length === 0) {
-    return `## ${title}
-
-No ${title.toLowerCase()} matched for this repository.`;
+    return `- ${title}: none matched.`;
   }
 
-  return `## ${title}
+  const previewPaths = entries.slice(0, 3).map((entry) => renderScopedEntryPath(entry.scope, entry.path));
+  const previewSuffix = entries.length > 3 ? `, +${entries.length - 3} more` : "";
 
-${entries.map(renderCatalogEntry).join("\n")}`;
+  return `- ${title}: ${entries.length} entries. Examples: ${previewPaths.join(", ")}${previewSuffix}.`;
 };
 
 const renderReferenceProjects = (projectPaths: readonly string[]): string =>
@@ -67,13 +58,14 @@ export const buildReadyContextText = ({
 Repository: ${projectPath}
 ${detectedStacksLine}
 
-Always-on rules are expanded inline below. For other rules and skills, use the catalogs and call \`read_entry\` when you need the full canonical document.
+Always-on rules are expanded inline below. Other canonical entries are listed in the structured rule and skill catalogs; call \`read_entry\` when you need the full canonical document.
 
 ${renderAlwaysOnRules(alwaysOnRules)}
 
-${renderCatalogSection("Rule Catalog", rulesCatalog)}
+## Catalog Summary
 
-${renderCatalogSection("Skill Catalog", skillsCatalog)}`;
+${renderCatalogSummary("Rules", rulesCatalog)}
+${renderCatalogSummary("Skills", skillsCatalog)}`;
 };
 
 export const buildMissingContextText = ({
