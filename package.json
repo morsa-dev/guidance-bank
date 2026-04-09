@@ -4,12 +4,13 @@
   "description": "Local Memory Bank runtime and MCP host for coding agents.",
   "type": "module",
   "files": [
+    "bin",
     "dist",
     "README.md",
     "LICENSE"
   ],
   "bin": {
-    "mb": "./dist/cli/index.js"
+    "mb": "./bin/mb.js"
   },
   "engines": {
     "node": ">=22.9.0"
