@@ -117,6 +117,12 @@ Current MCP tools include:
 - `list_entries`
 - `read_entry`
 
+The important ones for normal agent work are:
+
+- `resolve_context` for runtime context resolution
+- `create_bank` for iterative project-bank creation
+- `upsert_rule` and `upsert_skill` for canonical writes
+
 ## Stats
 
 Use `mb stats` for a local overview of the Memory Bank state and recent audit activity.
@@ -135,12 +141,6 @@ The command shows:
 - project bank counts and creation states
 - recent audit events
 - tool and provider activity breakdowns
-
-The important ones for normal agent work are:
-
-- `resolve_context` for runtime context resolution
-- `create_bank` for iterative project-bank creation
-- `upsert_rule` and `upsert_skill` for canonical writes
 
 ## Development
 
