@@ -1,67 +1,55 @@
 # memory-bank-local
 
-`memory-bank-local` is a local Memory Bank runtime and MCP host for coding agents.
+`memory-bank-local` is a local, cross-agent Memory Bank for coding agents.
 
-It gives the agent one managed, canonical place for reusable rules and skills outside the repository, while still allowing repository-local guidance such as `AGENTS.md`, `.cursor`, `.claude`, or `.codex` to coexist separately.
+It gives you one durable place for reusable rules and skills across:
 
-## What The Product Does
+- different agent providers
+- different projects
+- repeated sessions in the same project
 
-Memory Bank solves one practical problem: project guidance is usually scattered.
+The goal is simple:
 
-Some instructions live in provider-specific files inside repositories. Some are reusable across many repositories. Some are stable project conventions that should survive across sessions. `memory-bank-local` gives the agent a local MCP-backed Memory Bank for that durable guidance.
+- improve agent quality over time
+- reduce repeated prompting and repeated context reconstruction
+- save tokens by keeping stable guidance in a managed local memory layer
 
-In practice, it provides:
+## Quick Start
 
-- a local managed storage under `~/.memory-bank`
-- a local MCP server that agents can call during work
-- a bootstrap flow for connecting supported agent providers
-- a canonical model for `rules` and `skills`
-
-## How It Works
-
-At runtime, the normal flow looks like this:
-
-1. Your agent calls `resolve_context` with the absolute project path.
-2. Memory Bank checks whether a project-specific bank already exists.
-3. If it exists and is ready, Memory Bank returns the applicable canonical rules and skills.
-4. If it does not exist yet, Memory Bank tells the agent to start `create_bank`.
-5. The agent goes through the iterative `create_bank` flow, reviews existing guidance, derives stable rules from the project, and writes canonical entries through MCP tools.
-
-Important boundaries:
-
-- Memory Bank is the primary user-managed context layer.
-- Repository-local provider guidance is not the same thing as Memory Bank.
-- Repository-local guidance may be reviewed during project-bank creation, but it is not injected into normal runtime context automatically.
-
-## Installation
-
-Install the package globally so the `mb` command is available on your `PATH`:
+Install globally:
 
 ```bash
 npm install -g memory-bank-local
 ```
 
-After installation, the public CLI is:
-
-```bash
-mb init
-mb stats
-mb mcp serve
-```
-
-## First Setup
-
-Run:
+Initialize once:
 
 ```bash
 mb init
 ```
 
-What it does:
+That is the whole manual setup.
 
-- creates the local Memory Bank under `~/.memory-bank`
-- writes the MCP server config used by providers
-- installs provider-specific integration descriptors
+After that, your agent can work with the Memory Bank during normal coding sessions. When a project has no bank yet, the agent can detect that and guide creation as part of the workflow.
+
+## Why It Exists
+
+Agent guidance is usually fragmented.
+
+- Some rules live in `AGENTS.md`.
+- Some live in `.cursor`, `.claude`, or `.codex`.
+- Some are project-specific.
+- Some should be shared across many repositories.
+- Most provider-native flows are still weak at generating a good long-lived bank from real project evidence.
+
+`memory-bank-local` solves that by giving the agent one canonical local Memory Bank it can use across providers and across projects.
+
+It is designed for two kinds of memory:
+
+- cross-agent reusable guidance shared between projects
+- project-specific guidance derived from the actual codebase and stack
+
+## Supported Providers
 
 Current provider integrations:
 
@@ -69,65 +57,48 @@ Current provider integrations:
 - Cursor
 - Claude Code
 
-Current MVP note:
+## What Happens Next
 
-- `mb init` requires an interactive terminal
-- at least one supported provider CLI must already be installed and available on `PATH`
+After `mb init`, the normal flow is intentionally lightweight:
 
-## First Project Run
+1. You open a project in your agent.
+2. The agent resolves Memory Bank context for that project.
+3. If a project bank does not exist yet, the agent can propose creating it.
+4. The agent can then keep using, improving, syncing, and editing the bank over time.
 
-Minimal alpha flow:
+In practice, the agent can:
 
-1. Run `mb init`.
-2. Start or let your provider start `mb mcp serve`.
-3. Open a project in the agent.
-4. The agent calls `resolve_context` with the absolute project path.
-5. If the project bank is missing, the agent calls `create_bank` and follows the iterative creation flow.
-6. The agent writes canonical Memory Bank entries through MCP mutation tools.
+- create a project bank
+- review and improve an existing bank
+- sync an outdated bank layout
+- add or update rules
+- add or update skills
+- delete obsolete entries
+- read and inspect existing bank content
 
-## Canonical Storage Model
+The goal is that the agent handles the workflow, instead of you manually managing rule files all the time.
 
-Memory Bank uses layered storage:
+## Why This Is Better Than Provider-Native Rules
 
-- `~/.memory-bank/shared/...`
-- `~/.memory-bank/projects/<project-id>/...`
+Provider-native repository guidance is useful, but usually limited.
 
-Canonical entry model:
+Common problems:
 
-- `rules/` are thematic Markdown files grouped by topic, stack, or provider
-- `skills/` are one folder per skill, each containing a single `SKILL.md`
-- canonical frontmatter is required for both rules and skills
+- guidance is locked to one provider
+- project memory is hard to reuse across repositories
+- generated rule sets often collapse into folder-structure summaries instead of real operational guidance
+- stack-specific guidance is usually shallow and repetitive
 
-This means Memory Bank is not a dump of arbitrary notes. It is managed canonical context with a strict shape.
+`memory-bank-local` aims to build better project memory by:
 
-## MCP Runtime
-
-`mb mcp serve` starts the local stdio MCP server.
-
-Current MCP tools include:
-
-- `resolve_context`
-- `create_bank`
-- `clear_project_bank`
-- `sync_bank`
-- `set_project_state`
-- `upsert_rule`
-- `upsert_skill`
-- `delete_entry`
-- `list_entries`
-- `read_entry`
-
-The important ones for normal agent work are:
-
-- `resolve_context` for runtime context resolution
-- `create_bank` for iterative project-bank creation
-- `upsert_rule` and `upsert_skill` for canonical writes
+- separating shared and project-specific guidance
+- deriving rules from real project evidence
+- carrying reusable rules across repositories
+- keeping one user-managed canonical layer that works with multiple agents
 
 ## Stats
 
-Use `mb stats` for a local overview of the Memory Bank state and recent audit activity.
-
-Examples:
+Use `mb stats` for a local overview of the Memory Bank and recent activity:
 
 ```bash
 mb stats
@@ -135,27 +106,28 @@ mb stats --project /absolute/project/path
 mb stats --json
 ```
 
-The command shows:
+It currently shows:
 
 - shared rule and skill counts
 - project bank counts and creation states
 - recent audit events
 - tool and provider activity breakdowns
 
-## Development
+This is the first visibility layer; it will keep getting richer.
 
-```bash
-npm install
-npm run build
-npm run lint
-npm run typecheck
-npm test
-```
+## What We Plan To Improve
 
-## Publish Notes
+Near-term product direction:
 
-The published package includes the compiled `dist/` output plus top-level project metadata.
+- better visualization of rules and skills
+- richer stats, including token-oriented usage and cost insight
+- stronger project-bank management workflows
+- team and workspace-oriented memory sharing
 
-- `mb` is exposed through the package `bin` field
-- `prepack` runs `npm run build` before packing or publishing
-- provider integrations assume `mb` is available globally on `PATH`
+The long-term direction is not just “local rule files”, but a real memory layer for agent work across projects, providers, and eventually teams.
+
+## Current Notes
+
+- `mb init` requires an interactive terminal
+- at least one supported provider CLI must already be installed and available on `PATH`
+- the local Memory Bank lives under `~/.memory-bank`
