@@ -14,6 +14,23 @@ type CandidateReason = {
 
 type EntrySelectionKind = "rules" | "skills";
 
+const normalizeCatalogEntryPath = (
+  kind: "rules" | "skills",
+  layer: "shared" | "project",
+  entryPath: string,
+): string => {
+  if (kind !== "skills") {
+    return entryPath;
+  }
+
+  const normalizedEntryPath = entryPath.replaceAll("\\", "/");
+  const scopePrefix = `${layer}/`;
+
+  return normalizedEntryPath.startsWith(scopePrefix)
+    ? normalizedEntryPath.slice(scopePrefix.length)
+    : normalizedEntryPath;
+};
+
 const isDocumentationFile = (entryPath: string): boolean => {
   const normalizedEntryPath = entryPath.replaceAll("\\", "/").toLowerCase();
   return normalizedEntryPath.endsWith("/readme.md") || normalizedEntryPath === "readme.md";
@@ -183,7 +200,7 @@ export const buildResolvedContextCatalog = (
   entries.map((entry) => ({
     scope: entry.layer,
     kind,
-    path: entry.path,
+    path: normalizeCatalogEntryPath(kind, entry.layer, entry.path),
     id: entry.metadata.id,
     title: entry.metadata.title,
     stacks: [...entry.metadata.stacks],

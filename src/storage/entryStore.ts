@@ -44,6 +44,20 @@ export class EntryStore {
     return resolvedPath;
   }
 
+  private buildReadableEntryCandidates(kind: EntryKind, layer: EntryScope, entryPath: string): string[] {
+    const normalizedPath = entryPath.replaceAll("\\", "/").trim();
+    if (kind !== "skills") {
+      return [normalizedPath];
+    }
+
+    const scopePrefix = `${layer}/`;
+    const alternatePath = normalizedPath.startsWith(scopePrefix)
+      ? normalizedPath.slice(scopePrefix.length)
+      : `${scopePrefix}${normalizedPath}`;
+
+    return [...new Set([normalizedPath, alternatePath])];
+  }
+
   private validateRuleEntryPath(entryPath: string): void {
     const normalizedPath = entryPath.replaceAll("\\", "/").trim();
 
@@ -92,13 +106,16 @@ export class EntryStore {
 
   async readLayerEntry(layer: EntryScope, kind: EntryKind, entryPath: string, projectId?: string): Promise<string> {
     const basePath = this.resolveEntryBasePath(kind, layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
+    const candidatePaths = this.buildReadableEntryCandidates(kind, layer, entryPath);
 
-    if (!(await managedPathExists(this.rootPath, resolvedEntryPath))) {
-      throw new ValidationError(`Entry not found: ${kind}/${entryPath}`);
+    for (const candidatePath of candidatePaths) {
+      const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, candidatePath);
+      if (await managedPathExists(this.rootPath, resolvedEntryPath)) {
+        return readManagedTextFile(this.rootPath, resolvedEntryPath);
+      }
     }
 
-    return readManagedTextFile(this.rootPath, resolvedEntryPath);
+    throw new ValidationError(`Entry not found: ${kind}/${entryPath}`);
   }
 
   async readLayerEntryOptional(
@@ -108,13 +125,16 @@ export class EntryStore {
     projectId?: string,
   ): Promise<string | null> {
     const basePath = this.resolveEntryBasePath(kind, layer, projectId);
-    const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, entryPath);
+    const candidatePaths = this.buildReadableEntryCandidates(kind, layer, entryPath);
 
-    if (!(await managedPathExists(this.rootPath, resolvedEntryPath))) {
-      return null;
+    for (const candidatePath of candidatePaths) {
+      const resolvedEntryPath = this.resolvePathWithinEntryBase(basePath, candidatePath);
+      if (await managedPathExists(this.rootPath, resolvedEntryPath)) {
+        return readManagedTextFile(this.rootPath, resolvedEntryPath);
+      }
     }
 
-    return readManagedTextFile(this.rootPath, resolvedEntryPath);
+    return null;
   }
 
   async upsertRule(

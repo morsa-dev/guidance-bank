@@ -233,6 +233,80 @@ test("upsert tools write shared and project entries that resolve_context exposes
   assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/adding-admin-widget/SKILL.md"), true);
 });
 
+test("resolve_context normalizes legacy scoped skill paths and read_entry accepts the normalized path", async (t) => {
+  const { projectRoot, client, close } = await setupAngularProject();
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "upsert_skill",
+    {
+      scope: "shared",
+      projectPath: projectRoot,
+      path: "shared/task-based-reading",
+      content:
+        "---\nid: shared-task-based-reading\nkind: skill\ntitle: Task Based Reading\nname: task-based-reading\ndescription: Read the repo by task.\nstacks: [angular]\ntopics: [reading]\n---\n\n# Task Based Reading\n\n1. Start from the route entrypoint.\n",
+    },
+    EntryMutationSchema,
+  );
+
+  await callToolStructured(
+    client,
+    "upsert_skill",
+    {
+      scope: "project",
+      projectPath: projectRoot,
+      path: "project/angular-components",
+      content:
+        "---\nid: project-angular-components\nkind: skill\ntitle: Angular Components\nname: angular-components\ndescription: Project-specific Angular component rules.\nstacks: [angular]\ntopics: [components]\n---\n\n# Angular Components\n\n1. Follow the existing component style in this project.\n",
+    },
+    EntryMutationSchema,
+  );
+
+  const resolved = await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot },
+    z.object({
+      skillsCatalog: z
+        .array(
+          z.object({
+            scope: z.enum(["shared", "project"]),
+            kind: z.literal("skills"),
+            path: z.string(),
+            id: z.string(),
+            title: z.string(),
+            stacks: z.array(z.string()),
+            topics: z.array(z.string()),
+            description: z.string().optional(),
+          }),
+        )
+        .optional(),
+    }),
+  );
+
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "task-based-reading/SKILL.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "angular-components/SKILL.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "shared/task-based-reading/SKILL.md"), false);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "project/angular-components/SKILL.md"), false);
+
+  const sharedSkill = await callToolStructured(
+    client,
+    "read_entry",
+    { scope: "shared", kind: "skills", projectPath: projectRoot, path: "task-based-reading/SKILL.md" },
+    z.object({ path: z.string(), content: z.string() }),
+  );
+  assert.match(sharedSkill.content, /Task Based Reading/);
+
+  const projectSkill = await callToolStructured(
+    client,
+    "read_entry",
+    { scope: "project", kind: "skills", projectPath: projectRoot, path: "angular-components/SKILL.md" },
+    z.object({ path: z.string(), content: z.string() }),
+  );
+  assert.match(projectSkill.content, /Angular Components/);
+});
+
 test("delete_entry removes previously written entries", async (t) => {
   const { projectRoot, client, close } = await setupAngularProject();
   t.after(close);
