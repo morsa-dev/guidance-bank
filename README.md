@@ -1,6 +1,6 @@
-# memory-bank-local
+# @morsa/memory-bank-local
 
-`memory-bank-local` is a local, cross-agent Memory Bank for coding agents.
+`@morsa/memory-bank-local` is a local, cross-agent Memory Bank for coding agents.
 
 It gives you one durable place for reusable rules and skills across:
 
@@ -19,7 +19,7 @@ The goal is simple:
 Install globally:
 
 ```bash
-npm install -g memory-bank-local
+npm install -g @morsa/memory-bank-local
 ```
 
 Initialize once:
@@ -42,7 +42,7 @@ Agent guidance is usually fragmented.
 - Some should be shared across many repositories.
 - Most provider-native flows are still weak at generating a good long-lived bank from real project evidence.
 
-`memory-bank-local` solves that by giving the agent one canonical local Memory Bank it can use across providers and across projects.
+`@morsa/memory-bank-local` solves that by giving the agent one canonical local Memory Bank it can use across providers and across projects.
 
 It is designed for two kinds of memory:
 
@@ -89,7 +89,7 @@ Common problems:
 - generated rule sets often collapse into folder-structure summaries instead of real operational guidance
 - stack-specific guidance is usually shallow and repetitive
 
-`memory-bank-local` aims to build better project memory by:
+`@morsa/memory-bank-local` aims to build better project memory by:
 
 - separating shared and project-specific guidance
 - deriving rules from real project evidence
