@@ -126,4 +126,29 @@ export const TextPayloadSchema = z.object({
   recommendedAction: z.enum(["create_bank"]).optional(),
   createFlowPhase: z.string().optional(),
   nextIteration: z.number().int().nonnegative().optional(),
+  detectedStacks: z.array(z.string()).optional(),
+  rulesCatalog: z
+    .array(
+      z.object({
+        scope: z.enum(["shared", "project"]),
+        kind: z.literal("rules"),
+        path: z.string(),
+        title: z.string(),
+        topics: z.array(z.string()),
+        description: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
+  skillsCatalog: z
+    .array(
+      z.object({
+        scope: z.enum(["shared", "project"]),
+        kind: z.literal("skills"),
+        path: z.string(),
+        title: z.string(),
+        topics: z.array(z.string()),
+        description: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
 });

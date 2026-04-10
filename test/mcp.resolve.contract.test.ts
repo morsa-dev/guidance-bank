@@ -17,6 +17,32 @@ import {
 
 const MissingContextSchema = z.object({
   text: z.string(),
+  creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
+  detectedStacks: z.array(z.string()).optional(),
+  rulesCatalog: z
+    .array(
+      z.object({
+        scope: z.enum(["shared", "project"]),
+        kind: z.literal("rules"),
+        path: z.string(),
+        title: z.string(),
+        topics: z.array(z.string()),
+        description: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
+  skillsCatalog: z
+    .array(
+      z.object({
+        scope: z.enum(["shared", "project"]),
+        kind: z.literal("skills"),
+        path: z.string(),
+        title: z.string(),
+        topics: z.array(z.string()),
+        description: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
   referenceProjects: z
     .array(
       z.object({
@@ -82,13 +108,23 @@ test("resolve_context returns missing status when no project bank exists", async
     MissingContextSchema,
   );
 
+  assert.equal(structured.creationState, "unknown");
+  assert.ok(structured.detectedStacks?.includes("react"));
+  assert.ok(structured.detectedStacks?.includes("typescript"));
   assert.match(structured.text, /No project Memory Bank exists for this repository yet/i);
   assert.match(structured.text, /Continue the current task normally/i);
   assert.match(structured.text, /do not interrupt the user just to ask about Memory Bank creation/i);
+  assert.match(structured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
+  assert.match(structured.text, /Always-On Rules/i);
+  assert.match(structured.text, /Catalog Summary/i);
   assert.match(structured.text, /call `create_bank`/i);
   assert.match(structured.text, /creationState: "postponed"/i);
   assert.match(structured.text, /creationState: "declined"/i);
   assert.match(structured.text, /call `resolve_context` again/i);
+  assert.ok((structured.rulesCatalog?.length ?? 0) > 0);
+  assert.ok((structured.skillsCatalog?.length ?? 0) > 0);
+  assert.ok(structured.rulesCatalog?.every((entry) => entry.scope === "shared"));
+  assert.ok(structured.skillsCatalog?.every((entry) => entry.scope === "shared"));
   assert.equal(structured.referenceProjects?.length ?? 0, 0);
 
   const events = (await readFile(path.join(bankRoot, "audit", "events.ndjson"), "utf8"))
@@ -220,6 +256,9 @@ test("set_project_state persists postponed creation and resolve_context stops pr
   assert.equal(resolveStructured.recommendedAction, "create_bank");
   assert.match(resolveStructured.text, /Memory Bank creation was previously postponed/i);
   assert.match(resolveStructured.text, /Continue the current task normally/i);
+  assert.match(resolveStructured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
+  assert.ok((resolveStructured.rulesCatalog?.length ?? 0) > 0);
+  assert.ok((resolveStructured.skillsCatalog?.length ?? 0) > 0);
   assert.doesNotMatch(resolveStructured.text, /ask the user a short direct question/i);
 });
 

@@ -68,12 +68,47 @@ ${renderCatalogSummary("Rules", rulesCatalog)}
 ${renderCatalogSummary("Skills", skillsCatalog)}`;
 };
 
+export const buildSharedFallbackContextText = ({
+  projectPath,
+  detectedStacks,
+  alwaysOnRules,
+  rulesCatalog,
+  skillsCatalog,
+}: {
+  projectPath: string;
+  detectedStacks: readonly string[];
+  alwaysOnRules: readonly ResolvedContextInlineRule[];
+  rulesCatalog: readonly ResolvedContextCatalogEntry[];
+  skillsCatalog: readonly ResolvedContextCatalogEntry[];
+}): string => {
+  const detectedStacksLine =
+    detectedStacks.length > 0
+      ? `Detected stack signals: ${detectedStacks.join(", ")}.`
+      : "No stable stack signals were detected automatically.";
+
+  return `Shared Memory Bank context is available even though this repository does not have a project-specific bank yet.
+
+Repository: ${projectPath}
+${detectedStacksLine}
+
+These entries come from the shared layer only. Project-specific entries will appear after a project bank is created.
+
+${renderAlwaysOnRules(alwaysOnRules)}
+
+## Catalog Summary
+
+${renderCatalogSummary("Rules", rulesCatalog)}
+${renderCatalogSummary("Skills", skillsCatalog)}`;
+};
+
 export const buildMissingContextText = ({
   referenceProjectPaths,
   creationState,
+  sharedContextText,
 }: {
   referenceProjectPaths: readonly string[];
   creationState: "unknown" | "postponed";
+  sharedContextText?: string;
 }): string => {
   const referenceSection =
     referenceProjectPaths.length > 0
@@ -85,7 +120,9 @@ export const buildMissingContextText = ({
       ? `No project Memory Bank exists for this repository yet, and Memory Bank creation was previously postponed. Continue the current task normally and do not interrupt the user just to ask again. If the user explicitly asks for Memory Bank setup or project-bank editing, call \`create_bank\`.`
       : `No project Memory Bank exists for this repository yet. Continue the current task normally; do not interrupt the user just to ask about Memory Bank creation. If it fits naturally after your current useful response, add one short note that a project Memory Bank can be created now or postponed for later.`;
 
-  return `${userInteractionSection}${referenceSection}
+  const sharedSection = sharedContextText ? `\n\n${sharedContextText}` : "";
+
+  return `${userInteractionSection}${referenceSection}${sharedSection}
 
 Internal next steps after the user answers:
 - If the user wants to create it, call \`create_bank\`.

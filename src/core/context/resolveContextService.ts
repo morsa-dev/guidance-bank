@@ -21,6 +21,7 @@ import {
   buildDeclinedContextText,
   buildMissingContextText,
   buildReadyContextText,
+  buildSharedFallbackContextText,
   buildSyncRequiredContextText,
 } from "./contextTextRenderer.js";
 
@@ -68,10 +69,26 @@ export const resolveMemoryBankContext = async ({
       detectedStacks: detectedProjectContext.detectedStacks,
     });
     const creationState = projectState?.creationState === "postponed" ? "postponed" : "unknown";
+    const sharedRules = await loadResolvedContextEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
+    const sharedSkills = await loadResolvedContextEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
+
+    assertUniqueResolvedEntryIds(sharedRules, "shared", "rules");
+    assertUniqueResolvedEntryIds(sharedSkills, "shared", "skills");
+
+    const alwaysOnRules = selectAlwaysOnRules(sharedRules);
+    const rulesCatalog = buildResolvedContextCatalog("rules", excludeAlwaysOnRules(sharedRules));
+    const skillsCatalog = buildResolvedContextCatalog("skills", sharedSkills);
 
     const text = buildMissingContextText({
       referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
       creationState,
+      sharedContextText: buildSharedFallbackContextText({
+        projectPath: identity.projectPath,
+        detectedStacks: detectedProjectContext.detectedStacks,
+        alwaysOnRules,
+        rulesCatalog,
+        skillsCatalog,
+      }),
     });
 
     return referenceProjects.length > 0
@@ -79,12 +96,18 @@ export const resolveMemoryBankContext = async ({
           text,
           creationState,
           recommendedAction: "create_bank",
+          detectedStacks: detectedProjectContext.detectedStacks,
+          rulesCatalog,
+          skillsCatalog,
           referenceProjects,
         }
       : {
           text,
           creationState,
           recommendedAction: "create_bank",
+          detectedStacks: detectedProjectContext.detectedStacks,
+          rulesCatalog,
+          skillsCatalog,
         };
   }
 
