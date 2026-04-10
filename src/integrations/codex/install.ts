@@ -16,18 +16,17 @@ const CodexServerSchema = z
   })
   .strict();
 
-const isExpectedCodexServer = (rawOutput: string, bankRoot: string): boolean => {
+const isExpectedCodexServer = (rawOutput: string, context: ProviderInstallerContext): boolean => {
   const parsed = CodexServerSchema.safeParse(JSON.parse(rawOutput) as unknown);
   if (!parsed.success) {
     return false;
   }
 
   return (
-    parsed.data.transport.command === "mb" &&
-    parsed.data.transport.args.length === 2 &&
-    parsed.data.transport.args[0] === "mcp" &&
-    parsed.data.transport.args[1] === "serve" &&
-    parsed.data.transport.env.MB_BANK_ROOT === bankRoot &&
+    parsed.data.transport.command === context.mcpServerConfig.command &&
+    parsed.data.transport.args.length === context.mcpServerConfig.args.length &&
+    parsed.data.transport.args.every((arg, index) => arg === context.mcpServerConfig.args[index]) &&
+    parsed.data.transport.env.MB_BANK_ROOT === context.bankRoot &&
     parsed.data.transport.env.MB_PROVIDER_ID === "codex"
   );
 };
@@ -39,7 +38,7 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
   };
   const currentServer = await context.commandRunner(getCommand);
 
-  if (currentServer.exitCode === 0 && isExpectedCodexServer(currentServer.stdout, context.bankRoot)) {
+  if (currentServer.exitCode === 0 && isExpectedCodexServer(currentServer.stdout, context)) {
     return {
       descriptor: createProviderDescriptor("codex", "Codex", context.mcpServerConfig, [
         "Configured globally through `codex mcp add` as a user-scoped stdio MCP server.",
@@ -60,9 +59,8 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
       "--env",
       "MB_PROVIDER_ID=codex",
       "--",
-      "mb",
-      "mcp",
-      "serve",
+      context.mcpServerConfig.command,
+      ...context.mcpServerConfig.args,
     ],
   };
   const result = await context.commandRunner(command);

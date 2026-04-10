@@ -5,7 +5,24 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { InitService } from "../src/core/init/initService.js";
+import { createDefaultMcpLaunchConfig, createDefaultMcpServerConfig } from "../src/mcp/config.js";
 import type { CommandRunner } from "../src/core/providers/types.js";
+
+const createExpectedProviderMcpServer = (
+  bankRoot: string,
+  provider: "codex" | "cursor" | "claude-code",
+): { command: string; args: string[]; env: Record<string, string> } => {
+  const baseConfig = createDefaultMcpServerConfig(bankRoot);
+
+  return {
+    command: baseConfig.command,
+    args: [...baseConfig.args],
+    env: {
+      ...baseConfig.env,
+      MB_PROVIDER_ID: provider,
+    },
+  };
+};
 
 const createRecordingCommandRunner = () => {
   const calls: Array<{ command: string; args: string[] }> = [];
@@ -115,8 +132,8 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(codexDescriptor.installationMethod, "provider-cli");
   assert.equal(codexDescriptor.scope, "user");
   assert.equal(claudeDescriptor.scope, "user");
-  assert.equal(codexDescriptor.mcpServer.command, "mb");
-  assert.deepEqual(codexDescriptor.mcpServer.args, ["mcp", "serve"]);
+  assert.equal(codexDescriptor.mcpServer.command, createDefaultMcpLaunchConfig().command);
+  assert.deepEqual(codexDescriptor.mcpServer.args, createDefaultMcpLaunchConfig().args);
   assert.equal(codexDescriptor.mcpServer.env.MB_BANK_ROOT, bankRoot);
   assert.equal(codexDescriptor.mcpServer.env.MB_PROVIDER_ID, "codex");
   assert.equal(claudeDescriptor.mcpServer.env.MB_PROVIDER_ID, "claude-code");
@@ -181,6 +198,7 @@ test("init skips re-adding global integrations that are already configured", asy
   const secondCalls: Array<{ command: string; args: string[] }> = [];
   const secondRunner: CommandRunner = async ({ command, args }) => {
     secondCalls.push({ command, args });
+    const launchConfig = createDefaultMcpLaunchConfig();
 
     if (command === "codex" && args[0] === "mcp" && args[1] === "get") {
       return {
@@ -190,8 +208,8 @@ test("init skips re-adding global integrations that are already configured", asy
         stdout: JSON.stringify({
           transport: {
             type: "stdio",
-            command: "mb",
-            args: ["mcp", "serve"],
+            command: launchConfig.command,
+            args: launchConfig.args,
             env: {
               MB_BANK_ROOT: bankRoot,
               MB_PROVIDER_ID: "codex",
@@ -211,8 +229,8 @@ test("init skips re-adding global integrations that are already configured", asy
   Scope: User config (available in all your projects)
   Status: ✓ Connected
   Type: stdio
-  Command: mb
-  Args: mcp serve
+  Command: ${launchConfig.command}
+  Args: ${launchConfig.args.join(" ")}
   Environment:
     MB_BANK_ROOT=${bankRoot}
     MB_PROVIDER_ID=claude-code
@@ -338,14 +356,7 @@ test("cursor integration writes the MCP config file and persists a config-file d
   assert.equal(result.integrations[0]?.command, null);
   assert.equal(cursorDescriptor.installationMethod, "config-file");
   assert.equal(cursorDescriptor.serverName, "memory-bank-local");
-  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], {
-    command: "mb",
-    args: ["mcp", "serve"],
-    env: {
-      MB_BANK_ROOT: bankRoot,
-      MB_PROVIDER_ID: "cursor",
-    },
-  });
+  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], createExpectedProviderMcpServer(bankRoot, "cursor"));
   assert.ok(!calls.some((call) => call.command === "cursor"));
 });
 
@@ -393,8 +404,7 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
       {
         mcpServers: {
           "memory-bank-local": {
-            command: "mb",
-            args: ["mcp", "serve"],
+            ...createExpectedProviderMcpServer(bankRoot, "cursor"),
             env: {
               MB_BANK_ROOT: "/wrong/path",
               MB_PROVIDER_ID: "cursor",
@@ -419,14 +429,7 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
   };
 
   assert.equal(result.integrations[0]?.action, "reconfigured");
-  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], {
-    command: "mb",
-    args: ["mcp", "serve"],
-    env: {
-      MB_BANK_ROOT: bankRoot,
-      MB_PROVIDER_ID: "cursor",
-    },
-  });
+  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], createExpectedProviderMcpServer(bankRoot, "cursor"));
 });
 
 test("repeat init reconfigures cursor even if a stale descriptor exists but the MCP config file is missing", async () => {
@@ -456,12 +459,7 @@ test("repeat init reconfigures cursor even if a stale descriptor exists but the 
         mcpServer: {
           schemaVersion: 1,
           transport: "stdio",
-          command: "mb",
-          args: ["mcp", "serve"],
-          env: {
-            MB_BANK_ROOT: bankRoot,
-            MB_PROVIDER_ID: "cursor",
-          },
+          ...createExpectedProviderMcpServer(bankRoot, "cursor"),
         },
         instructions: [],
       },

@@ -2,20 +2,19 @@ import type { CommandSpec, ProviderInstallResult, ProviderInstallerContext } fro
 import { MbCliError } from "../../shared/errors.js";
 import { createProviderDescriptor, MEMORY_BANK_SERVER_NAME, USER_SCOPE } from "../shared.js";
 
-const buildAddCommand = (bankRoot: string): CommandSpec => ({
+const buildAddCommand = (context: ProviderInstallerContext): CommandSpec => ({
   command: "claude",
   args: [
     "mcp",
     "add",
     "--scope",
     USER_SCOPE,
-    `--env=MB_BANK_ROOT=${bankRoot}`,
+    `--env=MB_BANK_ROOT=${context.bankRoot}`,
     "--env=MB_PROVIDER_ID=claude-code",
     MEMORY_BANK_SERVER_NAME,
     "--",
-    "mb",
-    "mcp",
-    "serve",
+    context.mcpServerConfig.command,
+    ...context.mcpServerConfig.args,
   ],
 });
 
@@ -24,11 +23,11 @@ const buildRemoveCommand = (): CommandSpec => ({
   args: ["mcp", "remove", "--scope", USER_SCOPE, MEMORY_BANK_SERVER_NAME],
 });
 
-const isExpectedClaudeServer = (rawOutput: string, bankRoot: string): boolean =>
+const isExpectedClaudeServer = (rawOutput: string, context: ProviderInstallerContext): boolean =>
   rawOutput.includes("Scope: User config") &&
-  rawOutput.includes("Command: mb") &&
-  rawOutput.includes("Args: mcp serve") &&
-  rawOutput.includes(`MB_BANK_ROOT=${bankRoot}`) &&
+  rawOutput.includes(`Command: ${context.mcpServerConfig.command}`) &&
+  rawOutput.includes(`Args: ${context.mcpServerConfig.args.join(" ")}`) &&
+  rawOutput.includes(`MB_BANK_ROOT=${context.bankRoot}`) &&
   rawOutput.includes("MB_PROVIDER_ID=claude-code");
 
 export const installClaudeCodeIntegration = async (
@@ -40,7 +39,7 @@ export const installClaudeCodeIntegration = async (
   };
   const currentServer = await context.commandRunner(getCommand);
 
-  if (currentServer.exitCode === 0 && isExpectedClaudeServer(currentServer.stdout, context.bankRoot)) {
+  if (currentServer.exitCode === 0 && isExpectedClaudeServer(currentServer.stdout, context)) {
     return {
       descriptor: createProviderDescriptor("claude-code", "Claude Code", context.mcpServerConfig, [
         "Configured globally through `claude mcp add --scope user` as a stdio MCP server.",
@@ -50,7 +49,7 @@ export const installClaudeCodeIntegration = async (
     };
   }
 
-  const addCommand = buildAddCommand(context.bankRoot);
+  const addCommand = buildAddCommand(context);
   let addResult = await context.commandRunner(addCommand);
   let action: ProviderInstallResult["action"] = "installed";
 

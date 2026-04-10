@@ -75,30 +75,29 @@ const readCursorConfig = async (cursorConfigPath: string): Promise<CursorMcpConf
   }
 };
 
-const createExpectedServerConfig = (bankRoot: string): CursorMcpServerConfig => ({
-  command: "mb",
-  args: ["mcp", "serve"],
+const createExpectedServerConfig = (context: ProviderInstallerContext): CursorMcpServerConfig => ({
+  command: context.mcpServerConfig.command,
+  args: [...context.mcpServerConfig.args],
   env: {
-    MB_BANK_ROOT: bankRoot,
+    ...context.mcpServerConfig.env,
     MB_PROVIDER_ID: "cursor",
   },
 });
 
-const isExpectedCursorServerConfig = (value: unknown, bankRoot: string): boolean => {
+const isExpectedCursorServerConfig = (value: unknown, context: ProviderInstallerContext): boolean => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
 
   const candidate = value as Partial<CursorMcpServerConfig>;
   return (
-    candidate.command === "mb" &&
+    candidate.command === context.mcpServerConfig.command &&
     Array.isArray(candidate.args) &&
-    candidate.args.length === 2 &&
-    candidate.args[0] === "mcp" &&
-    candidate.args[1] === "serve" &&
+    candidate.args.length === context.mcpServerConfig.args.length &&
+    candidate.args.every((arg, index) => arg === context.mcpServerConfig.args[index]) &&
     !!candidate.env &&
     typeof candidate.env === "object" &&
-    candidate.env.MB_BANK_ROOT === bankRoot &&
+    candidate.env.MB_BANK_ROOT === context.bankRoot &&
     candidate.env.MB_PROVIDER_ID === "cursor"
   );
 };
@@ -121,7 +120,7 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
       : {};
   const currentServer = currentMcpServers[MEMORY_BANK_SERVER_NAME];
 
-  if (isExpectedCursorServerConfig(currentServer, context.bankRoot)) {
+  if (isExpectedCursorServerConfig(currentServer, context)) {
     return {
       descriptor: createProviderDescriptor(
         "cursor",
@@ -139,7 +138,7 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
     ...currentConfig,
     mcpServers: {
       ...currentMcpServers,
-      [MEMORY_BANK_SERVER_NAME]: createExpectedServerConfig(context.bankRoot),
+      [MEMORY_BANK_SERVER_NAME]: createExpectedServerConfig(context),
     },
   };
 
