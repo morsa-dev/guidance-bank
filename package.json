@@ -1,6 +1,6 @@
 {
   "name": "@morsa/memory-bank-local",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Local Memory Bank runtime and MCP host for coding agents.",
   "type": "module",
   "files": [
