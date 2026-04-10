@@ -5,7 +5,8 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { InitService } from "../src/core/init/initService.js";
-import { createDefaultMcpLaunchConfig, createDefaultMcpServerConfig } from "../src/mcp/config.js";
+import { createDefaultMcpServerConfig } from "../src/mcp/config.js";
+import { createDefaultMcpLaunchConfig, createMcpLauncherContent, resolveMcpLauncherPath } from "../src/mcp/launcher.js";
 import type { CommandRunner } from "../src/core/providers/types.js";
 
 const createExpectedProviderMcpServer = (
@@ -23,6 +24,24 @@ const createExpectedProviderMcpServer = (
     },
   };
 };
+
+test("default MCP launch config uses a stable launcher path on Unix and Windows", () => {
+  assert.deepEqual(createDefaultMcpLaunchConfig("/tmp/mb-bank", { platform: "linux" }), {
+    command: "/tmp/mb-bank/bin/memory-bank-mcp",
+    args: [],
+  });
+
+  assert.deepEqual(
+    createDefaultMcpLaunchConfig("C:\\Users\\tester\\.memory-bank", {
+      platform: "win32",
+      comSpec: "C:\\Windows\\System32\\cmd.exe",
+    }),
+    {
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "\"C:\\Users\\tester\\.memory-bank\\bin\\memory-bank-mcp.cmd\""],
+    },
+  );
+});
 
 const createRecordingCommandRunner = () => {
   const calls: Array<{ command: string; args: string[] }> = [];
@@ -132,13 +151,32 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(codexDescriptor.installationMethod, "provider-cli");
   assert.equal(codexDescriptor.scope, "user");
   assert.equal(claudeDescriptor.scope, "user");
-  assert.equal(codexDescriptor.mcpServer.command, createDefaultMcpLaunchConfig().command);
-  assert.deepEqual(codexDescriptor.mcpServer.args, createDefaultMcpLaunchConfig().args);
+  assert.equal(codexDescriptor.mcpServer.command, createDefaultMcpLaunchConfig(bankRoot).command);
+  assert.deepEqual(codexDescriptor.mcpServer.args, createDefaultMcpLaunchConfig(bankRoot).args);
   assert.equal(codexDescriptor.mcpServer.env.MB_BANK_ROOT, bankRoot);
   assert.equal(codexDescriptor.mcpServer.env.MB_PROVIDER_ID, "codex");
   assert.equal(claudeDescriptor.mcpServer.env.MB_PROVIDER_ID, "claude-code");
   assert.ok(calls.some((call) => call.command === "codex"));
   assert.ok(calls.some((call) => call.command === "claude"));
+});
+
+test("init writes the MCP launcher into the bank root", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-launcher-"));
+  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner: createRecordingCommandRunner().commandRunner,
+    selectedProviders: ["cursor"],
+  });
+
+  const launcherPath = resolveMcpLauncherPath(bankRoot);
+  const launcherContents = await readFile(launcherPath, "utf8");
+
+  assert.equal(launcherContents, createMcpLauncherContent());
 });
 
 test("claude integration removes and re-adds the server when it already exists", async () => {
@@ -198,7 +236,7 @@ test("init skips re-adding global integrations that are already configured", asy
   const secondCalls: Array<{ command: string; args: string[] }> = [];
   const secondRunner: CommandRunner = async ({ command, args }) => {
     secondCalls.push({ command, args });
-    const launchConfig = createDefaultMcpLaunchConfig();
+    const launchConfig = createDefaultMcpLaunchConfig(bankRoot);
 
     if (command === "codex" && args[0] === "mcp" && args[1] === "get") {
       return {

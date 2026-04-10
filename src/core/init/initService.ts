@@ -4,6 +4,7 @@ import { getProviderDefinition } from "../providers/providerRegistry.js";
 import { BankRepository } from "../../storage/bankRepository.js";
 import { resolveBankRoot } from "../../shared/paths.js";
 import { createDefaultMcpServerConfig } from "../../mcp/config.js";
+import { ensureMcpLauncher } from "../../mcp/launcher.js";
 import { runCommand } from "../../integrations/commandRunner.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { InitOptions, InitResult } from "./initTypes.js";
@@ -39,6 +40,7 @@ export class InitService {
 
     const mcpServerConfig = createDefaultMcpServerConfig(bankRoot);
 
+    await ensureMcpLauncher(bankRoot);
     await repository.writeManifest(manifest);
     await repository.writeMcpServerConfig(mcpServerConfig);
 

@@ -1,10 +1,7 @@
-import { realpathSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { z } from "zod";
 
 import type { McpServerConfig } from "../core/bank/types.js";
+import { createDefaultMcpLaunchConfig } from "./launcher.js";
 
 export const McpServerConfigSchema = z
   .object({
@@ -16,18 +13,10 @@ export const McpServerConfigSchema = z
   })
   .strict();
 
-const resolveCliEntrypointPath = (): string =>
-  realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "mb.js"));
-
-export const createDefaultMcpLaunchConfig = (): Pick<McpServerConfig, "command" | "args"> => ({
-  command: realpathSync(process.execPath),
-  args: [resolveCliEntrypointPath(), "mcp", "serve"],
-});
-
 export const createDefaultMcpServerConfig = (bankRoot: string): McpServerConfig => ({
   schemaVersion: 1,
   transport: "stdio",
-  ...createDefaultMcpLaunchConfig(),
+  ...createDefaultMcpLaunchConfig(bankRoot),
   env: {
     MB_BANK_ROOT: bankRoot,
   },
