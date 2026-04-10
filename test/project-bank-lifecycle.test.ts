@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   getProjectBankContinuationIteration,
+  isProjectBankPostponedUntilActive,
   isProjectBankSyncPostponed,
   requiresProjectBankSync,
   resolveProjectBankLifecycleStatus,
@@ -69,12 +70,15 @@ test("project bank lifecycle resolves missing postponed declined creating sync_r
 
 test("project bank lifecycle helpers preserve current sync and iteration semantics", () => {
   const now = new Date("2026-04-03T12:00:00.000Z");
+  const defaultPostponedState = createProjectBankState("postponed", undefined, now);
   const postponedState = createProjectBankState("ready", {
     createIteration: 4,
     postponedUntil: "2026-04-04T12:00:00.000Z",
     lastSyncedStorageVersion: null,
   });
 
+  assert.equal(defaultPostponedState.postponedUntil, "2026-04-04T12:00:00.000Z");
+  assert.equal(isProjectBankPostponedUntilActive(defaultPostponedState, now), true);
   assert.equal(getProjectBankContinuationIteration(postponedState), 5);
   assert.equal(requiresProjectBankSync(postponedState, 1), true);
   assert.equal(isProjectBankSyncPostponed(postponedState, now), true);

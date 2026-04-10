@@ -12,6 +12,7 @@ import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
     sourceRef: z.string().trim().min(1),
@@ -19,6 +20,11 @@ const ConfirmedGuidanceSourceStrategySchema = z
     note: z.string().trim().min(1).nullable(),
   })
   .strict();
+
+export const DEFAULT_PROJECT_BANK_POSTPONE_DAYS = 1;
+
+export const computeProjectBankPostponedUntil = (now: Date, postponeDays = DEFAULT_PROJECT_BANK_POSTPONE_DAYS): string =>
+  new Date(now.getTime() + postponeDays * MS_PER_DAY).toISOString();
 
 export const ProjectBankManifestSchema = z
   .object({
@@ -80,7 +86,10 @@ export const createProjectBankState = (
   creationState,
   createIteration: options?.createIteration ?? null,
   sourceStrategies: options?.sourceStrategies ?? [],
-  postponedUntil: options?.postponedUntil ?? null,
+  postponedUntil:
+    creationState === "postponed"
+      ? (options?.postponedUntil ?? computeProjectBankPostponedUntil(now))
+      : (options?.postponedUntil ?? null),
   lastSyncedAt: options?.lastSyncedAt ?? null,
   lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
   updatedAt: now.toISOString(),
@@ -89,10 +98,17 @@ export const createProjectBankState = (
 export const updateProjectBankState = (
   state: ProjectBankState,
   creationState: ProjectCreationState,
+  options?: {
+    postponedUntil?: string | null;
+  },
   now = new Date(),
 ): ProjectBankState => ({
   ...state,
   creationState,
+  postponedUntil:
+    creationState === "postponed"
+      ? (options?.postponedUntil ?? computeProjectBankPostponedUntil(now))
+      : null,
   updatedAt: now.toISOString(),
 });
 

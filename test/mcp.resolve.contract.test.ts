@@ -18,6 +18,7 @@ import {
 const MissingContextSchema = z.object({
   text: z.string(),
   creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
+  postponedUntil: z.string().nullable().optional(),
   detectedStacks: z.array(z.string()).optional(),
   rulesCatalog: z
     .array(
@@ -109,11 +110,14 @@ test("resolve_context returns missing status when no project bank exists", async
   );
 
   assert.equal(structured.creationState, "unknown");
+  assert.equal(structured.postponedUntil, undefined);
   assert.ok(structured.detectedStacks?.includes("react"));
   assert.ok(structured.detectedStacks?.includes("typescript"));
   assert.match(structured.text, /No project Memory Bank exists for this repository yet/i);
   assert.match(structured.text, /Continue the current task normally/i);
-  assert.match(structured.text, /do not interrupt the user just to ask about Memory Bank creation/i);
+  assert.match(structured.text, /in every useful final response append one short explicit closing question/i);
+  assert.match(structured.text, /Create the project Memory Bank now, or postpone the question for 1 day or longer\?/i);
+  assert.match(structured.text, /default to 1 day/i);
   assert.match(structured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.match(structured.text, /Always-On Rules/i);
   assert.match(structured.text, /Catalog Summary/i);
@@ -231,6 +235,7 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
 test("set_project_state persists postponed creation and resolve_context stops prompting proactively for missing banks", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const beforePostpone = Date.now();
 
   await writeProjectFiles(projectRoot, {
     "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
@@ -245,21 +250,60 @@ test("set_project_state persists postponed creation and resolve_context stops pr
     { projectPath: projectRoot, creationState: "postponed" },
     z.object({
       creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
+      postponedUntil: z.string().nullable(),
     }),
   );
   assert.equal(stateStructured.creationState, "postponed");
+  assert.ok(stateStructured.postponedUntil);
+  const postponedForMs = new Date(stateStructured.postponedUntil).getTime() - beforePostpone;
+  assert.ok(postponedForMs >= 23 * 60 * 60 * 1000);
+  assert.ok(postponedForMs <= 25 * 60 * 60 * 1000);
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(resolveStructured.creationState, "postponed");
+  assert.equal(resolveStructured.postponedUntil, stateStructured.postponedUntil);
   assert.equal(resolveStructured.requiredAction, undefined);
-  assert.equal(resolveStructured.recommendedAction, "create_bank");
-  assert.match(resolveStructured.text, /Memory Bank creation was previously postponed/i);
+  assert.equal(resolveStructured.recommendedAction, undefined);
+  assert.match(resolveStructured.text, /Memory Bank creation was previously postponed until/i);
+  assert.match(resolveStructured.text, /do not ask again about project-bank creation until that time has passed/i);
   assert.match(resolveStructured.text, /Continue the current task normally/i);
   assert.match(resolveStructured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.ok((resolveStructured.rulesCatalog?.length ?? 0) > 0);
   assert.ok((resolveStructured.skillsCatalog?.length ?? 0) > 0);
   assert.doesNotMatch(resolveStructured.text, /ask the user a short direct question/i);
+});
+
+test("expired project creation postpone resumes the missing-bank reminder flow", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "set_project_state",
+    {
+      projectPath: projectRoot,
+      creationState: "postponed",
+      postponedUntil: "2020-01-01T00:00:00.000Z",
+    },
+    z.object({
+      creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
+      postponedUntil: z.string().nullable(),
+    }),
+  );
+
+  const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
+  assert.equal(resolveStructured.creationState, "unknown");
+  assert.equal(resolveStructured.postponedUntil, undefined);
+  assert.equal(resolveStructured.recommendedAction, "create_bank");
+  assert.match(resolveStructured.text, /append one short explicit closing question/i);
 });
 
 test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {

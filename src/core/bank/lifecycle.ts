@@ -7,7 +7,7 @@ export type ProjectBankLifecycleStatus =
   | "sync_required"
   | "ready";
 
-export const isProjectBankSyncPostponed = (
+export const isProjectBankPostponedUntilActive = (
   projectState: ProjectBankState | null,
   now = new Date(),
 ): boolean => {
@@ -17,6 +17,11 @@ export const isProjectBankSyncPostponed = (
 
   return new Date(projectState.postponedUntil).getTime() > now.getTime();
 };
+
+export const isProjectBankSyncPostponed = (
+  projectState: ProjectBankState | null,
+  now = new Date(),
+): boolean => isProjectBankPostponedUntilActive(projectState, now);
 
 export const requiresProjectBankSync = (
   projectState: ProjectBankState | null,
@@ -49,7 +54,7 @@ export const resolveProjectBankLifecycleStatus = ({
     return "creation_in_progress";
   }
 
-  if (requiresProjectBankSync(projectState, expectedStorageVersion) && !isProjectBankSyncPostponed(projectState, now)) {
+  if (requiresProjectBankSync(projectState, expectedStorageVersion) && !isProjectBankPostponedUntilActive(projectState, now)) {
     return "sync_required";
   }
 

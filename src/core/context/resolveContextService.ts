@@ -1,10 +1,11 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
 import {
   getProjectBankContinuationIteration,
+  isProjectBankPostponedUntilActive,
   resolveProjectBankLifecycleStatus,
 } from "../bank/lifecycle.js";
 import { detectProjectContext } from "./detectProjectContext.js";
-import type { ResolvedMemoryBankContext } from "./types.js";
+import type { DetectableStack, ResolvedMemoryBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { getCreateFlowPhase } from "../projects/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
@@ -68,7 +69,9 @@ export const resolveMemoryBankContext = async ({
       currentProjectId: identity.projectId,
       detectedStacks: detectedProjectContext.detectedStacks,
     });
-    const creationState = projectState?.creationState === "postponed" ? "postponed" : "unknown";
+    const isCreateReminderPostponed =
+      projectState?.creationState === "postponed" && isProjectBankPostponedUntilActive(projectState);
+    const creationState = isCreateReminderPostponed ? "postponed" : "unknown";
     const sharedRules = await loadResolvedContextEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
     const sharedSkills = await loadResolvedContextEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
 
@@ -82,6 +85,7 @@ export const resolveMemoryBankContext = async ({
     const text = buildMissingContextText({
       referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
       creationState,
+      postponedUntil: isCreateReminderPostponed ? projectState?.postponedUntil ?? null : null,
       sharedContextText: buildSharedFallbackContextText({
         projectPath: identity.projectPath,
         detectedStacks: detectedProjectContext.detectedStacks,
@@ -90,25 +94,22 @@ export const resolveMemoryBankContext = async ({
         skillsCatalog,
       }),
     });
+    const missingContextBase: ResolvedMemoryBankContext = {
+      text,
+      creationState: creationState as "unknown" | "postponed",
+      detectedStacks: [...detectedProjectContext.detectedStacks] as DetectableStack[],
+      rulesCatalog,
+      skillsCatalog,
+      ...(isCreateReminderPostponed ? { postponedUntil: projectState?.postponedUntil ?? null } : {}),
+      ...(!isCreateReminderPostponed ? { recommendedAction: "create_bank" as const } : {}),
+    };
 
     return referenceProjects.length > 0
       ? {
-          text,
-          creationState,
-          recommendedAction: "create_bank",
-          detectedStacks: detectedProjectContext.detectedStacks,
-          rulesCatalog,
-          skillsCatalog,
+          ...missingContextBase,
           referenceProjects,
         }
-      : {
-          text,
-          creationState,
-          recommendedAction: "create_bank",
-          detectedStacks: detectedProjectContext.detectedStacks,
-          rulesCatalog,
-          skillsCatalog,
-        };
+      : missingContextBase;
   }
 
   if (status === "creation_in_progress") {

@@ -61,6 +61,7 @@ export type ReferenceProjectCandidate = {
 export type ResolvedMemoryBankContext = {
   text: string;
   creationState?: ProjectCreationState;
+  postponedUntil?: string | null;
   requiredAction?: "create_bank" | "continue_create_bank" | "sync_bank";
   recommendedAction?: "create_bank";
   createFlowPhase?: CreateFlowPhase;
