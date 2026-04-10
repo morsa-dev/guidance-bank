@@ -6,6 +6,7 @@
   "files": [
     "bin",
     "dist",
+    "scripts/postinstall.js",
     "README.md",
     "LICENSE"
   ],
@@ -20,6 +21,7 @@
     "prebuild": "npm run clean",
     "dev": "tsc -p tsconfig.json --watch",
     "build": "tsc -p tsconfig.json",
+    "postinstall": "node scripts/postinstall.js",
     "test": "node --import tsx --test --test-concurrency=1 test/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.scripts.json --noEmit",
     "lint": "eslint .",
