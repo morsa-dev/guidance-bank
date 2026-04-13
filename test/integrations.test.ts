@@ -87,7 +87,7 @@ const createClaudeReconfigureRunner = () => {
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: guidancebank",
+        stderr: "No MCP server found with name: guidance-bank",
       };
     }
 
@@ -100,7 +100,7 @@ const createClaudeReconfigureRunner = () => {
           args,
           exitCode: 1,
           stdout: "",
-          stderr: "MCP server guidancebank already exists in user config",
+          stderr: "MCP server guidance-bank already exists in user config",
         };
       }
     }
@@ -142,7 +142,7 @@ const createClaudeScopedMissingRunner = () => {
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: guidancebank",
+        stderr: "No MCP server found with name: guidance-bank",
       };
     }
 
@@ -240,7 +240,7 @@ test("claude integration removes and re-adds the server when it already exists",
     [
       "claude mcp remove --scope",
       "claude mcp remove --scope",
-      "claude mcp get guidancebank",
+      "claude mcp get guidance-bank",
       "claude mcp add --scope",
       "claude mcp remove --scope",
       "claude mcp add --scope",
@@ -265,11 +265,11 @@ test("init tolerates scoped missing-server messages when cleaning up legacy Clau
   assert.equal(result.integrations[0]?.action, "installed");
   const commandLines = calls.map((call) => `${call.command} ${call.args.join(" ")}`);
   assert.deepEqual(commandLines.slice(0, 3), [
-    "claude mcp remove --scope user guidance-bank",
+    "claude mcp remove --scope user guidancebank",
     "claude mcp remove --scope user memory-bank-local",
-    "claude mcp get guidancebank",
+    "claude mcp get guidance-bank",
   ]);
-  assert.match(commandLines[3] ?? "", /^claude mcp add --scope user --env=GUIDANCEBANK_ROOT=.* guidancebank -- /u);
+  assert.match(commandLines[3] ?? "", /^claude mcp add --scope user --env=GUIDANCEBANK_ROOT=.* guidance-bank -- /u);
 });
 
 test("init skips re-adding global integrations that are already configured", async () => {
@@ -335,7 +335,7 @@ test("init skips re-adding global integrations that are already configured", asy
         command,
         args,
         exitCode: 0,
-        stdout: `guidancebank:
+        stdout: `guidance-bank:
   Scope: User config (available in all your projects)
   Status: ✓ Connected
   Type: stdio
@@ -405,7 +405,7 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: guidancebank",
+        stderr: "No MCP server found with name: guidance-bank",
       };
     }
 
@@ -415,7 +415,7 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: guidancebank",
+        stderr: "No MCP server found with name: guidance-bank",
       };
     }
 
@@ -481,8 +481,8 @@ test("cursor integration writes the MCP config file and persists a config-file d
   assert.equal(result.integrations[0]?.action, "installed");
   assert.equal(result.integrations[0]?.command, null);
   assert.equal(cursorDescriptor.installationMethod, "config-file");
-  assert.equal(cursorDescriptor.serverName, "guidancebank");
-  assert.deepEqual(cursorConfig.mcpServers["guidancebank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
+  assert.equal(cursorDescriptor.serverName, "guidance-bank");
+  assert.deepEqual(cursorConfig.mcpServers["guidance-bank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
   assert.ok(!calls.some((call) => call.command === "cursor"));
 });
 
@@ -529,7 +529,7 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
     `${JSON.stringify(
       {
         mcpServers: {
-          "guidancebank": {
+          "guidance-bank": {
             ...createExpectedProviderMcpServer(bankRoot, "cursor"),
             env: {
               GUIDANCEBANK_ROOT: "/wrong/path",
@@ -555,7 +555,7 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
   };
 
   assert.equal(result.integrations[0]?.action, "reconfigured");
-  assert.deepEqual(cursorConfig.mcpServers["guidancebank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
+  assert.deepEqual(cursorConfig.mcpServers["guidance-bank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
 });
 
 test("repeat init reconfigures cursor even if a stale descriptor exists but the MCP config file is missing", async () => {
@@ -579,7 +579,7 @@ test("repeat init reconfigures cursor even if a stale descriptor exists but the 
         schemaVersion: 1,
         provider: "cursor",
         displayName: "Cursor",
-        serverName: "guidancebank",
+        serverName: "guidance-bank",
         installationMethod: "config-file",
         scope: "user",
         mcpServer: {

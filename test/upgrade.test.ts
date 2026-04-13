@@ -120,8 +120,8 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
     `${JSON.stringify(
       {
         mcpServers: {
-          "guidance-bank": {
-            command: "/legacy/guidance-bank-mcp",
+          guidancebank: {
+            command: "/legacy/guidancebank-mcp",
             args: [],
             env: {
               GUIDANCEBANK_ROOT: legacyBankRoot,
@@ -166,25 +166,25 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
   const cursorConfig = JSON.parse(await readFile(path.join(cursorConfigRoot, "mcp.json"), "utf8")) as {
     mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
   };
-  assert.deepEqual(Object.keys(cursorConfig.mcpServers).sort(), ["guidancebank"]);
-  const guidancebankCursorServer = cursorConfig.mcpServers.guidancebank;
-  assert.ok(guidancebankCursorServer);
-  assert.equal(guidancebankCursorServer.env.GUIDANCEBANK_ROOT, bankRoot);
-  assert.equal(guidancebankCursorServer.env.GUIDANCEBANK_PROVIDER_ID, "cursor");
+  assert.deepEqual(Object.keys(cursorConfig.mcpServers).sort(), ["guidance-bank"]);
+  const guidanceBankCursorServer = cursorConfig.mcpServers["guidance-bank"];
+  assert.ok(guidanceBankCursorServer);
+  assert.equal(guidanceBankCursorServer.env.GUIDANCEBANK_ROOT, bankRoot);
+  assert.equal(guidanceBankCursorServer.env.GUIDANCEBANK_PROVIDER_ID, "cursor");
 
   const commandLines = calls.map((call) => `${call.command} ${call.args.join(" ")}`);
   assert.deepEqual(commandLines.slice(0, 3), [
-    "codex mcp remove guidance-bank",
+    "codex mcp remove guidancebank",
     "codex mcp remove memory-bank-local",
-    "codex mcp get guidancebank --json",
+    "codex mcp get guidance-bank --json",
   ]);
-  assert.match(commandLines[3] ?? "", /^codex mcp add guidancebank --env GUIDANCEBANK_ROOT=.* --env GUIDANCEBANK_PROVIDER_ID=codex -- /u);
+  assert.match(commandLines[3] ?? "", /^codex mcp add guidance-bank --env GUIDANCEBANK_ROOT=.* --env GUIDANCEBANK_PROVIDER_ID=codex -- /u);
   assert.deepEqual(commandLines.slice(4, 7), [
-    "claude mcp remove --scope user guidance-bank",
+    "claude mcp remove --scope user guidancebank",
     "claude mcp remove --scope user memory-bank-local",
-    "claude mcp get guidancebank",
+    "claude mcp get guidance-bank",
   ]);
-  assert.match(commandLines[7] ?? "", /^claude mcp add --scope user --env=GUIDANCEBANK_ROOT=.* --env=GUIDANCEBANK_PROVIDER_ID=claude-code guidancebank -- /u);
+  assert.match(commandLines[7] ?? "", /^claude mcp add --scope user --env=GUIDANCEBANK_ROOT=.* --env=GUIDANCEBANK_PROVIDER_ID=claude-code guidance-bank -- /u);
 
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);

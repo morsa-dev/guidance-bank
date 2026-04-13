@@ -1,7 +1,7 @@
 import type { McpServerConfig, ProviderId, ProviderIntegrationDescriptor } from "../core/bank/types.js";
 
-export const GUIDANCEBANK_SERVER_NAME = "guidancebank";
-export const LEGACY_GUIDANCEBANK_SERVER_NAMES = ["guidance-bank", "memory-bank-local"] as const;
+export const GUIDANCEBANK_SERVER_NAME = "guidance-bank";
+export const LEGACY_GUIDANCEBANK_SERVER_NAMES = ["guidancebank", "memory-bank-local"] as const;
 export const USER_SCOPE = "user";
 
 const withProviderEnv = (provider: ProviderId, mcpServer: McpServerConfig): McpServerConfig => ({
