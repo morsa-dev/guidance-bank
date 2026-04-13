@@ -25,6 +25,7 @@ test("server registers public AI Guidance Bank tools with output schemas", async
       "resolve_context",
       "set_project_state",
       "sync_bank",
+      "upgrade_bank",
       "upsert_rule",
       "upsert_skill",
     ],

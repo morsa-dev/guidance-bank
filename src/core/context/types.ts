@@ -62,10 +62,14 @@ export type ResolvedGuidanceBankContext = {
   text: string;
   creationState?: ProjectCreationState;
   postponedUntil?: string | null;
-  requiredAction?: "create_bank" | "continue_create_bank" | "sync_bank";
+  requiredAction?: "upgrade_bank" | "create_bank" | "continue_create_bank" | "sync_bank";
   recommendedAction?: "create_bank";
   createFlowPhase?: CreateFlowPhase;
   nextIteration?: number;
+  bankRoot?: string;
+  sourceRoot?: string;
+  expectedStorageVersion?: number;
+  storageVersion?: number;
   detectedStacks?: DetectableStack[];
   rulesCatalog?: ResolvedContextCatalogEntry[];
   skillsCatalog?: ResolvedContextCatalogEntry[];

@@ -73,6 +73,34 @@ ${renderCatalogSummary("Rules", rulesCatalog)}
 ${renderCatalogSummary("Skills", skillsCatalog)}`;
 };
 
+export const buildUpgradeRequiredContextText = ({
+  bankRoot,
+  sourceRoot,
+  storageVersion,
+  expectedStorageVersion,
+}: {
+  bankRoot: string;
+  sourceRoot: string;
+  storageVersion: number;
+  expectedStorageVersion: number;
+}): string => `AI Guidance Bank update is required before resolving repository context.
+
+Current AI Guidance Bank source:
+- \`${sourceRoot}\`
+
+Target AI Guidance Bank root:
+- \`${bankRoot}\`
+
+Storage version:
+- current: ${storageVersion}
+- expected: ${expectedStorageVersion}
+
+What to do:
+- Ask the user whether to update AI Guidance Bank now
+- If the user agrees, call \`upgrade_bank\`
+- After the upgrade finishes, call \`resolve_context\` again
+- Do not start project-bank creation, sync, or normal repository-context work until the bank-level update is complete`;
+
 export const buildSharedFallbackContextText = ({
   projectPath,
   detectedStacks,

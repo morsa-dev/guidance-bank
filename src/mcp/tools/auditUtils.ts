@@ -59,12 +59,13 @@ type WriteToolAuditEventInput = {
   tool:
     | "create_bank"
     | "improve_bank"
+    | "upgrade_bank"
     | "resolve_context"
     | "set_project_state"
     | "sync_bank"
     | "clear_project_bank"
     | "delete_guidance_source";
-  action: "create_flow" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
+  action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
   projectId: string;
   projectPath: string;
   details: Record<string, unknown>;

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ProviderInstallerContext } from "../../core/providers/types.js";
 import type { ProviderInstallResult } from "../../core/providers/types.js";
 import { GuidanceBankCliError } from "../../shared/errors.js";
-import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME } from "../shared.js";
+import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, LEGACY_GUIDANCEBANK_SERVER_NAMES } from "../shared.js";
 
 const CodexServerSchema = z
   .object({
@@ -31,7 +31,29 @@ const isExpectedCodexServer = (rawOutput: string, context: ProviderInstallerCont
   );
 };
 
+const isMissingServerMessage = (result: { stdout: string; stderr: string }): boolean =>
+  /No .*MCP server found with name:/u.test(`${result.stdout}\n${result.stderr}`);
+
+const cleanupLegacyServers = async (context: ProviderInstallerContext): Promise<void> => {
+  for (const legacyServerName of LEGACY_GUIDANCEBANK_SERVER_NAMES) {
+    const removeResult = await context.commandRunner({
+      command: "codex",
+      args: ["mcp", "remove", legacyServerName],
+    });
+
+    if (removeResult.exitCode === 0 || isMissingServerMessage(removeResult)) {
+      continue;
+    }
+
+    throw new GuidanceBankCliError(
+      `Failed to remove legacy Codex MCP integration ${legacyServerName}: ${removeResult.stderr || removeResult.stdout || "Unknown error"}`,
+    );
+  }
+};
+
 export const installCodexIntegration = async (context: ProviderInstallerContext): Promise<ProviderInstallResult> => {
+  await cleanupLegacyServers(context);
+
   const getCommand = {
     command: "codex",
     args: ["mcp", "get", GUIDANCEBANK_SERVER_NAME, "--json"],

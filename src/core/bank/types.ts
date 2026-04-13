@@ -3,6 +3,9 @@ import type { ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrate
 
 export const PROVIDER_IDS = ["codex", "cursor", "claude-code"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
+export const STORAGE_VERSIONS = [1, 2] as const;
+export type StorageVersion = (typeof STORAGE_VERSIONS)[number];
+export const CURRENT_STORAGE_VERSION = 2 as const;
 
 export const ENTRY_KINDS = ["rules", "skills"] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
@@ -13,7 +16,7 @@ export type ProjectCreationState = (typeof PROJECT_CREATION_STATES)[number];
 
 export type MemoryBankManifest = {
   schemaVersion: 1;
-  storageVersion: 1;
+  storageVersion: StorageVersion;
   bankId: string;
   createdAt: string;
   updatedAt: string;

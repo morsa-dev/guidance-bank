@@ -4,6 +4,7 @@ import {
   isProjectBankPostponedUntilActive,
   resolveProjectBankLifecycleStatus,
 } from "../bank/lifecycle.js";
+import { detectBankUpgrade } from "../upgrade/upgradeService.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { DetectableStack, ResolvedGuidanceBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
@@ -24,7 +25,9 @@ import {
   buildReadyContextText,
   buildSharedFallbackContextText,
   buildSyncRequiredContextText,
+  buildUpgradeRequiredContextText,
 } from "./contextTextRenderer.js";
+import { ValidationError } from "../../shared/errors.js";
 
 type ResolveContextOptions = {
   repository: BankRepository;
@@ -36,7 +39,29 @@ export const resolveGuidanceBankContext = async ({
   projectPath,
 }: ResolveContextOptions): Promise<ResolvedGuidanceBankContext> => {
   const identity = resolveProjectIdentity(projectPath);
-  const manifest = await repository.readManifest();
+  const bankUpgrade = await detectBankUpgrade(repository.rootPath);
+
+  if (bankUpgrade.status === "not_initialized") {
+    throw new ValidationError(`AI Guidance Bank is not initialized yet. Run \`gbank init\` first.`);
+  }
+
+  if (bankUpgrade.status === "upgrade_required") {
+    return {
+      text: buildUpgradeRequiredContextText({
+        bankRoot: bankUpgrade.bankRoot,
+        sourceRoot: bankUpgrade.sourceRoot,
+        storageVersion: bankUpgrade.manifest.storageVersion,
+        expectedStorageVersion: bankUpgrade.expectedStorageVersion,
+      }),
+      requiredAction: "upgrade_bank",
+      bankRoot: bankUpgrade.bankRoot,
+      sourceRoot: bankUpgrade.sourceRoot,
+      storageVersion: bankUpgrade.manifest.storageVersion,
+      expectedStorageVersion: bankUpgrade.expectedStorageVersion,
+    };
+  }
+
+  const manifest = bankUpgrade.manifest;
   const detectedProjectContext = await detectProjectContext(identity.projectPath);
   const projectManifest = await repository.readProjectManifestOptional(identity.projectId);
   const projectState = await repository.readProjectStateOptional(identity.projectId);

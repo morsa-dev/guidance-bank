@@ -1,6 +1,6 @@
 import type { CommandSpec, ProviderInstallResult, ProviderInstallerContext } from "../../core/providers/types.js";
 import { GuidanceBankCliError } from "../../shared/errors.js";
-import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, USER_SCOPE } from "../shared.js";
+import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, LEGACY_GUIDANCEBANK_SERVER_NAMES, USER_SCOPE } from "../shared.js";
 
 const buildAddCommand = (context: ProviderInstallerContext): CommandSpec => ({
   command: "claude",
@@ -23,6 +23,11 @@ const buildRemoveCommand = (): CommandSpec => ({
   args: ["mcp", "remove", "--scope", USER_SCOPE, GUIDANCEBANK_SERVER_NAME],
 });
 
+const buildRemoveLegacyCommand = (legacyServerName: string): CommandSpec => ({
+  command: "claude",
+  args: ["mcp", "remove", "--scope", USER_SCOPE, legacyServerName],
+});
+
 const isExpectedClaudeServer = (rawOutput: string, context: ProviderInstallerContext): boolean =>
   rawOutput.includes("Scope: User config") &&
   rawOutput.includes(`Command: ${context.mcpServerConfig.command}`) &&
@@ -30,9 +35,28 @@ const isExpectedClaudeServer = (rawOutput: string, context: ProviderInstallerCon
   rawOutput.includes(`GUIDANCEBANK_ROOT=${context.bankRoot}`) &&
   rawOutput.includes("GUIDANCEBANK_PROVIDER_ID=claude-code");
 
+const isMissingServerMessage = (result: { stdout: string; stderr: string }): boolean =>
+  /No .*MCP server found with name:/u.test(`${result.stdout}\n${result.stderr}`);
+
+const cleanupLegacyServers = async (context: ProviderInstallerContext): Promise<void> => {
+  for (const legacyServerName of LEGACY_GUIDANCEBANK_SERVER_NAMES) {
+    const removeResult = await context.commandRunner(buildRemoveLegacyCommand(legacyServerName));
+
+    if (removeResult.exitCode === 0 || isMissingServerMessage(removeResult)) {
+      continue;
+    }
+
+    throw new GuidanceBankCliError(
+      `Failed to remove legacy Claude Code MCP integration ${legacyServerName}: ${removeResult.stderr || removeResult.stdout || "Unknown error"}`,
+    );
+  }
+};
+
 export const installClaudeCodeIntegration = async (
   context: ProviderInstallerContext,
 ): Promise<ProviderInstallResult> => {
+  await cleanupLegacyServers(context);
+
   const getCommand = {
     command: "claude",
     args: ["mcp", "get", GUIDANCEBANK_SERVER_NAME],

@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { PROVIDER_IDS, type MemoryBankManifest, type ProviderId } from "./types.js";
+import { CURRENT_STORAGE_VERSION, PROVIDER_IDS, type MemoryBankManifest, type ProviderId, type StorageVersion } from "./types.js";
 
 const ProviderIdSchema = z.enum(PROVIDER_IDS);
 
 export const MemoryBankManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
-    storageVersion: z.literal(1),
+    storageVersion: z.union([z.literal(1), z.literal(2)]),
     bankId: z.uuid(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
@@ -28,7 +28,7 @@ export const createManifest = (enabledProviders: readonly ProviderId[], now = ne
 
   return {
     schemaVersion: 1,
-    storageVersion: 1,
+    storageVersion: CURRENT_STORAGE_VERSION,
     bankId: randomUUID(),
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -43,8 +43,11 @@ export const updateManifest = (
   now = new Date(),
 ): MemoryBankManifest => ({
   ...manifest,
+  storageVersion: CURRENT_STORAGE_VERSION,
   updatedAt: now.toISOString(),
   enabledProviders: sortProviders(enabledProviders),
 });
 
 export const parseManifest = (value: unknown): MemoryBankManifest => MemoryBankManifestSchema.parse(value);
+
+export const isCurrentStorageVersion = (storageVersion: StorageVersion): boolean => storageVersion === CURRENT_STORAGE_VERSION;

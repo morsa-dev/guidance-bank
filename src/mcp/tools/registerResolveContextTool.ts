@@ -34,10 +34,14 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         text: z.string(),
         creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
         postponedUntil: z.string().nullable().optional(),
-        requiredAction: z.enum(["create_bank", "continue_create_bank", "sync_bank"]).optional(),
+        requiredAction: z.enum(["upgrade_bank", "create_bank", "continue_create_bank", "sync_bank"]).optional(),
         recommendedAction: z.enum(["create_bank"]).optional(),
         createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
+        bankRoot: z.string().optional(),
+        sourceRoot: z.string().optional(),
+        expectedStorageVersion: z.number().int().positive().optional(),
+        storageVersion: z.number().int().positive().optional(),
         detectedStacks: z.array(z.string()).optional(),
         rulesCatalog: z
           .array(

@@ -120,6 +120,47 @@ const createClaudeReconfigureRunner = () => {
   };
 };
 
+const createClaudeScopedMissingRunner = () => {
+  const calls: Array<{ command: string; args: string[] }> = [];
+
+  const commandRunner: CommandRunner = async ({ command, args }) => {
+    calls.push({ command, args });
+
+    if (command === "claude" && args[0] === "mcp" && args[1] === "remove") {
+      return {
+        command,
+        args,
+        exitCode: 1,
+        stdout: "",
+        stderr: `No user-scoped MCP server found with name: ${args.at(-1) ?? ""}`,
+      };
+    }
+
+    if (command === "claude" && args[0] === "mcp" && args[1] === "get") {
+      return {
+        command,
+        args,
+        exitCode: 1,
+        stdout: "",
+        stderr: "No MCP server found with name: guidancebank",
+      };
+    }
+
+    return {
+      command,
+      args,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    };
+  };
+
+  return {
+    calls,
+    commandRunner,
+  };
+};
+
 test("init writes provider integration descriptors", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
@@ -196,8 +237,39 @@ test("claude integration removes and re-adds the server when it already exists",
   assert.equal(result.integrations[0]?.action, "reconfigured");
   assert.deepEqual(
     calls.map((call) => `${call.command} ${call.args.slice(0, 3).join(" ")}`),
-    ["claude mcp get guidancebank", "claude mcp add --scope", "claude mcp remove --scope", "claude mcp add --scope"],
+    [
+      "claude mcp remove --scope",
+      "claude mcp remove --scope",
+      "claude mcp get guidancebank",
+      "claude mcp add --scope",
+      "claude mcp remove --scope",
+      "claude mcp add --scope",
+    ],
   );
+});
+
+test("init tolerates scoped missing-server messages when cleaning up legacy Claude MCP integrations", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const initService = new InitService();
+  const { calls, commandRunner } = createClaudeScopedMissingRunner();
+
+  const result = await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    commandRunner,
+    selectedProviders: ["claude-code"],
+  });
+
+  assert.equal(result.integrations[0]?.action, "installed");
+  const commandLines = calls.map((call) => `${call.command} ${call.args.join(" ")}`);
+  assert.deepEqual(commandLines.slice(0, 3), [
+    "claude mcp remove --scope user guidance-bank",
+    "claude mcp remove --scope user memory-bank-local",
+    "claude mcp get guidancebank",
+  ]);
+  assert.match(commandLines[3] ?? "", /^claude mcp add --scope user --env=GUIDANCEBANK_ROOT=.* guidancebank -- /u);
 });
 
 test("init skips re-adding global integrations that are already configured", async () => {
@@ -299,7 +371,14 @@ test("init skips re-adding global integrations that are already configured", asy
   );
   assert.deepEqual(
     secondCalls.map((call) => `${call.command} ${call.args[0]} ${call.args[1] ?? ""}`.trim()),
-    ["codex mcp get", "claude mcp get"],
+    [
+      "codex mcp remove",
+      "codex mcp remove",
+      "codex mcp get",
+      "claude mcp remove",
+      "claude mcp remove",
+      "claude mcp get",
+    ],
   );
 });
 
@@ -362,7 +441,16 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
   );
   assert.deepEqual(
     secondCalls.map((call) => `${call.command} ${call.args[0]} ${call.args[1] ?? ""}`.trim()),
-    ["codex mcp get", "codex mcp add", "claude mcp get", "claude mcp add"],
+    [
+      "codex mcp remove",
+      "codex mcp remove",
+      "codex mcp get",
+      "codex mcp add",
+      "claude mcp remove",
+      "claude mcp remove",
+      "claude mcp get",
+      "claude mcp add",
+    ],
   );
 });
 

@@ -6,7 +6,7 @@ import type { ProviderInstallerContext } from "../../core/providers/types.js";
 import type { ProviderInstallResult } from "../../core/providers/types.js";
 import { GuidanceBankCliError } from "../../shared/errors.js";
 import { atomicWriteFile } from "../../storage/atomicWrite.js";
-import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME } from "../shared.js";
+import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, LEGACY_GUIDANCEBANK_SERVER_NAMES } from "../shared.js";
 
 type CursorMcpServerConfig = {
   command: string;
@@ -17,6 +17,8 @@ type CursorMcpServerConfig = {
 type CursorMcpConfig = Record<string, unknown> & {
   mcpServers?: Record<string, unknown>;
 };
+
+const LEGACY_SERVER_NAME_SET = new Set<string>(LEGACY_GUIDANCEBANK_SERVER_NAMES);
 
 const resolveCursorConfigRoot = (context: ProviderInstallerContext): string =>
   path.resolve(context.cursorConfigRoot ?? path.join(os.homedir(), ".cursor"));
@@ -107,6 +109,9 @@ const buildInstructions = (cursorConfigPath: string): string[] => [
   "If Cursor is already running, reload the window or restart Cursor if the new MCP server does not appear immediately.",
 ];
 
+const removeLegacyServerEntries = (mcpServers: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(mcpServers).filter(([serverName]) => !LEGACY_SERVER_NAME_SET.has(serverName)));
+
 export const installCursorIntegration = async (context: ProviderInstallerContext): Promise<ProviderInstallResult> => {
   const cursorConfigRoot = resolveCursorConfigRoot(context);
   const cursorConfigPath = resolveCursorConfigPath(context);
@@ -118,9 +123,11 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
     currentConfig.mcpServers && typeof currentConfig.mcpServers === "object" && !Array.isArray(currentConfig.mcpServers)
       ? currentConfig.mcpServers
       : {};
+  const sanitizedMcpServers = removeLegacyServerEntries(currentMcpServers);
   const currentServer = currentMcpServers[GUIDANCEBANK_SERVER_NAME];
+  const legacyServerEntriesRemoved = Object.keys(currentMcpServers).length !== Object.keys(sanitizedMcpServers).length;
 
-  if (isExpectedCursorServerConfig(currentServer, context)) {
+  if (isExpectedCursorServerConfig(currentServer, context) && !legacyServerEntriesRemoved) {
     return {
       descriptor: createProviderDescriptor(
         "cursor",
@@ -137,7 +144,7 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
   const nextConfig: CursorMcpConfig = {
     ...currentConfig,
     mcpServers: {
-      ...currentMcpServers,
+      ...sanitizedMcpServers,
       [GUIDANCEBANK_SERVER_NAME]: createExpectedServerConfig(context),
     },
   };
