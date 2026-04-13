@@ -1,6 +1,6 @@
 {
   "name": "@morsa/guidance-bank",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Persistent rules, skills, and reusable guidance for coding agents.",
   "type": "module",
   "files": [
