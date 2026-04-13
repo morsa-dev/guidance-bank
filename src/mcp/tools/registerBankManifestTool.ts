@@ -9,8 +9,8 @@ export const registerBankManifestTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "bank_manifest",
     {
-      title: "Read Memory Bank Manifest",
-      description: "Return Memory Bank metadata and enabled providers.",
+      title: "Read AI Guidance Bank Manifest",
+      description: "Return AI Guidance Bank metadata and enabled providers.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

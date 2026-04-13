@@ -4,9 +4,9 @@ import path from "node:path";
 
 import type { ProviderInstallerContext } from "../../core/providers/types.js";
 import type { ProviderInstallResult } from "../../core/providers/types.js";
-import { MbCliError } from "../../shared/errors.js";
+import { GuidanceBankCliError } from "../../shared/errors.js";
 import { atomicWriteFile } from "../../storage/atomicWrite.js";
-import { createProviderDescriptor, MEMORY_BANK_SERVER_NAME } from "../shared.js";
+import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME } from "../shared.js";
 
 type CursorMcpServerConfig = {
   command: string;
@@ -28,10 +28,10 @@ const assertSafeCursorConfigPath = async (cursorConfigRoot: string, cursorConfig
   try {
     const rootStats = await fs.lstat(cursorConfigRoot);
     if (rootStats.isSymbolicLink()) {
-      throw new MbCliError(`Cursor config root cannot be a symbolic link: ${cursorConfigRoot}`);
+      throw new GuidanceBankCliError(`Cursor config root cannot be a symbolic link: ${cursorConfigRoot}`);
     }
     if (!rootStats.isDirectory()) {
-      throw new MbCliError(`Cursor config root must be a directory: ${cursorConfigRoot}`);
+      throw new GuidanceBankCliError(`Cursor config root must be a directory: ${cursorConfigRoot}`);
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -42,10 +42,10 @@ const assertSafeCursorConfigPath = async (cursorConfigRoot: string, cursorConfig
   try {
     const fileStats = await fs.lstat(cursorConfigPath);
     if (fileStats.isSymbolicLink()) {
-      throw new MbCliError(`Cursor MCP config file cannot be a symbolic link: ${cursorConfigPath}`);
+      throw new GuidanceBankCliError(`Cursor MCP config file cannot be a symbolic link: ${cursorConfigPath}`);
     }
     if (!fileStats.isFile()) {
-      throw new MbCliError(`Cursor MCP config path must be a file: ${cursorConfigPath}`);
+      throw new GuidanceBankCliError(`Cursor MCP config path must be a file: ${cursorConfigPath}`);
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -60,7 +60,7 @@ const readCursorConfig = async (cursorConfigPath: string): Promise<CursorMcpConf
     const parsed = JSON.parse(rawContent) as unknown;
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new MbCliError(`Cursor MCP config must be a JSON object: ${cursorConfigPath}`);
+      throw new GuidanceBankCliError(`Cursor MCP config must be a JSON object: ${cursorConfigPath}`);
     }
 
     return parsed as CursorMcpConfig;
@@ -69,7 +69,7 @@ const readCursorConfig = async (cursorConfigPath: string): Promise<CursorMcpConf
       return {};
     }
     if (error instanceof SyntaxError) {
-      throw new MbCliError(`Cursor MCP config contains invalid JSON: ${cursorConfigPath}`);
+      throw new GuidanceBankCliError(`Cursor MCP config contains invalid JSON: ${cursorConfigPath}`);
     }
     throw error;
   }
@@ -80,7 +80,7 @@ const createExpectedServerConfig = (context: ProviderInstallerContext): CursorMc
   args: [...context.mcpServerConfig.args],
   env: {
     ...context.mcpServerConfig.env,
-    MB_PROVIDER_ID: "cursor",
+    GUIDANCEBANK_PROVIDER_ID: "cursor",
   },
 });
 
@@ -97,8 +97,8 @@ const isExpectedCursorServerConfig = (value: unknown, context: ProviderInstaller
     candidate.args.every((arg, index) => arg === context.mcpServerConfig.args[index]) &&
     !!candidate.env &&
     typeof candidate.env === "object" &&
-    candidate.env.MB_BANK_ROOT === context.bankRoot &&
-    candidate.env.MB_PROVIDER_ID === "cursor"
+    candidate.env.GUIDANCEBANK_ROOT === context.bankRoot &&
+    candidate.env.GUIDANCEBANK_PROVIDER_ID === "cursor"
   );
 };
 
@@ -118,7 +118,7 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
     currentConfig.mcpServers && typeof currentConfig.mcpServers === "object" && !Array.isArray(currentConfig.mcpServers)
       ? currentConfig.mcpServers
       : {};
-  const currentServer = currentMcpServers[MEMORY_BANK_SERVER_NAME];
+  const currentServer = currentMcpServers[GUIDANCEBANK_SERVER_NAME];
 
   if (isExpectedCursorServerConfig(currentServer, context)) {
     return {
@@ -138,7 +138,7 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
     ...currentConfig,
     mcpServers: {
       ...currentMcpServers,
-      [MEMORY_BANK_SERVER_NAME]: createExpectedServerConfig(context),
+      [GUIDANCEBANK_SERVER_NAME]: createExpectedServerConfig(context),
     },
   };
 

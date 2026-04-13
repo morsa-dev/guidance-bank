@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { runInitCommand } from "./commands/init.js";
 import { runMcpServeCommand } from "./commands/mcpServe.js";
 import { runStatsCommand } from "./commands/stats.js";
-import { MbCliError } from "../shared/errors.js";
+import { GuidanceBankCliError } from "../shared/errors.js";
 
 type PackageJson = {
   version: string;
@@ -16,12 +16,12 @@ const require = createRequire(import.meta.url);
 const packageJson = require("../../package.json") as PackageJson;
 
 const printUsage = (): void => {
-  console.info(`memory-bank-local
+  console.info(`AI Guidance Bank
 
 Usage:
-  mb init
-  mb stats [--project /absolute/project/path] [--json]
-  mb mcp serve
+  gbank init
+  gbank stats [--project /absolute/project/path] [--json]
+  gbank mcp serve
 
 Options:
   -h, --help
@@ -75,7 +75,7 @@ const main = async (): Promise<void> => {
   }
 
   printUsage();
-  throw new MbCliError("Unsupported command.");
+  throw new GuidanceBankCliError("Unsupported command.");
 };
 
 main().catch((error: unknown) => {

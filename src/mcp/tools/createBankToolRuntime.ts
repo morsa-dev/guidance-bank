@@ -148,7 +148,7 @@ export const buildCreateBankResponseText = ({
 
   if (hasAppliedChanges(applyResults)) {
     if (hasApplyConflicts(applyResults)) {
-      return "Some create-flow changes conflicted with the current Memory Bank state. Re-read the affected entries, rebuild the full final documents, and retry create_bank.apply with fresh baseSha256 values.";
+      return "Some create-flow changes conflicted with the current AI Guidance Bank state. Re-read the affected entries, rebuild the full final documents, and retry create_bank.apply with fresh baseSha256 values.";
     }
 
     if (stepCompletionRequired && nextIteration !== null) {
@@ -187,7 +187,7 @@ export const buildCreateBankResponseText = ({
   }
 
   if (improvementEntryPoint) {
-    return "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.";
+    return "Project AI Guidance Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.";
   }
 
   if (mustContinue && nextIteration !== null) {
@@ -202,5 +202,5 @@ export const buildCreateBankResponseText = ({
     return "Create flow complete. Tell the user the project bank is ready.";
   }
 
-  return "Project Memory Bank is ready.";
+  return "Project AI Guidance Bank is ready.";
 };

@@ -56,10 +56,12 @@ export const buildReadyContextText = ({
       ? `Detected stack signals: ${detectedStacks.join(", ")}.`
       : "No stable stack signals were detected automatically.";
 
-  return `Use the following Memory Bank context catalog as the primary user-managed context for this repository.
+  return `Use the following AI Guidance Bank context catalog as the primary user-managed context and guidance layer for this repository.
 
 Repository: ${projectPath}
 ${detectedStacksLine}
+
+AI Guidance Bank stores durable rules, skills, and reusable project guidance for this repository.
 
 Always-on rules are expanded inline below. Other canonical entries are listed in the structured rule and skill catalogs; call \`read_entry\` when you need the full canonical document.
 
@@ -89,12 +91,14 @@ export const buildSharedFallbackContextText = ({
       ? `Detected stack signals: ${detectedStacks.join(", ")}.`
       : "No stable stack signals were detected automatically.";
 
-  return `Shared Memory Bank context is available even though this repository does not have a project-specific bank yet.
+  return `Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet.
 
 Repository: ${projectPath}
 ${detectedStacksLine}
 
 These entries come from the shared layer only. Project-specific entries will appear after a project bank is created.
+
+AI Guidance Bank stores durable rules, skills, and reusable shared guidance.
 
 ${renderAlwaysOnRules(alwaysOnRules)}
 
@@ -117,13 +121,13 @@ export const buildMissingContextText = ({
 }): string => {
   const referenceSection =
     referenceProjectPaths.length > 0
-      ? `\n\nBefore creating a new project Memory Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
+      ? `\n\nBefore creating a new project AI Guidance Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
       : "";
 
   const userInteractionSection =
     creationState === "postponed"
-      ? `No project Memory Bank exists for this repository yet, and Memory Bank creation was previously postponed until ${postponedUntil}. Continue the current task normally and do not ask again about project-bank creation until that time has passed. If the user explicitly asks for Memory Bank setup or project-bank editing before then, call \`create_bank\`.`
-      : `No project Memory Bank exists for this repository yet. Continue the current task normally, but in every useful final response append one short explicit closing question about project-bank creation until the user chooses one of these outcomes: create now, postpone, or decline. Use this question shape: "Create the project Memory Bank now, or postpone the question for ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} or longer?" If the user wants to postpone but does not give a duration, store a ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} postponement by calling \`set_project_state\` with \`creationState: "postponed"\`.`;
+      ? `No project AI Guidance Bank exists for this repository yet, and AI Guidance Bank creation was previously postponed until ${postponedUntil}. Continue the current task normally and do not ask again about project-bank creation until that time has passed. If the user explicitly asks for AI Guidance Bank setup or project-bank editing before then, call \`create_bank\`.`
+      : `No project AI Guidance Bank exists for this repository yet. Continue the current task normally, but in every useful final response append one short explicit closing question about project-bank creation until the user chooses one of these outcomes: create now, postpone, or decline. Use this question shape: "Create the project AI Guidance Bank now, or postpone the question for ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} or longer?" If the user wants to postpone but does not give a duration, store a ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} postponement by calling \`set_project_state\` with \`creationState: "postponed"\`.`;
 
   const sharedSection = sharedContextText ? `\n\n${sharedContextText}` : "";
 
@@ -145,7 +149,7 @@ export const buildCreatingContextText = ({
 }): string => `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for batched writes inside the guided flow. Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after the current step is actually complete.`;
 
 export const buildDeclinedContextText = (): string =>
-  "Project Memory Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests Memory Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
+  "Project AI Guidance Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests AI Guidance Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";
 
 export const buildSyncRequiredContextText = ({
   postponedUntil,
@@ -154,15 +158,15 @@ export const buildSyncRequiredContextText = ({
 }): string => {
   const postponeLine = postponedUntil
     ? `A previous sync was postponed until ${postponedUntil}, but that deferral has now expired.`
-    : "This project Memory Bank has not been synced to the current Memory Bank storage version yet.";
+    : "This project AI Guidance Bank has not been synced to the current AI Guidance Bank storage version yet.";
 
-  return `Project Memory Bank synchronization is required before using the project-specific bank.
+  return `Project AI Guidance Bank synchronization is required before using the project-specific bank.
 
 ${postponeLine}
 
-Sync only reconciles the existing project bank with the current Memory Bank storage version. It does not create a new bank and does not replace the normal create or improve flow.
+Sync only reconciles the existing project bank with the current AI Guidance Bank storage version. It does not create a new bank and does not replace the normal create or improve flow.
 
-Ask the user whether to synchronize the project Memory Bank now or postpone it.
+Ask the user whether to synchronize the project AI Guidance Bank now or postpone it.
 - If the user wants to sync now, call \`sync_bank\` with \`action: "run"\`.
 - If the user wants to postpone, call \`sync_bank\` with \`action: "postpone"\`.
 - After that, call \`resolve_context\` again.

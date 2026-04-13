@@ -41,7 +41,7 @@ export class BankRepository {
   }
 
   // TODO: Multi-agent concurrency is still last-write-wins at the entry level.
-  // Separate `mb mcp serve` processes can update the same rule or skill concurrently.
+  // Separate `gbank mcp serve` processes can update the same rule or skill concurrently.
   // Atomic writes protect file integrity, but they do not detect semantic conflicts.
   // Add revision stamps or optimistic locking before relying on shared concurrent edits.
 

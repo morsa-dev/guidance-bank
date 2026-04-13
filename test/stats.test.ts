@@ -10,8 +10,8 @@ import { BankRepository } from "../src/storage/bankRepository.js";
 import { AuditLogger } from "../src/storage/auditLogger.js";
 
 test("stats service returns overall bank overview and audit aggregates", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-stats-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stats-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const repository = new BankRepository(bankRoot);
   const auditLogger = new AuditLogger({ bankRoot, provider: "codex" });
 
@@ -83,8 +83,8 @@ topics: [demo]
 });
 
 test("stats service returns project-focused overview when project path is provided", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-stats-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stats-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const repository = new BankRepository(bankRoot);
   const auditLogger = new AuditLogger({ bankRoot, provider: "claude-code" });
 

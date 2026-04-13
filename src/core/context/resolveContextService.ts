@@ -5,7 +5,7 @@ import {
   resolveProjectBankLifecycleStatus,
 } from "../bank/lifecycle.js";
 import { detectProjectContext } from "./detectProjectContext.js";
-import type { DetectableStack, ResolvedMemoryBankContext } from "./types.js";
+import type { DetectableStack, ResolvedGuidanceBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { getCreateFlowPhase } from "../projects/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
@@ -31,10 +31,10 @@ type ResolveContextOptions = {
   projectPath: string;
 };
 
-export const resolveMemoryBankContext = async ({
+export const resolveGuidanceBankContext = async ({
   repository,
   projectPath,
-}: ResolveContextOptions): Promise<ResolvedMemoryBankContext> => {
+}: ResolveContextOptions): Promise<ResolvedGuidanceBankContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const manifest = await repository.readManifest();
   const detectedProjectContext = await detectProjectContext(identity.projectPath);
@@ -94,7 +94,7 @@ export const resolveMemoryBankContext = async ({
         skillsCatalog,
       }),
     });
-    const missingContextBase: ResolvedMemoryBankContext = {
+    const missingContextBase: ResolvedGuidanceBankContext = {
       text,
       creationState: creationState as "unknown" | "postponed",
       detectedStacks: [...detectedProjectContext.detectedStacks] as DetectableStack[],

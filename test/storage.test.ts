@@ -8,8 +8,8 @@ import { AuditLogger } from "../src/storage/auditLogger.js";
 import { BankRepository } from "../src/storage/bankRepository.js";
 
 test("repository lists starter entries from the managed storage", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-storage-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-storage-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const repository = new BankRepository(bankRoot);
 
   await repository.ensureStructure();
@@ -34,8 +34,8 @@ test("repository lists starter entries from the managed storage", async () => {
 });
 
 test("repository rejects reading entries outside the managed root", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-storage-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-storage-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const repository = new BankRepository(bankRoot);
 
   await repository.ensureStructure();
@@ -45,8 +45,8 @@ test("repository rejects reading entries outside the managed root", async () => 
 });
 
 test("audit logger rejects writing through a symbolic link", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-storage-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-storage-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const repository = new BankRepository(bankRoot);
   const outsideFilePath = path.join(tempDirectoryPath, "outside.ndjson");
 

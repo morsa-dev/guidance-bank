@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import type { ProviderInstallerContext } from "../../core/providers/types.js";
 import type { ProviderInstallResult } from "../../core/providers/types.js";
-import { MbCliError } from "../../shared/errors.js";
-import { createProviderDescriptor, MEMORY_BANK_SERVER_NAME } from "../shared.js";
+import { GuidanceBankCliError } from "../../shared/errors.js";
+import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME } from "../shared.js";
 
 const CodexServerSchema = z
   .object({
@@ -26,15 +26,15 @@ const isExpectedCodexServer = (rawOutput: string, context: ProviderInstallerCont
     parsed.data.transport.command === context.mcpServerConfig.command &&
     parsed.data.transport.args.length === context.mcpServerConfig.args.length &&
     parsed.data.transport.args.every((arg, index) => arg === context.mcpServerConfig.args[index]) &&
-    parsed.data.transport.env.MB_BANK_ROOT === context.bankRoot &&
-    parsed.data.transport.env.MB_PROVIDER_ID === "codex"
+    parsed.data.transport.env.GUIDANCEBANK_ROOT === context.bankRoot &&
+    parsed.data.transport.env.GUIDANCEBANK_PROVIDER_ID === "codex"
   );
 };
 
 export const installCodexIntegration = async (context: ProviderInstallerContext): Promise<ProviderInstallResult> => {
   const getCommand = {
     command: "codex",
-    args: ["mcp", "get", MEMORY_BANK_SERVER_NAME, "--json"],
+    args: ["mcp", "get", GUIDANCEBANK_SERVER_NAME, "--json"],
   };
   const currentServer = await context.commandRunner(getCommand);
 
@@ -53,11 +53,11 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
     args: [
       "mcp",
       "add",
-      MEMORY_BANK_SERVER_NAME,
+      GUIDANCEBANK_SERVER_NAME,
       "--env",
-      `MB_BANK_ROOT=${context.bankRoot}`,
+      `GUIDANCEBANK_ROOT=${context.bankRoot}`,
       "--env",
-      "MB_PROVIDER_ID=codex",
+      "GUIDANCEBANK_PROVIDER_ID=codex",
       "--",
       context.mcpServerConfig.command,
       ...context.mcpServerConfig.args,
@@ -66,7 +66,7 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
   const result = await context.commandRunner(command);
 
   if (result.exitCode !== 0) {
-    throw new MbCliError(`Failed to configure Codex MCP integration: ${result.stderr || result.stdout || "Unknown error"}`);
+    throw new GuidanceBankCliError(`Failed to configure Codex MCP integration: ${result.stderr || result.stdout || "Unknown error"}`);
   }
 
   return {

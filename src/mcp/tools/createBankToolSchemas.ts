@@ -136,9 +136,9 @@ export const CreateBankInputShape = {
     .array(z.string().trim().min(1))
     .max(5)
     .optional()
-    .describe("Optional project ids of existing Memory Banks to use as reference material for the new project bank."),
+    .describe("Optional project ids of existing AI Guidance Banks to use as reference material for the new project bank."),
   sourceReviewDecision: SourceReviewDecisionSchema.optional().describe(
-    "Simple user confirmation for external guidance review. Use `ok` to migrate useful guidance into the canonical Memory Bank and allow cleanup of legacy sources when the flow deems it safe, or `not_ok` to keep legacy sources in place after migration.",
+    "Simple user confirmation for external guidance review. Use `ok` to migrate useful guidance into the canonical AI Guidance Bank and allow cleanup of legacy sources when the flow deems it safe, or `not_ok` to keep legacy sources in place after migration.",
   ),
   apply: z
     .object({

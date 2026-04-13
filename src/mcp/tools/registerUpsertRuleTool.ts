@@ -32,9 +32,9 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "upsert_rule",
     {
-      title: "Create Or Update Memory Bank Rule File",
+      title: "Create Or Update AI Guidance Bank Rule File",
       description:
-        "Create or update a thematic rule file in the shared or project Memory Bank layer. If scope is ambiguous, the agent should ask the user before writing.",
+        "Create or update a thematic rule file in the shared or project AI Guidance Bank layer. If scope is ambiguous, the agent should ask the user before writing.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -73,7 +73,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
         repository: options.repository,
         projectPath: parsedArgs.data.projectPath,
         scope: parsedArgs.data.scope,
-        missingProjectMessage: "Project Memory Bank does not exist yet. Call create_bank before writing project-scoped rules.",
+        missingProjectMessage: "Project AI Guidance Bank does not exist yet. Call create_bank before writing project-scoped rules.",
       });
       if ("isError" in mutationContext) {
         return mutationContext;

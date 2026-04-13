@@ -1,13 +1,13 @@
 import type { McpServerConfig, ProviderId, ProviderIntegrationDescriptor } from "../core/bank/types.js";
 
-export const MEMORY_BANK_SERVER_NAME = "memory-bank-local";
+export const GUIDANCEBANK_SERVER_NAME = "guidancebank";
 export const USER_SCOPE = "user";
 
 const withProviderEnv = (provider: ProviderId, mcpServer: McpServerConfig): McpServerConfig => ({
   ...mcpServer,
   env: {
     ...mcpServer.env,
-    MB_PROVIDER_ID: provider,
+    GUIDANCEBANK_PROVIDER_ID: provider,
   },
 });
 
@@ -21,7 +21,7 @@ export const createProviderDescriptor = (
   schemaVersion: 1,
   provider,
   displayName,
-  serverName: MEMORY_BANK_SERVER_NAME,
+  serverName: GUIDANCEBANK_SERVER_NAME,
   installationMethod,
   scope: USER_SCOPE,
   mcpServer: withProviderEnv(provider, mcpServer),

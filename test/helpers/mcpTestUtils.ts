@@ -25,8 +25,8 @@ export const createSuccessfulCommandRunner = (): CommandRunner => async ({ comma
 });
 
 export const createInitializedBank = async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-mcp-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-mcp-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
 
   await new InitService().run({
@@ -46,7 +46,7 @@ export const createInitializedBank = async () => {
 export const createConnectedClient = async (bankRoot: string, options: { provider?: "codex" | "cursor" | "claude-code" } = {}) => {
   const server = createMcpServer({ bankRoot, provider: options.provider ?? null });
   const client = new Client({
-    name: "mb-cli-test-client",
+    name: "gbank-cli-test-client",
     version: "0.0.0",
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -72,8 +72,8 @@ export const writeProjectFiles = async (projectRoot: string, files: Record<strin
 
 export const initGitRepo = async (projectRoot: string, message = "init project"): Promise<void> => {
   await execFileAsync("git", ["init"], { cwd: projectRoot });
-  await execFileAsync("git", ["config", "user.email", "mb-cli@example.com"], { cwd: projectRoot });
-  await execFileAsync("git", ["config", "user.name", "mb-cli"], { cwd: projectRoot });
+  await execFileAsync("git", ["config", "user.email", "gbank-cli@example.com"], { cwd: projectRoot });
+  await execFileAsync("git", ["config", "user.name", "gbank-cli"], { cwd: projectRoot });
   await execFileAsync("git", ["add", "."], { cwd: projectRoot });
   await execFileAsync("git", ["commit", "-m", message], { cwd: projectRoot });
 };

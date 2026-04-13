@@ -471,7 +471,7 @@ test("clear_project_bank removes only the current project bank and allows recrea
     TextPayloadSchema,
   );
   assert.equal(resolvedAfterClear.creationState, "unknown");
-  assert.match(resolvedAfterClear.text, /No project Memory Bank exists for this repository/i);
+  assert.match(resolvedAfterClear.text, /No project AI Guidance Bank exists for this repository/i);
 
   const sharedRule = await callToolStructured(
     client,

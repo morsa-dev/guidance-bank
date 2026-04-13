@@ -210,7 +210,7 @@ const registerCreateLikeTool = (
       await options.repository.writeProjectState(identity.projectId, nextState);
       const prompt =
         syncRequired
-          ? "Project Memory Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current Memory Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
+          ? "Project AI Guidance Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current AI Guidance Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
           : improvementEntryPoint
             ? buildReadyProjectBankPrompt({
                 updatedAt: existingBankUpdatedAt,
@@ -231,7 +231,7 @@ const registerCreateLikeTool = (
                 currentBankSnapshot,
                 hasExistingProjectBank: existingManifest !== null,
               })
-            : "Project Memory Bank already exists for this repository and is ready.";
+            : "Project AI Guidance Bank already exists for this repository and is ready.";
       const creationPrompt =
         finalEffectiveIteration === 0
           ? buildCreateBankPrompt({
@@ -320,15 +320,15 @@ const registerCreateLikeTool = (
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
   registerCreateLikeTool(server, options, {
     toolName: "create_bank",
-    title: "Create Project Memory Bank",
+    title: "Create Project AI Guidance Bank",
     description:
-      "Create or improve the canonical project Memory Bank under the user-level Memory Bank storage. Prefer this tool when no project bank exists yet or when the user explicitly asks to initialize one.",
+      "Create the canonical project AI Guidance Bank under the user-level AI Guidance Bank storage. AI Guidance Bank is the durable rules-and-skills layer for the project, not conversational memory.",
   });
 
   registerCreateLikeTool(server, options, {
     toolName: "improve_bank",
-    title: "Improve Project Memory Bank",
+    title: "Improve Project AI Guidance Bank",
     description:
-      "Review and improve an existing project Memory Bank through the guided flow. Prefer this tool when a project bank already exists and the user wants to refine or expand it.",
+      "Review and improve an existing project AI Guidance Bank through the guided flow. Use this when the project already has a durable rules-and-skills layer that needs refinement or expansion.",
   });
 };

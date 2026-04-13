@@ -1,10 +1,10 @@
 import { parseArgs } from "node:util";
 
 import { StatsService, type MemoryBankStats } from "../../core/stats/statsService.js";
-import { MbCliError, UserInputError } from "../../shared/errors.js";
+import { GuidanceBankCliError, UserInputError } from "../../shared/errors.js";
 
 const printStatsUsage = (): void => {
-  console.info("Usage: mb stats [--project /absolute/project/path] [--json]");
+  console.info("Usage: gbank stats [--project /absolute/project/path] [--json]");
 };
 
 const renderCountMap = (label: string, values: Record<string, number>): string[] => {
@@ -33,7 +33,7 @@ const renderLatestEvents = (label: string, events: MemoryBankStats["audit"]["lat
 
 const renderTextStats = (stats: MemoryBankStats): string => {
   const lines = [
-    `Memory Bank at ${stats.bankRoot}`,
+    `AI Guidance Bank at ${stats.bankRoot}`,
     "",
     `Bank ID: ${stats.manifest.bankId}`,
     `Storage version: ${stats.manifest.storageVersion}`,
@@ -97,7 +97,7 @@ export const runStatsCommand = async (argv: readonly string[] = process.argv.sli
   }
 
   if (parsedArgs.positionals.length > 1 || (parsedArgs.positionals[0] && parsedArgs.positionals[0] !== "stats")) {
-    throw new UserInputError("Usage: mb stats [--project /absolute/project/path] [--json]");
+    throw new UserInputError("Usage: gbank stats [--project /absolute/project/path] [--json]");
   }
 
   const statsService = new StatsService();
@@ -119,6 +119,6 @@ export const runStatsCommand = async (argv: readonly string[] = process.argv.sli
     console.info(renderTextStats(stats));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown stats error.";
-    throw new MbCliError(message);
+    throw new GuidanceBankCliError(message);
   }
 };

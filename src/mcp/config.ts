@@ -18,6 +18,6 @@ export const createDefaultMcpServerConfig = (bankRoot: string): McpServerConfig 
   transport: "stdio",
   ...createDefaultMcpLaunchConfig(bankRoot),
   env: {
-    MB_BANK_ROOT: bankRoot,
+    GUIDANCEBANK_ROOT: bankRoot,
   },
 });

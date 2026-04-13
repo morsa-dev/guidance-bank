@@ -113,12 +113,12 @@ test("resolve_context returns missing status when no project bank exists", async
   assert.equal(structured.postponedUntil, undefined);
   assert.ok(structured.detectedStacks?.includes("react"));
   assert.ok(structured.detectedStacks?.includes("typescript"));
-  assert.match(structured.text, /No project Memory Bank exists for this repository yet/i);
+  assert.match(structured.text, /No project AI Guidance Bank exists for this repository yet/i);
   assert.match(structured.text, /Continue the current task normally/i);
   assert.match(structured.text, /in every useful final response append one short explicit closing question/i);
-  assert.match(structured.text, /Create the project Memory Bank now, or postpone the question for 1 day or longer\?/i);
+  assert.match(structured.text, /Create the project AI Guidance Bank now, or postpone the question for 1 day or longer\?/i);
   assert.match(structured.text, /default to 1 day/i);
-  assert.match(structured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
+  assert.match(structured.text, /Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.match(structured.text, /Always-On Rules/i);
   assert.match(structured.text, /Catalog Summary/i);
   assert.match(structured.text, /call `create_bank`/i);
@@ -198,7 +198,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
 
   assert.equal(structured.creationState, "ready");
   assert.ok(structured.detectedStacks?.includes("nodejs"));
-  assert.match(structured.text, /Memory Bank context catalog/i);
+  assert.match(structured.text, /AI Guidance Bank context catalog/i);
   assert.match(structured.text, /Always-On Rules/i);
   assert.match(structured.text, /Catalog Summary/i);
   assert.match(structured.text, /- Rules: \d+ entries\./i);
@@ -265,10 +265,10 @@ test("set_project_state persists postponed creation and resolve_context stops pr
   assert.equal(resolveStructured.postponedUntil, stateStructured.postponedUntil);
   assert.equal(resolveStructured.requiredAction, undefined);
   assert.equal(resolveStructured.recommendedAction, undefined);
-  assert.match(resolveStructured.text, /Memory Bank creation was previously postponed until/i);
+  assert.match(resolveStructured.text, /AI Guidance Bank creation was previously postponed until/i);
   assert.match(resolveStructured.text, /do not ask again about project-bank creation until that time has passed/i);
   assert.match(resolveStructured.text, /Continue the current task normally/i);
-  assert.match(resolveStructured.text, /Shared Memory Bank context is available even though this repository does not have a project-specific bank yet/i);
+  assert.match(resolveStructured.text, /Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.ok((resolveStructured.rulesCatalog?.length ?? 0) > 0);
   assert.ok((resolveStructured.skillsCatalog?.length ?? 0) > 0);
   assert.doesNotMatch(resolveStructured.text, /ask the user a short direct question/i);
@@ -385,5 +385,5 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
 
   const afterPostpone = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.doesNotMatch(afterPostpone.text, /synchronization is required/i);
-  assert.match(afterPostpone.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
+  assert.match(afterPostpone.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 });

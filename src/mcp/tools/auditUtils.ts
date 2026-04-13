@@ -49,7 +49,7 @@ export const writeEntryAuditEvent = async ({
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown audit logging error.";
-    console.warn(`Failed to write Memory Bank audit event for ${tool} ${scope}/${path}: ${message}`);
+    console.warn(`Failed to write AI Guidance Bank audit event for ${tool} ${scope}/${path}: ${message}`);
   }
 };
 
@@ -90,7 +90,7 @@ export const writeToolAuditEvent = async ({
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown audit logging error.";
-    console.warn(`Failed to write Memory Bank audit event for ${tool} ${projectPath}: ${message}`);
+    console.warn(`Failed to write AI Guidance Bank audit event for ${tool} ${projectPath}: ${message}`);
   }
 };
 

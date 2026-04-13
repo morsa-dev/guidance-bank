@@ -16,8 +16,8 @@ const createSuccessfulCommandRunner = (): CommandRunner => async ({ command, arg
 });
 
 test("init creates the bank structure and writes the manifest", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-init-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -38,8 +38,8 @@ test("init creates the bank structure and writes the manifest", async () => {
 });
 
 test("init is idempotent and merges selected providers into the existing manifest", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-init-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 

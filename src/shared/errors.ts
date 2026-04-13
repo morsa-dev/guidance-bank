@@ -1,18 +1,18 @@
-export class MbCliError extends Error {
+export class GuidanceBankCliError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "MbCliError";
+    this.name = "GuidanceBankCliError";
   }
 }
 
-export class ValidationError extends MbCliError {
+export class ValidationError extends GuidanceBankCliError {
   constructor(message: string) {
     super(message);
     this.name = "ValidationError";
   }
 }
 
-export class UserInputError extends MbCliError {
+export class UserInputError extends GuidanceBankCliError {
   constructor(message: string) {
     super(message);
     this.name = "UserInputError";

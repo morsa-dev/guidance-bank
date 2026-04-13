@@ -132,7 +132,7 @@ export const callLocalMcpTool = async ({
   const normalizedArgs = withSessionRef(toolName, args);
   const server = createMcpServer(serverOptions);
   const client = new Client({
-    name: "memory-bank-local-smoke-client",
+    name: "guidancebank-smoke-client",
     version: "0.0.0",
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

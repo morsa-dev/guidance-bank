@@ -13,7 +13,7 @@ const run = async () => {
       return;
     }
 
-    console.warn(`[memory-bank-local] postinstall launcher refresh skipped: ${message}`);
+    console.warn(`[AI Guidance Bank] postinstall launcher refresh skipped: ${message}`);
   }
 };
 

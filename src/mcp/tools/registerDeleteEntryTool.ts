@@ -29,9 +29,9 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "delete_entry",
     {
-      title: "Delete Memory Bank Entry",
+      title: "Delete AI Guidance Bank Entry",
       description:
-        "Delete a rule file or skill folder from the shared or project Memory Bank layer. Use with care and only after the user explicitly wants the entry removed.",
+        "Delete a rule file or skill folder from the shared or project AI Guidance Bank layer. Use with care and only after the user explicitly wants the entry removed.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -67,7 +67,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         repository: options.repository,
         projectPath: parsedArgs.data.projectPath,
         scope: parsedArgs.data.scope,
-        missingProjectMessage: "Project Memory Bank does not exist yet. Call create_bank before deleting project-scoped entries.",
+        missingProjectMessage: "Project AI Guidance Bank does not exist yet. Call create_bank before deleting project-scoped entries.",
       });
       if ("isError" in mutationContext) {
         return mutationContext;

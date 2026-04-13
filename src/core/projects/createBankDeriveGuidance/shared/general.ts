@@ -1,6 +1,6 @@
 export const GENERAL_DERIVE_GUIDANCE = `## General Analysis Contract
 
-Before generating or updating Memory Bank entries:
+Before generating or updating AI Guidance Bank entries:
 - Explore the codebase thoroughly before writing
 - Prefer project evidence over assumptions
 - Generate project-specific rules, not generic copies

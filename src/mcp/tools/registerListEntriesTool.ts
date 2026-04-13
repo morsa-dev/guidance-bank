@@ -23,8 +23,8 @@ export const registerListEntriesTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "list_entries",
     {
-      title: "List Memory Bank Entries",
-      description: "List rule or skill files from the local Memory Bank.",
+      title: "List AI Guidance Bank Entries",
+      description: "List rule or skill files from the local AI Guidance Bank.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

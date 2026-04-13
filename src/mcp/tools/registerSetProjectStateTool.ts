@@ -17,7 +17,7 @@ const BaseSetProjectStateArgsSchema = z
     sessionRef: SessionRefSchema,
     creationState: z
       .enum(PROJECT_CREATION_STATES)
-      .describe("Project Memory Bank creation state to persist for this repository."),
+      .describe("Project AI Guidance Bank creation state to persist for this repository."),
     postponeDays: z.number().int().positive().optional(),
     postponedUntil: z.iso.datetime().optional(),
   })
@@ -57,9 +57,9 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "set_project_state",
     {
-      title: "Set Project Memory Bank State",
+      title: "Set Project AI Guidance Bank State",
       description:
-        "Persist project-level Memory Bank state such as declined creation, so the agent can avoid asking the user repeatedly.",
+        "Persist project-level AI Guidance Bank state such as declined creation, so the agent can avoid asking the user repeatedly.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -69,7 +69,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         sessionRef: SessionRefSchema,
         creationState: z
           .enum(PROJECT_CREATION_STATES)
-          .describe("Project Memory Bank creation state to persist for this repository."),
+          .describe("Project AI Guidance Bank creation state to persist for this repository."),
         postponeDays: z.number().int().positive().optional(),
         postponedUntil: z.iso.datetime().optional(),
       },

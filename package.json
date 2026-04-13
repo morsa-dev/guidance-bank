@@ -1,7 +1,7 @@
 {
-  "name": "@morsa/memory-bank-local",
+  "name": "@morsa/guidance-bank",
   "version": "0.1.5",
-  "description": "Local Memory Bank runtime and MCP host for coding agents.",
+  "description": "Persistent rules, skills, and reusable guidance for coding agents.",
   "type": "module",
   "files": [
     "bin",
@@ -11,7 +11,7 @@
     "LICENSE"
   ],
   "bin": {
-    "mb": "bin/mb.js"
+    "gbank": "bin/gbank.js"
   },
   "engines": {
     "node": ">=22.9.0"
@@ -30,7 +30,11 @@
     "smoke:resolve": "node --import tsx scripts/smoke/resolveContext.ts"
   },
   "keywords": [
-    "memory-bank",
+    "guidance-bank",
+    "guidancebank",
+    "agent-guidance",
+    "rules",
+    "skills",
     "mcp",
     "runtime",
     "local-runtime",
@@ -38,11 +42,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/morsa-dev/memory-bank-local.git"
+    "url": "git+https://github.com/morsa-dev/guidance-bank.git"
   },
-  "homepage": "https://github.com/morsa-dev/memory-bank-local#readme",
+  "homepage": "https://github.com/morsa-dev/guidance-bank#readme",
   "bugs": {
-    "url": "https://github.com/morsa-dev/memory-bank-local/issues"
+    "url": "https://github.com/morsa-dev/guidance-bank/issues"
   },
   "license": "MIT",
   "dependencies": {

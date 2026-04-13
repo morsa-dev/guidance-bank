@@ -133,7 +133,7 @@ export class StatsService {
     const manifest = await this.repository.readManifestOptional();
 
     if (manifest === null) {
-      throw new Error(`Memory Bank is not initialized at ${this.repository.rootPath}. Run \`mb init\` first.`);
+      throw new Error(`AI Guidance Bank is not initialized at ${this.repository.rootPath}. Run \`gbank init\` first.`);
     }
 
     const projectManifests = await this.repository.listProjectManifests();

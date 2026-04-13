@@ -19,9 +19,9 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "sync_bank",
     {
-      title: "Sync Memory Bank",
+      title: "Sync AI Guidance Bank",
       description:
-        "Run an explicit Memory Bank reconcile pass for the current project. Use this when the user asks to resync the bank or when future import or migration flows need a fresh inventory.",
+        "Run an explicit reconcile pass for the current project's durable AI Guidance Bank entries. Use this when the user asks to resync the bank or when import or migration flows need a fresh inventory.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

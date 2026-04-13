@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import { MbCliError } from "../shared/errors.js";
+import { GuidanceBankCliError } from "../shared/errors.js";
 import type { CommandRunResult, CommandRunner } from "../core/providers/types.js";
 
 export const runCommand: CommandRunner = async ({ command, args }) =>
@@ -23,7 +23,7 @@ export const runCommand: CommandRunner = async ({ command, args }) =>
 
     child.on("error", (error) => {
       if ("code" in error && error.code === "ENOENT") {
-        reject(new MbCliError(`Required provider CLI is not installed or not on PATH: ${command}`));
+        reject(new GuidanceBankCliError(`Required provider CLI is not installed or not on PATH: ${command}`));
         return;
       }
 

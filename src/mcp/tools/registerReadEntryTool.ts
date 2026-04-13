@@ -19,8 +19,8 @@ export const registerReadEntryTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "read_entry",
     {
-      title: "Read Memory Bank Entry",
-      description: "Read a rule or skill file from the local Memory Bank.",
+      title: "Read AI Guidance Bank Entry",
+      description: "Read a rule or skill file from the local AI Guidance Bank.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

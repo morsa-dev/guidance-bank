@@ -63,7 +63,7 @@ export class SyncService {
     const manifest = await repository.readManifestOptional();
 
     if (manifest === null) {
-      throw new ValidationError("Memory Bank is not initialized yet. Run mb init first.");
+      throw new ValidationError("AI Guidance Bank is not initialized yet. Run gbank init first.");
     }
 
     const identity = resolveProjectIdentity(options.projectPath);
@@ -151,7 +151,7 @@ export class SyncService {
     const manifest = await repository.readManifestOptional();
 
     if (manifest === null) {
-      throw new ValidationError("Memory Bank is not initialized yet. Run mb init first.");
+      throw new ValidationError("AI Guidance Bank is not initialized yet. Run gbank init first.");
     }
 
     const identity = resolveProjectIdentity(options.projectPath);
@@ -159,7 +159,7 @@ export class SyncService {
     const projectManifest = await repository.readProjectManifestOptional(identity.projectId);
 
     if (projectManifest === null) {
-      throw new ValidationError("Project Memory Bank does not exist yet. Call create_bank before postponing sync.");
+      throw new ValidationError("Project AI Guidance Bank does not exist yet. Call create_bank before postponing sync.");
     }
 
     const projectState = await repository.readProjectStateOptional(identity.projectId);

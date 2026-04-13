@@ -58,7 +58,7 @@ export type ReferenceProjectCandidate = {
   sharedStacks: DetectableStack[];
 };
 
-export type ResolvedMemoryBankContext = {
+export type ResolvedGuidanceBankContext = {
   text: string;
   creationState?: ProjectCreationState;
   postponedUntil?: string | null;

@@ -15,7 +15,7 @@ export type CreateMcpServerOptions = {
 
 export const createMcpServer = (options: CreateMcpServerOptions = {}): McpServer => {
   const repository = new BankRepository(resolveBankRoot(options.bankRoot));
-  const providerFromEnv = process.env.MB_PROVIDER_ID;
+  const providerFromEnv = process.env.GUIDANCEBANK_PROVIDER_ID;
   const provider =
     options.provider ?? (providerFromEnv && isProviderId(providerFromEnv) ? providerFromEnv : null);
   const runtimeOptions: McpServerRuntimeOptions = {

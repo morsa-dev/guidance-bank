@@ -17,8 +17,8 @@ export const runInitCommand = async (): Promise<void> => {
 
   console.info(
     result.alreadyExisted
-      ? `Memory Bank is ready at ${result.bankRoot}.`
-      : `Memory Bank initialized successfully at ${result.bankRoot}.`,
+      ? `AI Guidance Bank is ready at ${result.bankRoot}.`
+      : `AI Guidance Bank initialized successfully at ${result.bankRoot}.`,
   );
 
   if (configuredProviders.length > 0) {
@@ -32,6 +32,6 @@ export const runInitCommand = async (): Promise<void> => {
   console.info("");
   console.info("Next step:");
   console.info(
-    "Open any project in your agent. The agent can use the Memory Bank MCP to resolve shared context, detect when a project bank is missing, and guide you through creating or updating it.",
+    "Open any project in your agent. The agent can use the AI Guidance Bank MCP to load durable rules and skills, detect when a project bank is missing, and guide you through creating or updating it.",
   );
 };

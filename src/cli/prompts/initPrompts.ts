@@ -79,12 +79,12 @@ const parseSelection = (value: string, availableProviders: readonly ProviderAvai
 
 export const promptForProviders = async (): Promise<ProviderId[]> => {
   if (!input.isTTY || !output.isTTY) {
-    throw new UserInputError("mb init requires an interactive terminal in the current MVP.");
+    throw new UserInputError("gbank init requires an interactive terminal in the current MVP.");
   }
 
   const availability = await getProviderAvailability();
 
-  output.write("Select providers to enable for Memory Bank MCP:\n");
+  output.write("Select providers to enable for AI Guidance Bank MCP:\n");
   for (const [index, provider] of availability.entries()) {
     output.write(`${index + 1}. ${provider.displayName} [${provider.available ? "available" : "not found"}]\n`);
   }

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createInitializedBank, createConnectedClient } from "./helpers/mcpTestUtils.js";
 
-test("server registers public Memory Bank tools with output schemas", async (t) => {
+test("server registers public AI Guidance Bank tools with output schemas", async (t) => {
   const { bankRoot } = await createInitializedBank();
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);

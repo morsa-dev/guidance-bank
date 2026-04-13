@@ -1124,7 +1124,7 @@ topics: [architecture]
   assert.deepEqual(conflicted.applyResults.writes.map((item) => item.status), ["conflict"]);
   assert.equal(conflicted.applyResults.writes[0]?.expectedSha256, "stale-sha256");
   assert.equal(conflicted.applyResults.writes[0]?.actualSha256, existingRule.sha256);
-  assert.match(conflicted.text, /conflicted with the current Memory Bank state/i);
+  assert.match(conflicted.text, /conflicted with the current AI Guidance Bank state/i);
   assert.match(conflicted.text, /Re-read the affected entries/i);
   assert.match(conflicted.prompt, /If `create_bank\.apply` reports a `conflict`/i);
   assert.equal(conflicted.creationPrompt, null);
@@ -1319,7 +1319,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(resolveStructured.creationState, "ready");
-  assert.match(resolveStructured.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
+  assert.match(resolveStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
   assert.doesNotMatch(resolveStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(resolveStructured.text, /\.cursor/i);
 });
@@ -1418,7 +1418,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(rerunStructured.nextIteration, 1);
   assert.equal(
     rerunStructured.text,
-    "Project Memory Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.",
+    "Project AI Guidance Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.",
   );
   assert.match(rerunStructured.prompt, /last updated 0 days ago/i);
   assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
@@ -1444,7 +1444,7 @@ test("ready project banks ask the user whether to run an improvement pass before
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "ready");
-  assert.match(resolveStructured.text, /Use the following Memory Bank context catalog as the primary user-managed context/i);
+  assert.match(resolveStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 });
 
 test("improve_bank aliases the guided existing-bank flow", async (t) => {

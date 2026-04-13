@@ -16,9 +16,9 @@ export const registerClearProjectBankTool: ToolRegistrar = (server, options) => 
   server.registerTool(
     "clear_project_bank",
     {
-      title: "Clear Project Memory Bank",
+      title: "Clear Project AI Guidance Bank",
       description:
-        "Delete the current repository's entire project-scoped Memory Bank so the project can be recreated from scratch. Shared entries are not affected.",
+        "Delete the current repository's entire project-scoped AI Guidance Bank so the project can be recreated from scratch. Shared entries are not affected.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

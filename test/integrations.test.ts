@@ -20,25 +20,25 @@ const createExpectedProviderMcpServer = (
     args: [...baseConfig.args],
     env: {
       ...baseConfig.env,
-      MB_PROVIDER_ID: provider,
+      GUIDANCEBANK_PROVIDER_ID: provider,
     },
   };
 };
 
 test("default MCP launch config uses a stable launcher path on Unix and Windows", () => {
-  assert.deepEqual(createDefaultMcpLaunchConfig("/tmp/mb-bank", { platform: "linux" }), {
-    command: "/tmp/mb-bank/bin/memory-bank-mcp",
+  assert.deepEqual(createDefaultMcpLaunchConfig("/tmp/gbank-bank", { platform: "linux" }), {
+    command: "/tmp/gbank-bank/bin/guidancebank-mcp",
     args: [],
   });
 
   assert.deepEqual(
-    createDefaultMcpLaunchConfig("C:\\Users\\tester\\.memory-bank", {
+    createDefaultMcpLaunchConfig("C:\\Users\\tester\\.guidancebank", {
       platform: "win32",
       comSpec: "C:\\Windows\\System32\\cmd.exe",
     }),
     {
       command: "C:\\Windows\\System32\\cmd.exe",
-      args: ["/d", "/s", "/c", "\"C:\\Users\\tester\\.memory-bank\\bin\\memory-bank-mcp.cmd\""],
+      args: ["/d", "/s", "/c", "\"C:\\Users\\tester\\.guidancebank\\bin\\guidancebank-mcp.cmd\""],
     },
   );
 });
@@ -87,7 +87,7 @@ const createClaudeReconfigureRunner = () => {
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: memory-bank-local",
+        stderr: "No MCP server found with name: guidancebank",
       };
     }
 
@@ -100,7 +100,7 @@ const createClaudeReconfigureRunner = () => {
           args,
           exitCode: 1,
           stdout: "",
-          stderr: "MCP server memory-bank-local already exists in user config",
+          stderr: "MCP server guidancebank already exists in user config",
         };
       }
     }
@@ -121,8 +121,8 @@ const createClaudeReconfigureRunner = () => {
 };
 
 test("init writes provider integration descriptors", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
@@ -153,16 +153,16 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(claudeDescriptor.scope, "user");
   assert.equal(codexDescriptor.mcpServer.command, createDefaultMcpLaunchConfig(bankRoot).command);
   assert.deepEqual(codexDescriptor.mcpServer.args, createDefaultMcpLaunchConfig(bankRoot).args);
-  assert.equal(codexDescriptor.mcpServer.env.MB_BANK_ROOT, bankRoot);
-  assert.equal(codexDescriptor.mcpServer.env.MB_PROVIDER_ID, "codex");
-  assert.equal(claudeDescriptor.mcpServer.env.MB_PROVIDER_ID, "claude-code");
+  assert.equal(codexDescriptor.mcpServer.env.GUIDANCEBANK_ROOT, bankRoot);
+  assert.equal(codexDescriptor.mcpServer.env.GUIDANCEBANK_PROVIDER_ID, "codex");
+  assert.equal(claudeDescriptor.mcpServer.env.GUIDANCEBANK_PROVIDER_ID, "claude-code");
   assert.ok(calls.some((call) => call.command === "codex"));
   assert.ok(calls.some((call) => call.command === "claude"));
 });
 
 test("init writes the MCP launcher into the bank root", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-launcher-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-launcher-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -180,8 +180,8 @@ test("init writes the MCP launcher into the bank root", async () => {
 });
 
 test("claude integration removes and re-adds the server when it already exists", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeReconfigureRunner();
@@ -196,13 +196,13 @@ test("claude integration removes and re-adds the server when it already exists",
   assert.equal(result.integrations[0]?.action, "reconfigured");
   assert.deepEqual(
     calls.map((call) => `${call.command} ${call.args.slice(0, 3).join(" ")}`),
-    ["claude mcp get memory-bank-local", "claude mcp add --scope", "claude mcp remove --scope", "claude mcp add --scope"],
+    ["claude mcp get guidancebank", "claude mcp add --scope", "claude mcp remove --scope", "claude mcp add --scope"],
   );
 });
 
 test("init skips re-adding global integrations that are already configured", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -249,8 +249,8 @@ test("init skips re-adding global integrations that are already configured", asy
             command: launchConfig.command,
             args: launchConfig.args,
             env: {
-              MB_BANK_ROOT: bankRoot,
-              MB_PROVIDER_ID: "codex",
+              GUIDANCEBANK_ROOT: bankRoot,
+              GUIDANCEBANK_PROVIDER_ID: "codex",
             },
           },
         }),
@@ -263,15 +263,15 @@ test("init skips re-adding global integrations that are already configured", asy
         command,
         args,
         exitCode: 0,
-        stdout: `memory-bank-local:
+        stdout: `guidancebank:
   Scope: User config (available in all your projects)
   Status: ✓ Connected
   Type: stdio
   Command: ${launchConfig.command}
   Args: ${launchConfig.args.join(" ")}
   Environment:
-    MB_BANK_ROOT=${bankRoot}
-    MB_PROVIDER_ID=claude-code
+    GUIDANCEBANK_ROOT=${bankRoot}
+    GUIDANCEBANK_PROVIDER_ID=claude-code
 `,
         stderr: "",
       };
@@ -304,8 +304,8 @@ test("init skips re-adding global integrations that are already configured", asy
 });
 
 test("repeat init re-applies missing codex and claude MCP registrations", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -326,7 +326,7 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: memory-bank-local",
+        stderr: "No MCP server found with name: guidancebank",
       };
     }
 
@@ -336,7 +336,7 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
         args,
         exitCode: 1,
         stdout: "",
-        stderr: "No MCP server found with name: memory-bank-local",
+        stderr: "No MCP server found with name: guidancebank",
       };
     }
 
@@ -367,8 +367,8 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
 });
 
 test("cursor integration writes the MCP config file and persists a config-file descriptor", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
@@ -393,14 +393,14 @@ test("cursor integration writes the MCP config file and persists a config-file d
   assert.equal(result.integrations[0]?.action, "installed");
   assert.equal(result.integrations[0]?.command, null);
   assert.equal(cursorDescriptor.installationMethod, "config-file");
-  assert.equal(cursorDescriptor.serverName, "memory-bank-local");
-  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], createExpectedProviderMcpServer(bankRoot, "cursor"));
+  assert.equal(cursorDescriptor.serverName, "guidancebank");
+  assert.deepEqual(cursorConfig.mcpServers["guidancebank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
   assert.ok(!calls.some((call) => call.command === "cursor"));
 });
 
 test("repeat init skips cursor when the expected MCP config already exists", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
@@ -423,8 +423,8 @@ test("repeat init skips cursor when the expected MCP config already exists", asy
 });
 
 test("repeat init reconfigures cursor when the MCP config entry exists but does not match", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
@@ -441,11 +441,11 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
     `${JSON.stringify(
       {
         mcpServers: {
-          "memory-bank-local": {
+          "guidancebank": {
             ...createExpectedProviderMcpServer(bankRoot, "cursor"),
             env: {
-              MB_BANK_ROOT: "/wrong/path",
-              MB_PROVIDER_ID: "cursor",
+              GUIDANCEBANK_ROOT: "/wrong/path",
+              GUIDANCEBANK_PROVIDER_ID: "cursor",
             },
           },
         },
@@ -467,12 +467,12 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
   };
 
   assert.equal(result.integrations[0]?.action, "reconfigured");
-  assert.deepEqual(cursorConfig.mcpServers["memory-bank-local"], createExpectedProviderMcpServer(bankRoot, "cursor"));
+  assert.deepEqual(cursorConfig.mcpServers["guidancebank"], createExpectedProviderMcpServer(bankRoot, "cursor"));
 });
 
 test("repeat init reconfigures cursor even if a stale descriptor exists but the MCP config file is missing", async () => {
-  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "mb-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".memory-bank");
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
@@ -491,7 +491,7 @@ test("repeat init reconfigures cursor even if a stale descriptor exists but the 
         schemaVersion: 1,
         provider: "cursor",
         displayName: "Cursor",
-        serverName: "memory-bank-local",
+        serverName: "guidancebank",
         installationMethod: "config-file",
         scope: "user",
         mcpServer: {

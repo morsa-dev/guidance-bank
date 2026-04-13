@@ -24,7 +24,7 @@ ${detectedStacks.map((stack) => `- ${stack}`).join("\n")}`;
 
 const renderSupportedStackIdsSection = (): string => `## Supported Stack Ids
 
-Use only these canonical stack ids in Memory Bank metadata:
+Use only these canonical stack ids in AI Guidance Bank metadata:
 ${DETECTABLE_STACKS.map((stack) => `- ${stack}`).join("\n")}
 
 If no specific stack fits confidently, use \`other\`.`;
@@ -55,14 +55,14 @@ export const buildCreateBankPrompt = ({
   skillsDirectory,
   detectedStacks,
   selectedReferenceProjects,
-}: CreateBankPromptInput): string => `# Project Memory Bank Creation
+}: CreateBankPromptInput): string => `# Project AI Guidance Bank Creation
 
-You are creating the canonical Memory Bank for \`${projectName}\`.
+You are creating the canonical AI Guidance Bank for \`${projectName}\`.
 
 Project path:
 - \`${projectPath}\`
 
-Target Memory Bank:
+Target AI Guidance Bank:
 - \`${projectBankPath}\`
 - Rules root: \`${rulesDirectory}\`
 - Skills root: \`${skillsDirectory}\`
@@ -75,11 +75,12 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 ## Stable Contract
 
-- Memory Bank is the canonical user-managed context for this project
+- AI Guidance Bank is the canonical user-managed guidance layer for this project
+- AI Guidance Bank stores durable rules, skills, and reusable project guidance across sessions
 - Use \`phase\` as the primary guide during the create/improve flow; treat \`iteration\` as diagnostic only
-- Use real project code, shared Memory Bank context, selected reference projects, and explicit user instructions as the main inputs
+- Use real project code, shared AI Guidance Bank context, selected reference projects, and explicit user instructions as the main inputs
 - External repository-local or provider-project guidance must be reviewed explicitly in later steps before import
-- Provider-local skills, provider-global skills, and model-native instructions may help analysis, but they never count as canonical Memory Bank coverage
+- Provider-local skills, provider-global skills, and model-native instructions may help analysis, but they never count as canonical AI Guidance Bank coverage
 
 ## Writing Contract
 
@@ -97,7 +98,7 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 - Put guidance in the project bank only when it reflects stable patterns from this repository or meaningfully refines shared guidance
 - Put clearly reusable cross-project guidance into the shared layer instead of the project layer
-- Only shared/project Memory Bank entries and explicitly reviewed external sources count as canonical coverage
+- Only shared/project AI Guidance Bank entries and explicitly reviewed external sources count as canonical coverage
 
 ## Coverage Expectations
 

@@ -35,7 +35,7 @@ const renderExistingBankBaselineSection = (
   hasExistingProjectBank
     ? `## Current Bank Baseline
 
-A project Memory Bank already exists for this repository. Treat the current project bank as the canonical baseline and improve it instead of recreating it blindly.
+A project AI Guidance Bank already exists for this repository. Treat the current project bank as the canonical baseline and improve it instead of recreating it blindly.
 
 - Current project bank inventory: ${currentBankSnapshot.entries.length} entr${currentBankSnapshot.entries.length === 1 ? "y" : "ies"}.
 - Reuse strong existing entries
@@ -159,7 +159,7 @@ Project:
 - \`${projectName}\`
 - \`${projectPath}\`
 
-Target Memory Bank:
+Target AI Guidance Bank:
 - \`${projectBankPath}\`
 - Rules: \`${rulesDirectory}\`
 - Skills: \`${skillsDirectory}\`
@@ -173,6 +173,7 @@ What to do in this step:
 - form a candidate list for the first high-value rules and skills
 - start writing only when the evidence is already strong
 - delay external guidance import or deletion until the dedicated review step
+- treat AI Guidance Bank as durable, reusable rules-and-skills guidance across sessions
 - do not stop at a thin summary if the repository clearly supports a richer bank
 
 Step output:
@@ -184,7 +185,7 @@ const buildReviewExistingPrompt = (projectPath: string, discoveredSources: reado
 
 ${STABLE_CONTRACT_NOTE}
 
-Review available external guidance before importing anything into Memory Bank.
+Review available external guidance before importing anything into AI Guidance Bank.
 
 Project path:
 - \`${projectPath}\`
@@ -195,9 +196,10 @@ What to do:
 - Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
 - Skip purely empty, obsolete, or trivial sources without bothering the user
 - By default, do not expose internal strategy labels to the user
+- Treat AI Guidance Bank as the durable canonical rules-and-skills layer for the project
 - Ask for one simple confirmation:
-  - \`ok\`: make Memory Bank the canonical source for this project and migrate useful guidance by the default policy
-  - \`not ok\`: leave legacy guidance untouched and do not treat it as canonical Memory Bank coverage
+  - \`ok\`: make AI Guidance Bank the canonical source for this project and migrate useful guidance by the default policy
+  - \`not ok\`: leave legacy guidance untouched and do not treat it as canonical AI Guidance Bank coverage
 - When the simple confirmation is enough, advance with \`sourceReviewDecision: "ok"\` or \`sourceReviewDecision: "not_ok"\`
 - Ask a more detailed follow-up only when deletion is risky enough that the simple confirmation is not safe
 - Keep the user-facing review short and action-oriented:
@@ -225,15 +227,16 @@ ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
 
 What to do:
 - Treat the confirmed source decisions below as the internal execution plan for this import step
-- Convert approved guidance into canonical Memory Bank rules and skills
+- Convert approved guidance into canonical AI Guidance Bank rules and skills
+- Keep imported content durable, operational, and reusable across future sessions
 - Split entries between project scope and shared scope when appropriate
 - Assign stable ids, titles, topics, and stacks
-- Deduplicate against existing Memory Bank content before writing
+- Deduplicate against existing AI Guidance Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`topics/example.md\` or \`adding-feature\`, not \`rules/topics/example.md\` or \`skills/adding-feature\`
-- If the user simply confirmed \`ok\`, follow the default policy: make Memory Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
-- If the user confirmed \`not ok\`, still migrate useful guidance into the canonical Memory Bank but leave the legacy sources untouched even if that creates temporary duplication
-- When replacing or deleting an existing Memory Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
+- If the user simply confirmed \`ok\`, follow the default policy: make AI Guidance Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
+- If the user confirmed \`not ok\`, still migrate useful guidance into the canonical AI Guidance Bank but leave the legacy sources untouched even if that creates temporary duplication
+- When replacing or deleting an existing AI Guidance Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
 Write rules:
@@ -246,7 +249,7 @@ Safety rules:
 - Do not delete, rewrite, or trim any original source unless the confirmed review decision allows cleanup and the migration was already written and verified successfully
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
-- Do not count provider-local or provider-global guidance as existing Memory Bank coverage when deciding what still needs to be written`;
+- Do not count provider-local or provider-global guidance as existing AI Guidance Bank coverage when deciding what still needs to be written`;
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,
@@ -255,7 +258,7 @@ const buildDeriveFromProjectPrompt = (
 
 ${STABLE_CONTRACT_NOTE}
 
-Derive additional Memory Bank entries from the real repository.
+Derive additional AI Guidance Bank entries from the real repository.
 
 Project path:
 - \`${projectPath}\`
@@ -264,6 +267,7 @@ What to do:
 - Inspect the real repository directly: project structure, entrypoints, configuration, source files, and recurring implementation patterns
 - Create a focused set of high-value project rules and skills
 - Prefer stable patterns over one-off details
+- Keep AI Guidance Bank focused on durable guidance that remains useful across future sessions
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
 - Review the strongest remaining candidates before a major batch
 - Treat the bank as incomplete if obvious entries are still missing without a clear skip reason
@@ -280,16 +284,17 @@ Quality rules:
 
 ${renderCreateDeriveGuidance(detectedStacks)}`;
 
-const buildFinalizePrompt = (): string => `# Finalize Memory Bank
+const buildFinalizePrompt = (): string => `# Finalize AI Guidance Bank
 
 ${STABLE_CONTRACT_NOTE}
 
-Finish the project Memory Bank creation flow.
+Finish the project AI Guidance Bank creation flow.
 
 What to do:
 - Deduplicate overlapping rules and skills
 - Verify scope split between shared and project entries
 - Check ids, titles, topics, and stacks for consistency
+- Keep only durable guidance that should survive across sessions; leave conversational context out
 - If confidence is low for any high-impact rule, ask the user before keeping it
 - Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
@@ -308,12 +313,12 @@ Final pass checklist:
 
 const buildCompletedPrompt = (): string => `# Create Flow Completed
 
-The iterative project Memory Bank creation flow is complete.
+The iterative project AI Guidance Bank creation flow is complete.
 
 What to do:
 - Do not continue the create flow automatically
 - Re-enter the flow only if the user explicitly asks for another create pass or wants to restart parts of the review
-- Continue normal Memory Bank work through the standard mutation tools when the user asks for targeted updates`;
+- Continue normal AI Guidance Bank work through the standard mutation tools when the user asks for targeted updates`;
 
 const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
   ({ projectName, projectPath, projectBankPath, rulesDirectory, skillsDirectory, detectedStacks, selectedReferenceProjects }) =>
@@ -343,15 +348,15 @@ export const buildReadyProjectBankPrompt = ({
 }): string => {
   const updatedLine =
     updatedAt === null || updatedDaysAgo === null
-      ? "A project Memory Bank already exists for this repository."
-      : `A project Memory Bank already exists for this repository and was last updated ${updatedDaysAgo} day${updatedDaysAgo === 1 ? "" : "s"} ago (${updatedAt}).`;
+      ? "A project AI Guidance Bank already exists for this repository."
+      : `A project AI Guidance Bank already exists for this repository and was last updated ${updatedDaysAgo} day${updatedDaysAgo === 1 ? "" : "s"} ago (${updatedAt}).`;
 
-  return `# Existing Project Memory Bank
+  return `# Existing Project AI Guidance Bank
 
 ${updatedLine}
 
 What to do:
-- Tell the user that a project Memory Bank already exists for this repository
+- Tell the user that a project AI Guidance Bank already exists for this repository
 - Ask whether they want to improve it now instead of keeping it as-is
 - If the user wants to improve it, call \`create_bank\` again with \`iteration: 1\`
 - If the user does not want to improve it, continue normal work with the current ready bank through \`resolve_context\`

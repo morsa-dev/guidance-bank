@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
-import { resolveMemoryBankContext } from "../../core/context/resolveContextService.js";
+import { resolveGuidanceBankContext } from "../../core/context/resolveContextService.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
@@ -19,9 +19,9 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     "resolve_context",
     {
-      title: "Resolve Memory Bank Context",
+      title: "Resolve AI Guidance Bank Context",
       description:
-        "Resolve the primary Memory Bank context for the current repository. Call this at the start of work in a project, and again when the working directory changes materially.",
+        "Resolve the primary AI Guidance Bank context for the current repository. AI Guidance Bank is the durable local rules-and-skills layer for reusable project guidance. Call this at the start of work in a project, and again when the working directory changes materially.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -93,7 +93,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
 
       try {
         const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
-        const resolvedContext = await resolveMemoryBankContext({
+        const resolvedContext = await resolveGuidanceBankContext({
           repository: options.repository,
           projectPath: parsedArgs.data.projectPath,
         });

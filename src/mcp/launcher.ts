@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { McpServerConfig } from "../core/bank/types.js";
 import { atomicWriteFile } from "../storage/atomicWrite.js";
 
-const MCP_LAUNCHER_BASENAME = "memory-bank-mcp";
+const MCP_LAUNCHER_BASENAME = "guidancebank-mcp";
 
 type LaunchConfigOptions = {
   platform?: NodeJS.Platform;
@@ -14,7 +14,7 @@ type LaunchConfigOptions = {
 };
 
 const resolveCliEntrypointPath = (): string =>
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "mb.js");
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "gbank.js");
 
 const getPathModule = (platform: NodeJS.Platform): typeof path.posix | typeof path.win32 =>
   platform === "win32" ? path.win32 : path.posix;
