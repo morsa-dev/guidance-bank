@@ -26,7 +26,7 @@ export const createSuccessfulCommandRunner = (): CommandRunner => async ({ comma
 
 export const createInitializedBank = async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-mcp-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
 
   await new InitService().run({

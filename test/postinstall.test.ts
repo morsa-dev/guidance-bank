@@ -9,7 +9,7 @@ import { createMcpLauncherContent, resolveMcpLauncherPath } from "../src/mcp/lau
 
 test("postinstall skips launcher refresh when the default bank is not initialized", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-postinstall-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const result = await refreshDefaultMcpLauncherIfInitialized({ bankRoot });
 
@@ -18,7 +18,7 @@ test("postinstall skips launcher refresh when the default bank is not initialize
 
 test("postinstall refreshes the launcher when the default bank is already initialized", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-postinstall-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const launcherPath = resolveMcpLauncherPath(bankRoot);
 
   await mkdir(bankRoot, { recursive: true });

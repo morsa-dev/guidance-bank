@@ -132,4 +132,4 @@ The long-term direction is not just “local rule files”, but a real guidance 
 
 - `gbank init` requires an interactive terminal
 - at least one supported provider CLI must already be installed and available on `PATH`
-- the local AI Guidance Bank lives under `~/.guidancebank`
+- the local AI Guidance Bank lives under `~/.guidance-bank`

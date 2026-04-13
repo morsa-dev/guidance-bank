@@ -4,9 +4,9 @@ import { promises as fs } from "node:fs";
 import { InitService } from "../init/initService.js";
 import { BankRepository } from "../../storage/bankRepository.js";
 import { ValidationError } from "../../shared/errors.js";
-import { BANK_DIRECTORY_NAME, LEGACY_BANK_DIRECTORY_NAME, resolveBankRoot } from "../../shared/paths.js";
+import { BANK_DIRECTORY_NAME, LEGACY_BANK_DIRECTORY_NAMES, resolveBankRoot } from "../../shared/paths.js";
 import { CURRENT_STORAGE_VERSION, type MemoryBankManifest } from "../bank/types.js";
-import { isCurrentStorageVersion } from "../bank/manifest.js";
+import { isCurrentStorageVersion, updateManifest } from "../bank/manifest.js";
 import type { CommandRunner } from "../providers/types.js";
 
 export type BankUpgradeDetection =
@@ -40,13 +40,13 @@ export type UpgradeBankResult = {
   enabledProviders: string[];
 };
 
-const resolveLegacyBankRoot = (bankRoot: string): string | null => {
+const resolveLegacyBankRoots = (bankRoot: string): string[] => {
   const resolvedBankRoot = path.resolve(bankRoot);
   if (path.basename(resolvedBankRoot) !== BANK_DIRECTORY_NAME) {
-    return null;
+    return [];
   }
 
-  return path.join(path.dirname(resolvedBankRoot), LEGACY_BANK_DIRECTORY_NAME);
+  return LEGACY_BANK_DIRECTORY_NAMES.map((directoryName) => path.join(path.dirname(resolvedBankRoot), directoryName));
 };
 
 const moveBankRoot = async (sourceRoot: string, targetRoot: string): Promise<void> => {
@@ -102,21 +102,32 @@ export const detectBankUpgrade = async (bankRoot?: string): Promise<BankUpgradeD
     };
   }
 
-  const legacyBankRoot = resolveLegacyBankRoot(resolvedBankRoot);
-  if (legacyBankRoot !== null) {
+  const legacyMatches: Array<{ legacyBankRoot: string; manifest: MemoryBankManifest }> = [];
+  for (const legacyBankRoot of resolveLegacyBankRoots(resolvedBankRoot)) {
     const legacyRepository = new BankRepository(legacyBankRoot);
     const legacyManifest = await legacyRepository.readManifestOptional();
 
     if (legacyManifest !== null) {
-      return {
-        status: "upgrade_required",
-        bankRoot: resolvedBankRoot,
-        sourceRoot: legacyBankRoot,
-        manifest: legacyManifest,
-        expectedStorageVersion: CURRENT_STORAGE_VERSION,
-        reason: "legacy_root",
-      };
+      legacyMatches.push({ legacyBankRoot, manifest: legacyManifest });
     }
+  }
+
+  if (legacyMatches.length > 1) {
+    throw new ValidationError(
+      `Multiple legacy AI Guidance Bank roots were found: ${legacyMatches.map(({ legacyBankRoot }) => legacyBankRoot).join(", ")}. Resolve them manually before upgrading.`,
+    );
+  }
+
+  if (legacyMatches.length === 1) {
+    const legacyMatch = legacyMatches[0]!;
+    return {
+      status: "upgrade_required",
+      bankRoot: resolvedBankRoot,
+      sourceRoot: legacyMatch.legacyBankRoot,
+      manifest: legacyMatch.manifest,
+      expectedStorageVersion: CURRENT_STORAGE_VERSION,
+      reason: "legacy_root",
+    };
   }
 
   return {
@@ -160,6 +171,12 @@ export class UpgradeService {
       ...(options?.cursorConfigRoot ? { cursorConfigRoot: options.cursorConfigRoot } : {}),
       ...(options?.commandRunner ? { commandRunner: options.commandRunner } : {}),
     });
+
+    await repository.writeManifest(
+      updateManifest(manifestBeforeUpgrade, manifestBeforeUpgrade.enabledProviders, new Date(), {
+        storageVersion: CURRENT_STORAGE_VERSION,
+      }),
+    );
 
     const upgradedManifest = await repository.readManifest();
 

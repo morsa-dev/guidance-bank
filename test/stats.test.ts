@@ -11,7 +11,7 @@ import { AuditLogger } from "../src/storage/auditLogger.js";
 
 test("stats service returns overall bank overview and audit aggregates", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stats-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const repository = new BankRepository(bankRoot);
   const auditLogger = new AuditLogger({ bankRoot, provider: "codex" });
 
@@ -84,7 +84,7 @@ topics: [demo]
 
 test("stats service returns project-focused overview when project path is provided", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stats-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const repository = new BankRepository(bankRoot);
   const auditLogger = new AuditLogger({ bankRoot, provider: "claude-code" });
 

@@ -1,8 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 
-export const BANK_DIRECTORY_NAME = ".guidancebank";
-export const LEGACY_BANK_DIRECTORY_NAME = ".memory-bank";
+export const BANK_DIRECTORY_NAME = ".guidance-bank";
+export const LEGACY_BANK_DIRECTORY_NAMES = [".guidancebank", ".memory-bank"] as const;
 
 export const resolveDefaultBankRoot = (): string => path.join(os.homedir(), BANK_DIRECTORY_NAME);
 

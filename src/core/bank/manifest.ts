@@ -41,9 +41,10 @@ export const updateManifest = (
   manifest: MemoryBankManifest,
   enabledProviders: readonly ProviderId[],
   now = new Date(),
+  options?: { storageVersion?: StorageVersion },
 ): MemoryBankManifest => ({
   ...manifest,
-  storageVersion: CURRENT_STORAGE_VERSION,
+  ...(options?.storageVersion ? { storageVersion: options.storageVersion } : {}),
   updatedAt: now.toISOString(),
   enabledProviders: sortProviders(enabledProviders),
 });

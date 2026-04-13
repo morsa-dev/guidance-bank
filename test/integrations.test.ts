@@ -32,13 +32,13 @@ test("default MCP launch config uses a stable launcher path on Unix and Windows"
   });
 
   assert.deepEqual(
-    createDefaultMcpLaunchConfig("C:\\Users\\tester\\.guidancebank", {
+    createDefaultMcpLaunchConfig("C:\\Users\\tester\\.guidance-bank", {
       platform: "win32",
       comSpec: "C:\\Windows\\System32\\cmd.exe",
     }),
     {
       command: "C:\\Windows\\System32\\cmd.exe",
-      args: ["/d", "/s", "/c", "\"C:\\Users\\tester\\.guidancebank\\bin\\guidancebank-mcp.cmd\""],
+      args: ["/d", "/s", "/c", "\"C:\\Users\\tester\\.guidance-bank\\bin\\guidancebank-mcp.cmd\""],
     },
   );
 });
@@ -163,7 +163,7 @@ const createClaudeScopedMissingRunner = () => {
 
 test("init writes provider integration descriptors", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
@@ -203,7 +203,7 @@ test("init writes provider integration descriptors", async () => {
 
 test("init writes the MCP launcher into the bank root", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-launcher-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -222,7 +222,7 @@ test("init writes the MCP launcher into the bank root", async () => {
 
 test("claude integration removes and re-adds the server when it already exists", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeReconfigureRunner();
@@ -250,7 +250,7 @@ test("claude integration removes and re-adds the server when it already exists",
 
 test("init tolerates scoped missing-server messages when cleaning up legacy Claude MCP integrations", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeScopedMissingRunner();
@@ -274,7 +274,7 @@ test("init tolerates scoped missing-server messages when cleaning up legacy Clau
 
 test("init skips re-adding global integrations that are already configured", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -384,7 +384,7 @@ test("init skips re-adding global integrations that are already configured", asy
 
 test("repeat init re-applies missing codex and claude MCP registrations", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -456,7 +456,7 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
 
 test("cursor integration writes the MCP config file and persists a config-file descriptor", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
@@ -488,7 +488,7 @@ test("cursor integration writes the MCP config file and persists a config-file d
 
 test("repeat init skips cursor when the expected MCP config already exists", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
@@ -512,7 +512,7 @@ test("repeat init skips cursor when the expected MCP config already exists", asy
 
 test("repeat init reconfigures cursor when the MCP config entry exists but does not match", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
@@ -560,7 +560,7 @@ test("repeat init reconfigures cursor when the MCP config entry exists but does 
 
 test("repeat init reconfigures cursor even if a stale descriptor exists but the MCP config file is missing", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
-  const bankRoot = path.join(tempDirectoryPath, ".guidancebank");
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { commandRunner } = createRecordingCommandRunner();
