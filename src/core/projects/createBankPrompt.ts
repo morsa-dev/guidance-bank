@@ -100,22 +100,13 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 - Put clearly reusable cross-project guidance into the shared layer instead of the project layer
 - Only shared/project AI Guidance Bank entries and explicitly reviewed external sources count as canonical coverage
 
-## Coverage Expectations
-
-- Create a right-sized bank, not a thin summary
-- Consider both rules and skills
-- Build a candidate list before the first substantial write batch
-- If obvious candidates are skipped, keep a clear reason and reflect it later in \`stepOutcomeNote\`
-
-Expected Bank Density:
-- 2-6 focused rule files when project evidence supports them
-- 2-5 focused skills when reusable workflows are clearly present
-
 ## Kickoff Expectations
 
 During the initial step:
 - inspect the repository and selected reference projects
 - build a broad candidate inventory before the first major write batch
+- consider rules and skills together while building the initial candidate inventory
+- for non-trivial projects with clear architectural patterns, plan for 5+ rules and 3+ skills — scale down only when the project evidence genuinely does not support it
 - do not import or delete external guidance yet; that happens in later review/import steps
 - do not stop after the first acceptable batch if the project clearly supports stronger canonical coverage
 `;

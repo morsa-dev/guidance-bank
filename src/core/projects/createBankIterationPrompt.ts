@@ -54,11 +54,11 @@ const buildContinuationOutcomeInstruction = (iteration: number): string => {
     " Also provide an explicit result for this content phase: use `create_bank.apply` for changes or set `stepOutcome` to `applied` or `no_changes`.";
 
   if (iteration === 3) {
-    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to name the strongest remaining candidates you reviewed and why they were skipped.`;
+    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to name the strongest remaining candidates and coverage categories you reviewed and why they were skipped.`;
   }
 
   if (iteration === 4) {
-    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered candidates and why the bank is complete enough.`;
+    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered candidates, the coverage categories they belong to, and why the bank is complete enough.`;
   }
 
   return `${baseInstruction} If you use \`no_changes\`, include \`stepOutcomeNote\`.`;
@@ -269,6 +269,7 @@ What to do:
 - Prefer stable patterns over one-off details
 - Keep AI Guidance Bank focused on durable guidance that remains useful across future sessions
 - Put reusable cross-project guidance into shared scope only when the evidence is strong
+- Infer the project archetype from the real repository and adapt the candidate set to it before writing
 - Review the strongest remaining candidates before a major batch
 - Treat the bank as incomplete if obvious entries are still missing without a clear skip reason
 
@@ -307,9 +308,11 @@ Final pass checklist:
 - Ensure project overrides do not duplicate shared guidance without adding real specificity
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
 - Confirm the bank is not materially poorer than the strongest project evidence from this run
+- For each high-value area identified during derive, confirm whether it is covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason
+- Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates
-- If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered high-value candidates and why no further mutation was needed`;
+- If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered high-value candidates, their coverage categories, and why no further mutation was needed`;
 
 const buildCompletedPrompt = (): string => `# Create Flow Completed
 

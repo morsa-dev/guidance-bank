@@ -152,11 +152,10 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(structured.prompt, /stable create-flow contract/i);
   assert.match(structured.prompt, /delay external guidance import or deletion until the dedicated review step/i);
   assert.doesNotMatch(structured.prompt, /Supported Stack Ids/i);
-  assert.doesNotMatch(structured.prompt, /Expected Bank Density/i);
   assert.match(structured.creationPrompt ?? "", /Supported Stack Ids/i);
   assert.match(structured.creationPrompt ?? "", /- other/);
-  assert.match(structured.creationPrompt ?? "", /Expected Bank Density/i);
-  assert.match(structured.creationPrompt ?? "", /2-6 focused rule files/i);
+  assert.doesNotMatch(structured.creationPrompt ?? "", /Expected Bank Density/i);
+  assert.doesNotMatch(structured.creationPrompt ?? "", /Coverage Expectations/i);
   assert.match(
     structured.prompt,
     /After completing this step, call `create_bank` again with `iteration: 1` and `stepCompleted: true`/i,
@@ -342,6 +341,12 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /Do not rely on a server-provided file checklist/i);
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
+  assert.match(deriveProjectStructured.prompt, /Infer the project archetype from the real repository/i);
+  assert.match(deriveProjectStructured.prompt, /at least 4 focused rule files/i);
+  assert.match(deriveProjectStructured.prompt, /minimum expectations, not caps/i);
+  assert.match(deriveProjectStructured.prompt, /Candidate Derivation Requirements/i);
+  assert.match(deriveProjectStructured.prompt, /key multi-step workflows: identify at least 2/i);
+  assert.match(deriveProjectStructured.prompt, /duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments/i);
   assert.match(deriveProjectStructured.prompt, /Apply derived changes through `create_bank\.apply` in batches/i);
   assert.match(deriveProjectStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(deriveProjectStructured.creationPrompt, null);
@@ -377,8 +382,17 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.nextIteration, 5);
   assert.match(finalizeStructured.text, /Continue the create flow at phase `finalize`/i);
   assert.match(finalizeStructured.text, /strongest skipped or already-covered high-value candidates/i);
+  assert.match(finalizeStructured.text, /coverage categories/i);
   assert.match(finalizeStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
+  assert.match(
+    finalizeStructured.prompt,
+    /covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason/i,
+  );
+  assert.match(
+    finalizeStructured.prompt,
+    /duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments/i,
+  );
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
   assert.equal(finalizeStructured.creationPrompt, null);
@@ -399,6 +413,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedCompletedStructured.stepOutcomeRequired, true);
   assert.match(blockedCompletedStructured.text, /Record an explicit outcome for phase `finalize`/i);
   assert.match(blockedCompletedStructured.text, /strongest remaining or skipped high-value candidates/i);
+  assert.match(blockedCompletedStructured.text, /coverage categories/i);
 
   const completedStructured = await callToolStructured(
     client,

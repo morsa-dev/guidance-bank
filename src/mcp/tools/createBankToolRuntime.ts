@@ -176,11 +176,11 @@ export const buildCreateBankResponseText = ({
 
   if (stepOutcomeRequired && nextIteration !== null) {
     if (phase === "finalize") {
-      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\` here, stepOutcomeNote should summarize the strongest remaining or skipped high-value candidates and why the bank is already complete enough.`;
+      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\` here, stepOutcomeNote should summarize the strongest remaining or skipped high-value candidates, the coverage categories they belong to, and why the bank is already complete enough.`;
     }
 
     if (phase === "derive_from_project") {
-      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\`, stepOutcomeNote should explain which strongest remaining candidates were reviewed and why they were skipped.`;
+      return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\`. When using \`no_changes\`, stepOutcomeNote should explain which strongest remaining candidates and coverage categories were reviewed and why they were skipped.`;
     }
 
     return `Record an explicit outcome for phase \`${phase}\` before advancing. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either create_bank.apply changes for this step or set stepOutcome to \`applied\` or \`no_changes\` (with stepOutcomeNote for \`no_changes\`).`;
@@ -193,7 +193,7 @@ export const buildCreateBankResponseText = ({
   if (mustContinue && nextIteration !== null) {
     const coverageReminder =
       phase === "finalize"
-        ? " If no new mutations are needed, use stepOutcomeNote to summarize the strongest skipped or already-covered high-value candidates."
+        ? " If no new mutations are needed, use stepOutcomeNote to summarize the strongest skipped or already-covered high-value candidates and their coverage categories."
         : "";
     return `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for writes inside the guided flow. Call create_bank with iteration: ${nextIteration} and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use \`create_bank.apply\` for changes or set \`stepOutcome\` when no new mutations are needed.${coverageReminder}`;
   }
