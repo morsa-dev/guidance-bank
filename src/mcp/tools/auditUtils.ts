@@ -1,6 +1,7 @@
 import type { EntryKind, EntryScope } from "../../core/bank/types.js";
 import { summarizeEntryContent } from "../../core/audit/summarizeEntryContent.js";
 import type { AuditLogger } from "../../storage/auditLogger.js";
+import { resolveAuditSessionRef } from "./sessionRefResolver.js";
 
 type WriteEntryAuditEventInput = {
   auditLogger: AuditLogger;
@@ -31,10 +32,11 @@ export const writeEntryAuditEvent = async ({
 }: WriteEntryAuditEventInput): Promise<void> => {
   const before = summarizeEntryContent(kind, beforeContent);
   const after = summarizeEntryContent(kind, afterContent);
+  const effectiveSessionRef = resolveAuditSessionRef(sessionRef);
 
   try {
     await auditLogger.writeEvent({
-      sessionRef,
+      sessionRef: effectiveSessionRef,
       tool,
       action,
       scope,
@@ -80,9 +82,11 @@ export const writeToolAuditEvent = async ({
   projectPath,
   details,
 }: WriteToolAuditEventInput): Promise<void> => {
+  const effectiveSessionRef = resolveAuditSessionRef(sessionRef);
+
   try {
     await auditLogger.writeEvent({
-      sessionRef,
+      sessionRef: effectiveSessionRef,
       tool,
       action,
       projectId,

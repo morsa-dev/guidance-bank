@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { SESSION_REF_DESCRIPTION } from "./sessionRefResolver.js";
+
 export const AbsoluteProjectPathSchema = z
   .string()
   .trim()
@@ -13,4 +15,4 @@ export const SessionRefSchema = z
   .string()
   .trim()
   .min(1)
-  .describe("Required agent session reference for audit logging and traceability.");
+  .describe(SESSION_REF_DESCRIPTION);

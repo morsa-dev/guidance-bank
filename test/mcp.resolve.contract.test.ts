@@ -306,6 +306,34 @@ test("expired project creation postpone resumes the missing-bank reminder flow",
   assert.match(resolveStructured.text, /append one short explicit closing question/i);
 });
 
+test("resolve_context writes the provided sessionRef to audit without provider-specific recovery", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot, { provider: "cursor" });
+  t.after(close);
+
+  await callToolStructured(
+    client,
+    "resolve_context",
+    { projectPath: projectRoot, sessionRef: "cursor:thread-123 https://cursor.example/chat/123" },
+    MissingContextSchema,
+  );
+
+  const events = (await readFile(path.join(bankRoot, "audit", "events.ndjson"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const resolveEvent = events.find((event) => event.tool === "resolve_context");
+  assert.ok(resolveEvent);
+  assert.equal(resolveEvent?.provider, "cursor");
+  assert.equal(resolveEvent?.sessionRef, "cursor:thread-123 https://cursor.example/chat/123");
+});
+
 test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
