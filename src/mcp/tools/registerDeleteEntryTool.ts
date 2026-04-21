@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
@@ -27,7 +28,7 @@ const DeleteEntryArgsSchema = z
 
 export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "delete_entry",
+    MCP_TOOL_NAMES.deleteEntry,
     {
       title: "Delete AI Guidance Bank Entry",
       description:
@@ -60,7 +61,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
     async (args) => {
       const parsedArgs = DeleteEntryArgsSchema.safeParse(args);
       if (!parsedArgs.success) {
-        return buildInvalidToolArgsResult("delete_entry", parsedArgs.error);
+        return buildInvalidToolArgsResult(MCP_TOOL_NAMES.deleteEntry, parsedArgs.error);
       }
 
       const mutationContext = await resolveScopedMutationContext({
@@ -99,7 +100,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         await writeEntryAuditEvent({
           auditLogger: options.auditLogger,
           sessionRef: parsedArgs.data.sessionRef,
-          tool: "delete_entry",
+          tool: MCP_TOOL_NAMES.deleteEntry,
           action: "delete",
           scope: parsedArgs.data.scope,
           kind: parsedArgs.data.kind,

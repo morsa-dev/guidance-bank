@@ -20,11 +20,13 @@ const createSuccessfulCommandRunner = (): CommandRunner => async ({ command, arg
 test("init creates the bank structure and writes the manifest", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["codex", "cursor"],
@@ -42,17 +44,20 @@ test("init creates the bank structure and writes the manifest", async () => {
 test("init is idempotent and merges selected providers into the existing manifest", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   await initService.run({
     bankRoot,
+
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["codex"],
   });
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
@@ -66,6 +71,7 @@ test("init migrates a legacy .memory-bank root to .guidance-bank without marking
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
   const legacyBankRoot = path.join(tempDirectoryPath, ".memory-bank");
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const legacyRepository = new BankRepository(legacyBankRoot);
@@ -84,6 +90,7 @@ test("init migrates a legacy .memory-bank root to .guidance-bank without marking
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],
@@ -109,6 +116,7 @@ test("init migrates a legacy .guidancebank root to .guidance-bank without markin
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
   const legacyBankRoot = path.join(tempDirectoryPath, ".guidancebank");
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const legacyRepository = new BankRepository(legacyBankRoot);
@@ -127,6 +135,7 @@ test("init migrates a legacy .guidancebank root to .guidance-bank without markin
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["claude-code"],
@@ -151,6 +160,7 @@ test("init migrates a legacy .guidancebank root to .guidance-bank without markin
 test("init preserves existing legacy storage version so agents still route through upgrade_bank", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-init-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const repository = new BankRepository(bankRoot);
@@ -184,6 +194,7 @@ topics: [runtime]
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["cursor"],

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { UpgradeService, type UpgradeBankResult } from "../../core/upgrade/upgradeService.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
@@ -126,11 +127,11 @@ const renderUpgradeToolText = (result: ReturnType<typeof compactUpgradeResult>):
 
 export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "upgrade_bank",
+    MCP_TOOL_NAMES.upgradeBank,
     {
       title: "Upgrade AI Guidance Bank",
       description:
-        "Upgrade AI Guidance Bank to the current storage version, migrate the bank root when needed, remove legacy MCP registrations, and reapply the current integrations.",
+        "Upgrade AI Guidance Bank to the current storage version. If resolve_context returns requiredAction === \"upgrade_bank\", call this before normal repository work. This migrates the bank root when needed, removes legacy MCP registrations, and reapplies current integrations.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -189,7 +190,7 @@ export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool upgrade_bank: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.upgradeBank}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -204,7 +205,7 @@ export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
           sessionRef: parsedArgs.data.sessionRef,
-          tool: "upgrade_bank",
+          tool: MCP_TOOL_NAMES.upgradeBank,
           action: "upgrade",
           projectId: "bank",
           projectPath: result.bankRoot,

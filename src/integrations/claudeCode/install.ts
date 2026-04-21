@@ -38,6 +38,10 @@ const isExpectedClaudeServer = (rawOutput: string, context: ProviderInstallerCon
 const isMissingServerMessage = (result: { stdout: string; stderr: string }): boolean =>
   /No .*MCP server found with name:/u.test(`${result.stdout}\n${result.stderr}`);
 
+const buildInstructions = (): string[] => [
+  "Configured globally through `claude mcp add --scope user` as a stdio MCP server.",
+];
+
 const cleanupLegacyServers = async (context: ProviderInstallerContext): Promise<void> => {
   for (const legacyServerName of LEGACY_GUIDANCEBANK_SERVER_NAMES) {
     const removeResult = await context.commandRunner(buildRemoveLegacyCommand(legacyServerName));
@@ -65,9 +69,12 @@ export const installClaudeCodeIntegration = async (
 
   if (currentServer.exitCode === 0 && isExpectedClaudeServer(currentServer.stdout, context)) {
     return {
-      descriptor: createProviderDescriptor("claude-code", "Claude Code", context.mcpServerConfig, [
-        "Configured globally through `claude mcp add --scope user` as a stdio MCP server.",
-      ]),
+      descriptor: createProviderDescriptor(
+        "claude-code",
+        "Claude Code",
+        context.mcpServerConfig,
+        buildInstructions(),
+      ),
       command: getCommand,
       action: "skipped",
     };
@@ -96,9 +103,12 @@ export const installClaudeCodeIntegration = async (
   }
 
   return {
-    descriptor: createProviderDescriptor("claude-code", "Claude Code", context.mcpServerConfig, [
-      "Configured globally through `claude mcp add --scope user` as a stdio MCP server.",
-    ]),
+    descriptor: createProviderDescriptor(
+      "claude-code",
+      "Claude Code",
+      context.mcpServerConfig,
+      buildInstructions(),
+    ),
     command: addCommand,
     action,
   };

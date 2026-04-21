@@ -4,6 +4,7 @@ import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const ReadEntryArgsSchema = z
@@ -17,7 +18,7 @@ const ReadEntryArgsSchema = z
 
 export const registerReadEntryTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "read_entry",
+    MCP_TOOL_NAMES.readEntry,
     {
       title: "Read AI Guidance Bank Entry",
       description: "Read a rule or skill file from the local AI Guidance Bank.",
@@ -47,7 +48,7 @@ export const registerReadEntryTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool read_entry: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.readEntry}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };

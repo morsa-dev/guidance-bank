@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const ListEntriesArgsSchema = z
@@ -21,7 +22,7 @@ const ListEntriesArgsSchema = z
 
 export const registerListEntriesTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "list_entries",
+    MCP_TOOL_NAMES.listEntries,
     {
       title: "List AI Guidance Bank Entries",
       description: "List rule or skill files from the local AI Guidance Bank.",
@@ -60,7 +61,7 @@ export const registerListEntriesTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool list_entries: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.listEntries}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };

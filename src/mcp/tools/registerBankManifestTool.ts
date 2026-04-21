@@ -2,13 +2,14 @@ import { z } from "zod";
 
 import { type MemoryBankManifest, PROVIDER_IDS } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 
 const emptyInputSchema = z.object({}).strict();
 const StorageVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
 export const registerBankManifestTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "bank_manifest",
+    MCP_TOOL_NAMES.bankManifest,
     {
       title: "Read AI Guidance Bank Manifest",
       description: "Return AI Guidance Bank metadata and enabled providers.",
@@ -35,7 +36,7 @@ export const registerBankManifestTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool bank_manifest: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.bankManifest}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };

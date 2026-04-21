@@ -223,12 +223,14 @@ test("init writes the MCP launcher into the bank root", async () => {
 test("claude integration removes and re-adds the server when it already exists", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeReconfigureRunner();
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner,
     selectedProviders: ["claude-code"],
@@ -251,12 +253,14 @@ test("claude integration removes and re-adds the server when it already exists",
 test("init tolerates scoped missing-server messages when cleaning up legacy Claude MCP integrations", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeScopedMissingRunner();
 
   const result = await initService.run({
     bankRoot,
+
     cursorConfigRoot,
     commandRunner,
     selectedProviders: ["claude-code"],
@@ -275,6 +279,8 @@ test("init tolerates scoped missing-server messages when cleaning up legacy Clau
 test("init skips re-adding global integrations that are already configured", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
@@ -300,6 +306,8 @@ test("init skips re-adding global integrations that are already configured", asy
 
   await initService.run({
     bankRoot,
+
+
     cursorConfigRoot,
     commandRunner: firstRunner,
     selectedProviders: ["codex", "claude-code"],
@@ -360,6 +368,8 @@ test("init skips re-adding global integrations that are already configured", asy
 
   const result = await initService.run({
     bankRoot,
+
+
     cursorConfigRoot,
     commandRunner: secondRunner,
     selectedProviders: ["codex", "claude-code"],
@@ -385,11 +395,15 @@ test("init skips re-adding global integrations that are already configured", asy
 test("repeat init re-applies missing codex and claude MCP registrations", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+
+
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
   const initService = new InitService();
 
   await initService.run({
     bankRoot,
+
+
     cursorConfigRoot,
     commandRunner: createRecordingCommandRunner().commandRunner,
     selectedProviders: ["codex", "claude-code"],
@@ -430,6 +444,8 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
 
   const result = await initService.run({
     bankRoot,
+
+
     cursorConfigRoot,
     commandRunner: secondRunner,
     selectedProviders: ["codex"],

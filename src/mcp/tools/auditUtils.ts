@@ -1,12 +1,29 @@
 import type { EntryKind, EntryScope } from "../../core/bank/types.js";
 import { summarizeEntryContent } from "../../core/audit/summarizeEntryContent.js";
 import type { AuditLogger } from "../../storage/auditLogger.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { resolveAuditSessionRef } from "./sessionRefResolver.js";
+
+type EntryMutationAuditTool =
+  | typeof MCP_TOOL_NAMES.upsertRule
+  | typeof MCP_TOOL_NAMES.upsertSkill
+  | typeof MCP_TOOL_NAMES.deleteEntry
+  | typeof MCP_TOOL_NAMES.createBank;
+
+type ToolAuditTool =
+  | typeof MCP_TOOL_NAMES.createBank
+  | typeof MCP_TOOL_NAMES.improveBank
+  | typeof MCP_TOOL_NAMES.upgradeBank
+  | typeof MCP_TOOL_NAMES.resolveContext
+  | typeof MCP_TOOL_NAMES.setProjectState
+  | typeof MCP_TOOL_NAMES.syncBank
+  | typeof MCP_TOOL_NAMES.clearProjectBank
+  | typeof MCP_TOOL_NAMES.deleteGuidanceSource;
 
 type WriteEntryAuditEventInput = {
   auditLogger: AuditLogger;
   sessionRef: string | null;
-  tool: "upsert_rule" | "upsert_skill" | "delete_entry" | "create_bank";
+  tool: EntryMutationAuditTool;
   action: "upsert" | "delete";
   scope: EntryScope;
   kind: EntryKind;
@@ -58,15 +75,7 @@ export const writeEntryAuditEvent = async ({
 type WriteToolAuditEventInput = {
   auditLogger: AuditLogger;
   sessionRef: string;
-  tool:
-    | "create_bank"
-    | "improve_bank"
-    | "upgrade_bank"
-    | "resolve_context"
-    | "set_project_state"
-    | "sync_bank"
-    | "clear_project_bank"
-    | "delete_guidance_source";
+  tool: ToolAuditTool;
   action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
   projectId: string;
   projectPath: string;

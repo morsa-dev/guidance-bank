@@ -155,7 +155,11 @@ export const detectBankUpgrade = async (bankRoot?: string): Promise<BankUpgradeD
 };
 
 export class UpgradeService {
-  async run(options?: { bankRoot?: string; cursorConfigRoot?: string; commandRunner?: CommandRunner }): Promise<UpgradeBankResult> {
+  async run(options?: {
+    bankRoot?: string;
+    cursorConfigRoot?: string;
+    commandRunner?: CommandRunner;
+  }): Promise<UpgradeBankResult> {
     const detection = await detectBankUpgrade(options?.bankRoot);
 
     if (detection.status === "not_initialized") {

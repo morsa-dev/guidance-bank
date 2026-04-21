@@ -12,6 +12,7 @@ import {
 } from "../../core/projects/createBankIterationPrompt.js";
 import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
 import {
   buildCreateBankResponseText,
@@ -35,7 +36,7 @@ const registerCreateLikeTool = (
     title,
     description,
   }: {
-    toolName: "create_bank" | "improve_bank";
+    toolName: typeof MCP_TOOL_NAMES.createBank | typeof MCP_TOOL_NAMES.improveBank;
     title: string;
     description: string;
   },
@@ -319,14 +320,14 @@ const registerCreateLikeTool = (
 
 export const registerCreateBankTool: ToolRegistrar = (server, options) => {
   registerCreateLikeTool(server, options, {
-    toolName: "create_bank",
+    toolName: MCP_TOOL_NAMES.createBank,
     title: "Create Project AI Guidance Bank",
     description:
       "Create the canonical project AI Guidance Bank under the user-level AI Guidance Bank storage. AI Guidance Bank is the durable rules-and-skills layer for the project, not conversational memory.",
   });
 
   registerCreateLikeTool(server, options, {
-    toolName: "improve_bank",
+    toolName: MCP_TOOL_NAMES.improveBank,
     title: "Improve Project AI Guidance Bank",
     description:
       "Review and improve an existing project AI Guidance Bank through the guided flow. Use this when the project already has a durable rules-and-skills layer that needs refinement or expansion.",

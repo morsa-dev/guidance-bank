@@ -2,6 +2,7 @@ import { summarizeEntryContent } from "../../core/audit/summarizeEntryContent.js
 import type { EntryKind, EntryScope } from "../../core/bank/types.js";
 import type { AuditLogger } from "../../storage/auditLogger.js";
 import type { BankRepository } from "../../storage/bankRepository.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import { readEntryBeforeMutation } from "./entryMutationHelpers.js";
 
@@ -110,7 +111,7 @@ export const applyCreateBankChanges = async ({
     await writeEntryAuditEvent({
       auditLogger,
       sessionRef,
-      tool: "create_bank",
+      tool: MCP_TOOL_NAMES.createBank,
       action: "upsert",
       scope: write.scope,
       kind: write.kind,
@@ -171,7 +172,7 @@ export const applyCreateBankChanges = async ({
       await writeEntryAuditEvent({
         auditLogger,
         sessionRef,
-        tool: "create_bank",
+        tool: MCP_TOOL_NAMES.createBank,
         action: "delete",
         scope: deletion.scope,
         kind: deletion.kind,

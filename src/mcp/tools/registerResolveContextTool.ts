@@ -5,6 +5,7 @@ import { resolveGuidanceBankContext } from "../../core/context/resolveContextSer
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
@@ -17,11 +18,11 @@ const ResolveContextArgsSchema = z
 
 export const registerResolveContextTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "resolve_context",
+    MCP_TOOL_NAMES.resolveContext,
     {
       title: "Resolve AI Guidance Bank Context",
       description:
-        "Resolve the primary AI Guidance Bank context for the current repository. AI Guidance Bank is the durable local rules-and-skills layer for reusable project guidance. Call this at the start of work in a project, and again when the working directory changes materially.",
+        "Primary entrypoint for AI Guidance Bank. Call this before answering or editing in the active target repository to resolve its context, required actions, durable rules, and reusable skills.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -34,8 +35,10 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         text: z.string(),
         creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
         postponedUntil: z.string().nullable().optional(),
-        requiredAction: z.enum(["upgrade_bank", "create_bank", "continue_create_bank", "sync_bank"]).optional(),
-        recommendedAction: z.enum(["create_bank"]).optional(),
+        requiredAction: z
+          .enum([MCP_TOOL_NAMES.upgradeBank, MCP_TOOL_NAMES.createBank, "continue_create_bank", MCP_TOOL_NAMES.syncBank])
+          .optional(),
+        recommendedAction: z.enum([MCP_TOOL_NAMES.createBank]).optional(),
         createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
         bankRoot: z.string().optional(),
@@ -89,7 +92,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool resolve_context: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.resolveContext}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -104,7 +107,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
           sessionRef: parsedArgs.data.sessionRef,
-          tool: "resolve_context",
+          tool: MCP_TOOL_NAMES.resolveContext,
           action: "resolve",
           projectId: identity.projectId,
           projectPath: identity.projectPath,

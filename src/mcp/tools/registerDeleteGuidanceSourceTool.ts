@@ -7,6 +7,7 @@ import { discoverExistingGuidance } from "../../core/projects/discoverExistingGu
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 import { buildInvalidToolArgsResult, buildStructuredToolResult } from "./entryMutationHelpers.js";
@@ -53,7 +54,7 @@ const deleteGuidancePath = async (targetPath: string): Promise<"deleted" | "not_
 
 export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "delete_guidance_source",
+    MCP_TOOL_NAMES.deleteGuidanceSource,
     {
       title: "Delete External Guidance Source",
       description:
@@ -86,7 +87,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
     async (args) => {
       const parsedArgs = DeleteGuidanceSourceArgsSchema.safeParse(args);
       if (!parsedArgs.success) {
-        return buildInvalidToolArgsResult("delete_guidance_source", parsedArgs.error);
+        return buildInvalidToolArgsResult(MCP_TOOL_NAMES.deleteGuidanceSource, parsedArgs.error);
       }
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
@@ -110,7 +111,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
-        tool: "delete_guidance_source",
+        tool: MCP_TOOL_NAMES.deleteGuidanceSource,
         action: "delete_guidance",
         projectId: identity.projectId,
         projectPath: identity.projectPath,

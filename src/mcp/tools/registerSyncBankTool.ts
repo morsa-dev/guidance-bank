@@ -4,6 +4,7 @@ import { SyncService } from "../../core/sync/syncService.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
@@ -17,7 +18,7 @@ const SyncBankArgsSchema = z
 
 export const registerSyncBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "sync_bank",
+    MCP_TOOL_NAMES.syncBank,
     {
       title: "Sync AI Guidance Bank",
       description:
@@ -65,7 +66,7 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool sync_bank: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.syncBank}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -87,7 +88,7 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
           sessionRef: parsedArgs.data.sessionRef,
-          tool: "sync_bank",
+          tool: MCP_TOOL_NAMES.syncBank,
           action: "sync",
           projectId: identity.projectId,
           projectPath: identity.projectPath,

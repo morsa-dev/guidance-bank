@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { PUBLIC_MCP_TOOL_NAMES } from "../src/mcp/toolNames.js";
 import { createInitializedBank, createConnectedClient } from "./helpers/mcpTestUtils.js";
 
 test("server registers public AI Guidance Bank tools with output schemas", async (t) => {
@@ -13,22 +14,7 @@ test("server registers public AI Guidance Bank tools with output schemas", async
 
   assert.deepEqual(
     [...tools.keys()].sort(),
-    [
-      "bank_manifest",
-      "clear_project_bank",
-      "create_bank",
-      "delete_entry",
-      "delete_guidance_source",
-      "improve_bank",
-      "list_entries",
-      "read_entry",
-      "resolve_context",
-      "set_project_state",
-      "sync_bank",
-      "upgrade_bank",
-      "upsert_rule",
-      "upsert_skill",
-    ],
+    [...PUBLIC_MCP_TOOL_NAMES].sort(),
   );
 
   for (const toolName of tools.keys()) {

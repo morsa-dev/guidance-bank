@@ -8,6 +8,7 @@ import {
 import { PROJECT_CREATION_STATES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
@@ -55,7 +56,7 @@ const SetProjectStateArgsSchema = BaseSetProjectStateArgsSchema.superRefine((val
 
 export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "set_project_state",
+    MCP_TOOL_NAMES.setProjectState,
     {
       title: "Set Project AI Guidance Bank State",
       description:
@@ -89,7 +90,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool set_project_state: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.setProjectState}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -112,7 +113,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
-        tool: "set_project_state",
+        tool: MCP_TOOL_NAMES.setProjectState,
         action: "set_state",
         projectId: identity.projectId,
         projectPath: identity.projectPath,

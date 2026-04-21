@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
@@ -14,7 +15,7 @@ const ClearProjectBankArgsSchema = z
 
 export const registerClearProjectBankTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "clear_project_bank",
+    MCP_TOOL_NAMES.clearProjectBank,
     {
       title: "Clear Project AI Guidance Bank",
       description:
@@ -43,7 +44,7 @@ export const registerClearProjectBankTool: ToolRegistrar = (server, options) => 
           content: [
             {
               type: "text",
-              text: `Invalid arguments for tool clear_project_bank: ${z.prettifyError(parsedArgs.error)}`,
+              text: `Invalid arguments for tool ${MCP_TOOL_NAMES.clearProjectBank}: ${z.prettifyError(parsedArgs.error)}`,
             },
           ],
         };
@@ -54,7 +55,7 @@ export const registerClearProjectBankTool: ToolRegistrar = (server, options) => 
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
-        tool: "clear_project_bank",
+        tool: MCP_TOOL_NAMES.clearProjectBank,
         action: "clear",
         projectId: identity.projectId,
         projectPath: identity.projectPath,

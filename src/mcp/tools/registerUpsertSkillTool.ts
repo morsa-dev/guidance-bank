@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
+import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
@@ -30,7 +31,7 @@ const UpsertSkillArgsSchema = z
 
 export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
   server.registerTool(
-    "upsert_skill",
+    MCP_TOOL_NAMES.upsertSkill,
     {
       title: "Create Or Update AI Guidance Bank Skill",
       description:
@@ -67,7 +68,7 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
     async (args) => {
       const parsedArgs = UpsertSkillArgsSchema.safeParse(args);
       if (!parsedArgs.success) {
-        return buildInvalidToolArgsResult("upsert_skill", parsedArgs.error);
+        return buildInvalidToolArgsResult(MCP_TOOL_NAMES.upsertSkill, parsedArgs.error);
       }
 
       const mutationContext = await resolveScopedMutationContext({
@@ -99,7 +100,7 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
       await writeEntryAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
-        tool: "upsert_skill",
+        tool: MCP_TOOL_NAMES.upsertSkill,
         action: "upsert",
         scope: parsedArgs.data.scope,
         kind: "skills",
