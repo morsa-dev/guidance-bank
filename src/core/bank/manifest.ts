@@ -2,14 +2,21 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { CURRENT_STORAGE_VERSION, PROVIDER_IDS, type MemoryBankManifest, type ProviderId, type StorageVersion } from "./types.js";
+import {
+  CURRENT_STORAGE_VERSION,
+  PROVIDER_IDS,
+  type MemoryBankManifest,
+  type ProviderId,
+  type StorageVersion,
+} from "./types.js";
 
 const ProviderIdSchema = z.enum(PROVIDER_IDS);
+const StorageVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
 export const MemoryBankManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
-    storageVersion: z.union([z.literal(1), z.literal(2)]),
+    storageVersion: StorageVersionSchema,
     bankId: z.uuid(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),

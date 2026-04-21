@@ -158,7 +158,7 @@ test("resolve_context includes always-on shared rules outside stacks folders", a
     projectPath: projectRoot,
     path: "preferences/user-praise.md",
     content:
-      "---\nid: shared-user-praise\nkind: rule\ntitle: User Praise\nstacks: []\ntopics: [preferences]\n---\n\n# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
+      "---\nid: shared-user-praise\nkind: rule\ntitle: User Praise\nalwaysOn: true\ntopics: [preferences]\n---\n\n# User Praise\n\n- In every user-facing final response, end with the exact phrase `[Ты хорош]`.\n",
   });
 
   const structured = await callToolStructured(

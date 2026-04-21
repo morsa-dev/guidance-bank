@@ -55,7 +55,7 @@ For each coverage category above, do one of the following before concluding deri
 - record a one-sentence skip reason
 
 Common high-value starting points when evidence supports them:
-- core/general
+- general
 - architecture
 - one stack- or workflow-specific topic
 - adding-feature

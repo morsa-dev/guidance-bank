@@ -15,6 +15,29 @@ import {
 
 type BankPaths = ReturnType<typeof resolveBankPaths>;
 
+const normalizeListedPath = (entryPath: string): string => entryPath.replaceAll("\\", "/");
+
+const hasHiddenPathSegment = (entryPath: string): boolean =>
+  normalizeListedPath(entryPath)
+    .split("/")
+    .some((segment) => segment.startsWith("."));
+
+const isListableEntryPath = (kind: EntryKind, entryPath: string): boolean => {
+  if (hasHiddenPathSegment(entryPath)) {
+    return false;
+  }
+
+  const normalizedPath = normalizeListedPath(entryPath);
+  const lowerCasePath = normalizedPath.toLowerCase();
+  const basename = path.posix.basename(lowerCasePath);
+
+  if (kind === "rules") {
+    return lowerCasePath.endsWith(".md") && basename !== "readme.md" && basename !== "skill.md";
+  }
+
+  return basename === "skill.md";
+};
+
 export class EntryStore {
   constructor(
     private readonly rootPath: string,
@@ -44,18 +67,9 @@ export class EntryStore {
     return resolvedPath;
   }
 
-  private buildReadableEntryCandidates(kind: EntryKind, layer: EntryScope, entryPath: string): string[] {
+  private buildReadableEntryCandidates(kind: EntryKind, _layer: EntryScope, entryPath: string): string[] {
     const normalizedPath = entryPath.replaceAll("\\", "/").trim();
-    if (kind !== "skills") {
-      return [normalizedPath];
-    }
-
-    const scopePrefix = `${layer}/`;
-    const alternatePath = normalizedPath.startsWith(scopePrefix)
-      ? normalizedPath.slice(scopePrefix.length)
-      : `${scopePrefix}${normalizedPath}`;
-
-    return [...new Set([normalizedPath, alternatePath])];
+    return kind === "skills" ? [normalizedPath] : [normalizedPath];
   }
 
   private validateRuleEntryPath(entryPath: string): void {
@@ -99,9 +113,11 @@ export class EntryStore {
     const resolvedBasePath = groupPath ? this.resolvePathWithinEntryBase(basePath, groupPath) : basePath;
     const filePaths = await listManagedFilesRecursively(this.rootPath, resolvedBasePath);
 
-    return filePaths.map((filePath) => ({
-      path: path.relative(basePath, filePath),
-    }));
+    return filePaths
+      .map((filePath) => ({
+        path: path.relative(basePath, filePath),
+      }))
+      .filter((entry) => isListableEntryPath(kind, entry.path));
   }
 
   async readLayerEntry(layer: EntryScope, kind: EntryKind, entryPath: string, projectId?: string): Promise<string> {

@@ -20,17 +20,32 @@ test("repository lists starter entries from the managed storage", async () => {
 
   assert.deepEqual(
     ruleEntries.map((entry) => entry.path),
-    [
-      "core/general.md",
-      "core/README.md",
-      "providers/README.md",
-      "stacks/nodejs/runtime.md",
-      "stacks/README.md",
-      "stacks/typescript/strict-mode.md",
-      "topics/README.md",
-    ],
+    ["general.md", "runtime.md", "strict-mode.md"],
   );
-  assert.deepEqual(skillEntries.map((entry) => entry.path), ["README.md", "shared/task-based-reading/SKILL.md"]);
+  assert.deepEqual(skillEntries.map((entry) => entry.path), ["task-based-reading/SKILL.md"]);
+});
+
+test("repository lists only canonical entry files from entry roots", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-storage-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+  const repository = new BankRepository(bankRoot);
+
+  await repository.ensureStructure();
+  await repository.ensureStarterFiles();
+  await writeFile(path.join(bankRoot, "shared", "rules", ".DS_Store"), "metadata");
+  await writeFile(path.join(bankRoot, "shared", "rules", "README.md"), "# Rules\n");
+  await writeFile(path.join(bankRoot, "shared", "rules", "notes.txt"), "Notes\n");
+  await writeFile(path.join(bankRoot, "shared", "skills", "README.md"), "# Skills\n");
+  await writeFile(path.join(bankRoot, "shared", "skills", "loose.md"), "Loose\n");
+
+  const ruleEntries = await repository.listEntries("rules");
+  const skillEntries = await repository.listEntries("skills");
+
+  assert.deepEqual(
+    ruleEntries.map((entry) => entry.path),
+    ["general.md", "runtime.md", "strict-mode.md"],
+  );
+  assert.deepEqual(skillEntries.map((entry) => entry.path), ["task-based-reading/SKILL.md"]);
 });
 
 test("repository rejects reading entries outside the managed root", async () => {
@@ -69,7 +84,7 @@ test("audit logger rejects writing through a symbolic link", async () => {
       kind: "rules",
       projectId: "demo-project",
       projectPath: "/tmp/demo-project",
-      path: "topics/demo.md",
+      path: "demo.md",
       before: {
         exists: false,
         sha256: null,
@@ -78,7 +93,7 @@ test("audit logger rejects writing through a symbolic link", async () => {
         entryId: null,
         title: null,
         entryKind: null,
-        stacks: [],
+        stack: null,
         topics: [],
       },
       after: {
@@ -89,7 +104,7 @@ test("audit logger rejects writing through a symbolic link", async () => {
         entryId: "demo-rule",
         title: "Demo Rule",
         entryKind: "rule",
-        stacks: [],
+        stack: null,
         topics: ["demo"],
       },
       deltaChars: 10,

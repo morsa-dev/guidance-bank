@@ -35,12 +35,12 @@ test("stats service returns overall bank overview and audit aggregates", async (
   await repository.writeProjectState("project-1", createProjectBankState("ready"));
   await repository.upsertRule(
     "project",
-    "topics/demo.md",
+    "demo.md",
     `---
 id: demo-rule
 kind: rule
 title: Demo Rule
-stacks: [nodejs]
+stack: nodejs
 topics: [demo]
 ---
 
@@ -115,7 +115,7 @@ kind: skill
 title: Focus Skill
 name: focus-skill
 description: Focus work.
-stacks: [nodejs]
+stack: nodejs
 topics: [focus]
 ---
 

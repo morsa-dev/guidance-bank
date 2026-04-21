@@ -2,7 +2,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import { createManifest, sortProviders, updateManifest } from "../bank/manifest.js";
-import { CURRENT_STORAGE_VERSION, type ProviderId } from "../bank/types.js";
+import type { ProviderId } from "../bank/types.js";
 import { getProviderDefinition } from "../providers/providerRegistry.js";
 import { BankRepository } from "../../storage/bankRepository.js";
 import { BANK_DIRECTORY_NAME, LEGACY_BANK_DIRECTORY_NAMES, resolveBankRoot } from "../../shared/paths.js";
@@ -99,7 +99,7 @@ export class InitService {
     ]);
 
     const manifest = existingManifest
-      ? updateManifest(existingManifest, enabledProviders, new Date(), { storageVersion: CURRENT_STORAGE_VERSION })
+      ? updateManifest(existingManifest, enabledProviders)
       : createManifest(enabledProviders);
 
     const mcpServerConfig = createDefaultMcpServerConfig(bankRoot);

@@ -8,6 +8,13 @@ import { BANK_DIRECTORY_NAME, LEGACY_BANK_DIRECTORY_NAMES, resolveBankRoot } fro
 import { CURRENT_STORAGE_VERSION, type MemoryBankManifest } from "../bank/types.js";
 import { isCurrentStorageVersion, updateManifest } from "../bank/manifest.js";
 import type { CommandRunner } from "../providers/types.js";
+import {
+  inspectBankContentMigration,
+  migrateBankContentLayout,
+  migrateSafeBankContentLayout,
+  type BankContentMigrationAutoMigration,
+  type BankContentMigrationResolutionIssue,
+} from "./bankContentMigration.js";
 
 export type BankUpgradeDetection =
   | {
@@ -30,15 +37,25 @@ export type BankUpgradeDetection =
       reason: "storage_version" | "legacy_root";
     };
 
-export type UpgradeBankResult = {
-  status: "upgraded" | "already_current";
+type UpgradeBankResultBase = {
   bankRoot: string;
   sourceRoot: string;
   migratedBankRoot: boolean;
   previousStorageVersion: number;
   storageVersion: number;
   enabledProviders: string[];
+  autoMigrations: BankContentMigrationAutoMigration[];
+  requiresResolution: BankContentMigrationResolutionIssue[];
 };
+
+export type UpgradeBankResult =
+  | (UpgradeBankResultBase & {
+      status: "upgraded" | "already_current";
+    })
+  | (UpgradeBankResultBase & {
+      status: "needs_resolution";
+      resolutionInstructions: string[];
+    });
 
 const resolveLegacyBankRoots = (bankRoot: string): string[] => {
   const resolvedBankRoot = path.resolve(bankRoot);
@@ -146,14 +163,47 @@ export class UpgradeService {
     }
 
     if (detection.status === "up_to_date") {
+      const repository = new BankRepository(detection.bankRoot);
+      const safeContentMigrationResult = await migrateSafeBankContentLayout(repository);
+      const contentPreflight = await inspectBankContentMigration(repository);
+
+      if (contentPreflight.requiresResolution.length > 0) {
+        return {
+          status: "needs_resolution",
+          bankRoot: detection.bankRoot,
+          sourceRoot: detection.bankRoot,
+          migratedBankRoot: false,
+          previousStorageVersion: detection.manifest.storageVersion,
+          storageVersion: detection.manifest.storageVersion,
+          enabledProviders: detection.manifest.enabledProviders,
+          autoMigrations: contentPreflight.autoMigrations,
+          requiresResolution: contentPreflight.requiresResolution,
+          resolutionInstructions: [
+            `Applied ${safeContentMigrationResult.appliedMigrations.length} safe layout migration${safeContentMigrationResult.appliedMigrations.length === 1 ? "" : "s"} before asking for explicit decisions.`,
+            "The bank storage version remains unchanged because one or more entries still need explicit selector decisions.",
+            "For each requiresResolution item, read the listed entry and rewrite only the frontmatter selector.",
+            "Current selector metadata is explicit: use exactly one of `stack: <canonical-id>` or `alwaysOn: true`.",
+            "Prefer a concrete `stack` selector when the path, legacy stacks, title, or body points to one technology. Use `alwaysOn: true` only for genuinely global guidance.",
+            "Never keep `stacks`, never omit the selector, and never use both `stack` and `alwaysOn` in current canonical entries.",
+            "For unsupported visible files inside rules or skills roots, either convert them to canonical entries, move them outside the bank, or delete them if they are obsolete.",
+            "After saving all corrected entries, call `upgrade_bank` again. The next run will re-scan the bank and apply the automatic migrations if no unresolved items remain.",
+          ],
+        };
+      }
+
+      const contentMigrationResult = await migrateBankContentLayout(repository, contentPreflight);
+      const autoMigrations = [...safeContentMigrationResult.appliedMigrations, ...contentMigrationResult.appliedMigrations];
+
       return {
-        status: "already_current",
+        status: autoMigrations.length > 0 ? "upgraded" : "already_current",
         bankRoot: detection.bankRoot,
         sourceRoot: detection.bankRoot,
         migratedBankRoot: false,
         previousStorageVersion: detection.manifest.storageVersion,
         storageVersion: detection.manifest.storageVersion,
         enabledProviders: detection.manifest.enabledProviders,
+        autoMigrations,
+        requiresResolution: [],
       };
     }
 
@@ -164,6 +214,34 @@ export class UpgradeService {
     const repository = new BankRepository(detection.bankRoot);
     const manifestBeforeUpgrade = await repository.readManifest();
     const initService = new InitService();
+    const safeContentMigrationResult = await migrateSafeBankContentLayout(repository);
+    const contentPreflight = await inspectBankContentMigration(repository);
+
+    if (contentPreflight.requiresResolution.length > 0) {
+      return {
+        status: "needs_resolution",
+        bankRoot: detection.bankRoot,
+        sourceRoot: detection.sourceRoot,
+        migratedBankRoot: detection.sourceRoot !== detection.bankRoot,
+        previousStorageVersion: detection.manifest.storageVersion,
+        storageVersion: manifestBeforeUpgrade.storageVersion,
+        enabledProviders: manifestBeforeUpgrade.enabledProviders,
+        autoMigrations: contentPreflight.autoMigrations,
+        requiresResolution: contentPreflight.requiresResolution,
+        resolutionInstructions: [
+          `Applied ${safeContentMigrationResult.appliedMigrations.length} safe layout migration${safeContentMigrationResult.appliedMigrations.length === 1 ? "" : "s"} before asking for explicit decisions.`,
+          "The bank storage version was not bumped because one or more legacy entries still need explicit selector decisions.",
+          "For each requiresResolution item, read the listed entry and rewrite only the frontmatter selector.",
+          "Current selector metadata is explicit: use exactly one of `stack: <canonical-id>` or `alwaysOn: true`.",
+          "Prefer a concrete `stack` selector when the path, legacy stacks, title, or body points to one technology. Use `alwaysOn: true` only for genuinely global guidance.",
+          "Never keep `stacks`, never omit the selector, and never use both `stack` and `alwaysOn` in current canonical entries.",
+          "For unsupported visible files inside rules or skills roots, either convert them to canonical entries, move them outside the bank, or delete them if they are obsolete.",
+          "After saving all corrected entries, call `upgrade_bank` again. The next run will re-scan the bank and apply the automatic migrations if no unresolved items remain.",
+        ],
+      };
+    }
+
+    const contentMigrationResult = await migrateBankContentLayout(repository, contentPreflight);
 
     await initService.run({
       bankRoot: detection.bankRoot,
@@ -188,6 +266,8 @@ export class UpgradeService {
       previousStorageVersion: detection.manifest.storageVersion,
       storageVersion: upgradedManifest.storageVersion,
       enabledProviders: upgradedManifest.enabledProviders,
+      autoMigrations: [...safeContentMigrationResult.appliedMigrations, ...contentMigrationResult.appliedMigrations],
+      requiresResolution: [],
     };
   }
 }

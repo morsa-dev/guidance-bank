@@ -22,12 +22,18 @@ No specific stack signals were detected confidently. Use \`other\` as the fallba
 ${detectedStacks.map((stack) => `- ${stack}`).join("\n")}`;
 };
 
-const renderSupportedStackIdsSection = (): string => `## Supported Stack Ids
+const renderSupportedStackIdsSection = (): string => `## Entry Selector
 
-Use only these canonical stack ids in AI Guidance Bank metadata:
-${DETECTABLE_STACKS.map((stack) => `- ${stack}`).join("\n")}
+Rules and skills must use exactly one explicit selector.
 
-If no specific stack fits confidently, use \`other\`.`;
+- Set \`stack\` to a single canonical id when the rule or skill is specific to one technology
+- Set \`alwaysOn: true\` only for guidance that must be included for every repository
+- Never omit both \`stack\` and \`alwaysOn\`, and never use both in the same entry
+- If guidance would apply to two or more distinct stacks, create a separate file for each stack rather than combining them in one entry
+- Use only these canonical stack ids:
+${DETECTABLE_STACKS.map((stack) => `  - ${stack}`).join("\n")}
+
+If no specific stack fits confidently, use \`other\` only when the entry is still stack-scoped to an unsupported or generic stack. Use \`alwaysOn: true\` only when the guidance is intentionally global.`;
 
 const renderReferenceProjectsSection = (selectedReferenceProjects: readonly ReferenceProjectCandidate[]): string => {
   if (selectedReferenceProjects.length === 0) {
@@ -87,7 +93,7 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 - During the guided flow, prefer batched writes through \`create_bank.apply\`
 - Pass complete final documents, not partial markdown patches
 - \`create_bank.apply.path\` must be relative to the rules/skills root:
-  - rules: \`core/general.md\`, \`topics/architecture.md\`
+  - rules: \`general.md\`, \`architecture.md\`
   - skills: \`adding-feature\`, \`task-based-reading\`
 - Do not prefix apply paths with \`rules/\` or \`skills/\`
 - When replacing or deleting an existing entry, read it first and pass \`baseSha256\`

@@ -8,7 +8,7 @@ export type AuditEntrySnapshot = {
   entryId: string | null;
   title: string | null;
   entryKind: "rule" | "skill" | null;
-  stacks: string[];
+  stack: string | null;
   topics: string[];
 };
 

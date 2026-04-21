@@ -20,7 +20,7 @@ const UpsertRuleArgsSchema = z
       .string()
       .trim()
       .min(1)
-      .describe("Rule file path relative to the selected rules root, for example topics/architecture.md."),
+      .describe("Rule file path relative to the selected rules root, for example architecture.md."),
     content: z
       .string()
       .min(1)
@@ -47,7 +47,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
           .string()
           .trim()
           .min(1)
-          .describe("Rule file path relative to the selected rules root, for example topics/architecture.md."),
+          .describe("Rule file path relative to the selected rules root, for example architecture.md."),
         content: z
           .string()
           .min(1)

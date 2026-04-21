@@ -16,7 +16,7 @@ export const summarizeEntryContent = (kind: EntryKind, content: string | null): 
       entryId: null,
       title: null,
       entryKind: null,
-      stacks: [],
+      stack: null,
       topics: [],
     };
   }
@@ -29,7 +29,7 @@ export const summarizeEntryContent = (kind: EntryKind, content: string | null): 
     entryId: null,
     title: null,
     entryKind: null,
-    stacks: [],
+    stack: null,
     topics: [],
   };
 
@@ -41,7 +41,7 @@ export const summarizeEntryContent = (kind: EntryKind, content: string | null): 
       entryId: document.frontmatter.id,
       title: document.frontmatter.title,
       entryKind: document.frontmatter.kind,
-      stacks: [...document.frontmatter.stacks],
+      stack: document.frontmatter.stack ?? null,
       topics: [...document.frontmatter.topics],
     };
   } catch {

@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import { CURRENT_STORAGE_VERSION, type MemoryBankManifest, PROVIDER_IDS } from "../../core/bank/types.js";
+import { type MemoryBankManifest, PROVIDER_IDS } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
 
 const emptyInputSchema = z.object({}).strict();
+const StorageVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
 export const registerBankManifestTool: ToolRegistrar = (server, options) => {
   server.registerTool(
@@ -18,7 +19,7 @@ export const registerBankManifestTool: ToolRegistrar = (server, options) => {
       inputSchema: {},
       outputSchema: {
         schemaVersion: z.literal(1),
-        storageVersion: z.union([z.literal(1), z.literal(CURRENT_STORAGE_VERSION)]),
+        storageVersion: StorageVersionSchema,
         bankId: z.uuid(),
         createdAt: z.iso.datetime(),
         updatedAt: z.iso.datetime(),

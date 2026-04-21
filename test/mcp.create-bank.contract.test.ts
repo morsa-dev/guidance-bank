@@ -151,8 +151,8 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.match(structured.prompt, /Create Flow Kickoff/i);
   assert.match(structured.prompt, /stable create-flow contract/i);
   assert.match(structured.prompt, /delay external guidance import or deletion until the dedicated review step/i);
-  assert.doesNotMatch(structured.prompt, /Supported Stack Ids/i);
-  assert.match(structured.creationPrompt ?? "", /Supported Stack Ids/i);
+  assert.doesNotMatch(structured.prompt, /Entry Selector/i);
+  assert.match(structured.creationPrompt ?? "", /Entry Selector/i);
   assert.match(structured.creationPrompt ?? "", /- other/);
   assert.doesNotMatch(structured.creationPrompt ?? "", /Expected Bank Density/i);
   assert.doesNotMatch(structured.creationPrompt ?? "", /Coverage Expectations/i);
@@ -239,7 +239,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(blockedReviewStructured.prompt, /Create Flow Kickoff/i);
   assert.match(blockedReviewStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(blockedReviewStructured.text, /Use `phase` as the primary guide/i);
-  assert.match(blockedReviewStructured.creationPrompt ?? "", /Supported Stack Ids/i);
+  assert.match(blockedReviewStructured.creationPrompt ?? "", /Entry Selector/i);
 
   const reviewStructured = await callToolStructured(
     client,
@@ -342,7 +342,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(deriveProjectStructured.prompt, /Rule Quality Gate/i);
   assert.match(deriveProjectStructured.prompt, /Node\.js Backend Guidance/i);
   assert.match(deriveProjectStructured.prompt, /Infer the project archetype from the real repository/i);
-  assert.match(deriveProjectStructured.prompt, /at least 4 focused rule files/i);
+  assert.match(deriveProjectStructured.prompt, /at least 5 focused rule files/i);
   assert.match(deriveProjectStructured.prompt, /minimum expectations, not caps/i);
   assert.match(deriveProjectStructured.prompt, /Candidate Derivation Requirements/i);
   assert.match(deriveProjectStructured.prompt, /key multi-step workflows: identify at least 2/i);
@@ -487,12 +487,12 @@ test("create_bank can apply batched writes for the current step and refresh the 
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -508,7 +508,7 @@ id: demo-project-adding-feature
 kind: skill
 title: Adding Feature
 description: Add a feature in this demo project.
-stacks: [other]
+stack: other
 topics: [workflow]
 ---
 
@@ -547,7 +547,7 @@ When adding a feature.
   const projectRule = await callToolStructured(
     client,
     "read_entry",
-    { scope: "project", projectPath: projectRoot, kind: "rules", path: "core/general.md" },
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "general.md" },
     z.object({ path: z.string(), content: z.string() }),
   );
   assert.match(projectRule.content, /Demo Project General Rules/);
@@ -572,12 +572,12 @@ test("create_bank blocks apply during review_existing_guidance and kickoff with 
         {
           kind: "rules",
           scope: "project",
-          path: "core/general.md",
+          path: "general.md",
           content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -604,12 +604,12 @@ topics: [architecture]
         {
           kind: "rules",
           scope: "project",
-          path: "core/general.md",
+          path: "general.md",
           content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -674,12 +674,12 @@ test("create_bank apply accepts singular rule and skill kinds as aliases", async
           {
             kind: "rule",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -695,7 +695,7 @@ id: demo-project-adding-feature
 kind: skill
 title: Adding Feature
 description: Add a feature in this demo project.
-stacks: [other]
+stack: other
 topics: [workflow]
 ---
 
@@ -766,12 +766,12 @@ test("create_bank apply normalizes rules and skills path prefixes", async (t) =>
           {
             kind: "rules",
             scope: "project",
-            path: "rules/core/general.md",
+            path: "rules/general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -787,7 +787,7 @@ id: demo-project-adding-feature
 kind: skill
 title: Adding Feature
 description: Add a feature in this demo project.
-stacks: [other]
+stack: other
 topics: [workflow]
 ---
 
@@ -805,11 +805,11 @@ When adding a feature.
 
   assert.deepEqual(
     applied.applyResults.writes.map((item) => item.path),
-    ["core/general.md", "adding-feature"],
+    ["general.md", "adding-feature"],
   );
   assert.deepEqual(
     applied.currentBankSnapshot.entries.map((entry) => entry.path).sort(),
-    ["adding-feature/SKILL.md", "core/general.md"],
+    ["adding-feature/SKILL.md", "general.md"],
   );
 });
 
@@ -863,7 +863,7 @@ test("create_bank apply rejects paths prefixed for the wrong entry root", async 
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -929,12 +929,12 @@ test("create_bank apply can update and delete existing entries in one batch with
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -950,7 +950,7 @@ id: demo-project-adding-feature
 kind: skill
 title: Adding Feature
 description: Add a feature in this demo project.
-stacks: [other]
+stack: other
 topics: [workflow]
 ---
 
@@ -971,7 +971,7 @@ When adding a feature.
     CreateBankSchema,
   );
 
-  const originalRule = initialApply.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  const originalRule = initialApply.currentBankSnapshot.entries.find((entry) => entry.path === "general.md");
   const originalSkill = initialApply.currentBankSnapshot.entries.find(
     (entry) => entry.kind === "skills" && entry.path.startsWith("adding-feature"),
   );
@@ -990,13 +990,13 @@ When adding a feature.
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             baseSha256: originalRule.sha256,
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -1023,13 +1023,13 @@ topics: [architecture]
   assert.equal(updated.currentBankSnapshot.entries.length, 1);
   assert.deepEqual(
     updated.currentBankSnapshot.entries.map((entry) => entry.path),
-    ["core/general.md"],
+    ["general.md"],
   );
 
   const updatedRule = await callToolStructured(
     client,
     "read_entry",
-    { scope: "project", projectPath: projectRoot, kind: "rules", path: "core/general.md" },
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "general.md" },
     z.object({ path: z.string(), content: z.string() }),
   );
   assert.match(updatedRule.content, /Update rules through create_bank\.apply/i);
@@ -1083,12 +1083,12 @@ test("create_bank apply reports conflicts and tells the agent how to recover", a
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -1102,7 +1102,7 @@ topics: [architecture]
     CreateBankSchema,
   );
 
-  const existingRule = created.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  const existingRule = created.currentBankSnapshot.entries.find((entry) => entry.path === "general.md");
   assert.ok(existingRule);
 
   const conflicted = await callToolStructured(
@@ -1116,13 +1116,13 @@ topics: [architecture]
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             baseSha256: "stale-sha256",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -1193,12 +1193,12 @@ test("create_bank does not advance stored iteration when an apply conflict block
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -1211,7 +1211,7 @@ topics: [architecture]
     },
     CreateBankSchema,
   );
-  const existingRule = seeded.currentBankSnapshot.entries.find((entry) => entry.path === "core/general.md");
+  const existingRule = seeded.currentBankSnapshot.entries.find((entry) => entry.path === "general.md");
   assert.ok(existingRule);
 
   const conflictedAdvance = await callToolStructured(
@@ -1226,13 +1226,13 @@ topics: [architecture]
           {
             kind: "rules",
             scope: "project",
-            path: "core/general.md",
+            path: "general.md",
             baseSha256: "stale-sha256",
             content: `---
 id: demo-project-general
 kind: rule
 title: Demo Project General Rules
-stacks: [other]
+stack: other
 topics: [architecture]
 ---
 
@@ -1659,9 +1659,9 @@ test("create_bank returns compact current project bank snapshot and project entr
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "topics/architecture.md",
+      path: "architecture.md",
       content:
-        "---\nid: project-architecture\nkind: rule\ntitle: Project Architecture\nstacks: []\ntopics: [architecture]\n---\n\n# Project Architecture\n\n- Keep project layers explicit.\n",
+        "---\nid: project-architecture\nkind: rule\ntitle: Project Architecture\nalwaysOn: true\ntopics: [architecture]\n---\n\n# Project Architecture\n\n- Keep project layers explicit.\n",
     },
     z.object({ status: z.enum(["created", "updated"]) }),
   );
@@ -1674,7 +1674,7 @@ test("create_bank returns compact current project bank snapshot and project entr
   );
   assert.equal(snapshotStructured.currentBankSnapshot.exists, true);
   assert.equal(snapshotStructured.currentBankSnapshot.entries.length, 1);
-  assert.equal(snapshotStructured.currentBankSnapshot.entries[0]?.path, "topics/architecture.md");
+  assert.equal(snapshotStructured.currentBankSnapshot.entries[0]?.path, "architecture.md");
   assert.equal(snapshotStructured.currentBankSnapshot.entries[0]?.id, "project-architecture");
 
   const listed = await callToolStructured(
@@ -1688,12 +1688,12 @@ test("create_bank returns compact current project bank snapshot and project entr
       entries: z.array(z.object({ path: z.string() })),
     }),
   );
-  assert.deepEqual(listed.entries.map((entry) => entry.path), ["topics/architecture.md"]);
+  assert.deepEqual(listed.entries.map((entry) => entry.path), ["architecture.md"]);
 
   const read = await callToolStructured(
     client,
     "read_entry",
-    { scope: "project", projectPath: projectRoot, kind: "rules", path: "topics/architecture.md" },
+    { scope: "project", projectPath: projectRoot, kind: "rules", path: "architecture.md" },
     z.object({
       scope: z.literal("project"),
       kind: z.literal("rules"),

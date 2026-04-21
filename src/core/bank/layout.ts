@@ -44,22 +44,12 @@ export const resolveBankPaths = (root: string): BankPaths => ({
 
 export const createStarterFiles = (paths: BankPaths): Array<{ filePath: string; content: string }> => [
   {
-    filePath: path.join(paths.sharedRulesDirectory, "core", "README.md"),
-    content: `# Core Rules
-
-Store shared, provider-agnostic rules here.
-
-- Use subdirectories to cluster rules by topic.
-- Keep each rule as a separate markdown file.
-`,
-  },
-  {
-    filePath: path.join(paths.sharedRulesDirectory, "core", "general.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "general.md"),
     content: `---
 id: shared-general-behavior
 kind: rule
 title: General Behavior
-stacks: []
+alwaysOn: true
 topics: [general]
 ---
 
@@ -72,24 +62,12 @@ topics: [general]
 `,
   },
   {
-    filePath: path.join(paths.sharedRulesDirectory, "stacks", "README.md"),
-    content: `# Stack Rules
-
-Store stack-specific rules here.
-
-Examples:
-- nodejs/
-- typescript/
-- react/
-`,
-  },
-  {
-    filePath: path.join(paths.sharedRulesDirectory, "stacks", "nodejs", "runtime.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "runtime.md"),
     content: `---
 id: shared-nodejs-runtime
 kind: rule
 title: Node.js Runtime
-stacks: [nodejs]
+stack: nodejs
 topics: [runtime]
 ---
 
@@ -101,12 +79,12 @@ topics: [runtime]
 `,
   },
   {
-    filePath: path.join(paths.sharedRulesDirectory, "stacks", "typescript", "strict-mode.md"),
+    filePath: path.join(paths.sharedRulesDirectory, "strict-mode.md"),
     content: `---
 id: shared-typescript-strict-mode
 kind: rule
 title: TypeScript Strict Mode
-stacks: [typescript]
+stack: typescript
 topics: [typing]
 ---
 
@@ -118,49 +96,14 @@ topics: [typing]
 `,
   },
   {
-    filePath: path.join(paths.sharedRulesDirectory, "topics", "README.md"),
-    content: `# Topic Rules
-
-Store thematic shared rule groups here.
-
-Examples:
-- architecture/
-- styling/
-- routing/
-`,
-  },
-  {
-    filePath: path.join(paths.sharedRulesDirectory, "providers", "README.md"),
-    content: `# Provider Rules
-
-Store provider-specific rule variations here.
-
-Examples:
-- codex/
-- cursor/
-- claude-code/
-`,
-  },
-  {
-    filePath: path.join(paths.sharedSkillsDirectory, "README.md"),
-    content: `# Skills
-
-Store each skill in its own folder with a single \`SKILL.md\` file.
-
-Examples:
-- task-based-reading/SKILL.md
-- adding-feature/SKILL.md
-`,
-  },
-  {
-    filePath: path.join(paths.sharedSkillsDirectory, "shared", "task-based-reading", "SKILL.md"),
+    filePath: path.join(paths.sharedSkillsDirectory, "task-based-reading", "SKILL.md"),
     content: `---
 id: shared-task-based-reading
 kind: skill
 title: Task-Based Reading
 name: task-based-reading
 description: Use when starting work in an unfamiliar repository and you need to identify the minimum relevant files quickly.
-stacks: []
+alwaysOn: true
 topics: [reading, discovery]
 ---
 

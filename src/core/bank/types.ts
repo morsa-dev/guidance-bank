@@ -3,9 +3,9 @@ import type { ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrate
 
 export const PROVIDER_IDS = ["codex", "cursor", "claude-code"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
-export const STORAGE_VERSIONS = [1, 2] as const;
+export const STORAGE_VERSIONS = [1, 2, 3] as const;
 export type StorageVersion = (typeof STORAGE_VERSIONS)[number];
-export const CURRENT_STORAGE_VERSION = 2 as const;
+export const CURRENT_STORAGE_VERSION = 3 as const;
 
 export const ENTRY_KINDS = ["rules", "skills"] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
@@ -71,7 +71,8 @@ export type ListedEntry = {
 export type CanonicalEntryFrontmatterBase = {
   id: string;
   title: string;
-  stacks: DetectableStack[];
+  stack?: DetectableStack | undefined;
+  alwaysOn?: true | undefined;
   topics: string[];
 };
 

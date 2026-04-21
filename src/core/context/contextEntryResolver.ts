@@ -14,43 +14,27 @@ type CandidateReason = {
 
 type EntrySelectionKind = "rules" | "skills";
 
-const normalizeCatalogEntryPath = (
-  kind: "rules" | "skills",
-  layer: "shared" | "project",
-  entryPath: string,
-): string => {
-  if (kind !== "skills") {
-    return entryPath;
-  }
-
-  const normalizedEntryPath = entryPath.replaceAll("\\", "/");
-  const scopePrefix = `${layer}/`;
-
-  return normalizedEntryPath.startsWith(scopePrefix)
-    ? normalizedEntryPath.slice(scopePrefix.length)
-    : normalizedEntryPath;
-};
-
 const isDocumentationFile = (entryPath: string): boolean => {
   const normalizedEntryPath = entryPath.replaceAll("\\", "/").toLowerCase();
   return normalizedEntryPath.endsWith("/readme.md") || normalizedEntryPath === "readme.md";
 };
 
-const matchesStacks = (entryStacks: readonly string[], detectedStacks: readonly string[]): CandidateReason => {
-  if (entryStacks.length === 0) {
+const matchesStack = (
+  entrySelector: { stack?: string | undefined; alwaysOn?: true | undefined },
+  detectedStacks: readonly string[],
+): CandidateReason => {
+  if (entrySelector.alwaysOn === true) {
     return {
       selected: true,
       reason: "Always-on canonical entry.",
     };
   }
 
-  for (const stack of entryStacks) {
-    if (detectedStacks.includes(stack)) {
-      return {
-        selected: true,
-        reason: `Matches canonical stack metadata: ${stack}.`,
-      };
-    }
+  if (entrySelector.stack !== undefined && detectedStacks.includes(entrySelector.stack)) {
+    return {
+      selected: true,
+      reason: `Matches canonical stack metadata: ${entrySelector.stack}.`,
+    };
   }
 
   return {
@@ -97,7 +81,7 @@ export const loadResolvedContextEntries = async (
       kind === "rules"
         ? parseRuleEntry(layer, entry.path, content).frontmatter
         : parseSkillEntry(layer, entry.path, content).frontmatter;
-    const selection = matchesStacks(metadata.stacks, detectedStacks);
+    const selection = matchesStack(metadata, detectedStacks);
 
     if (!selection.selected) {
       continue;
@@ -180,7 +164,7 @@ const toPreview = (content: string): string | null => {
 
 export const selectAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): ResolvedContextInlineRule[] =>
   entries
-    .filter((entry) => entry.metadata.kind === "rule" && entry.metadata.stacks.length === 0)
+    .filter((entry) => entry.metadata.kind === "rule" && entry.metadata.alwaysOn === true)
     .map((entry) => ({
       scope: entry.layer,
       path: entry.path,
@@ -191,7 +175,7 @@ export const selectAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): R
     }));
 
 export const excludeAlwaysOnRules = (entries: readonly ResolvedContextEntry[]): ResolvedContextEntry[] =>
-  entries.filter((entry) => !(entry.metadata.kind === "rule" && entry.metadata.stacks.length === 0));
+  entries.filter((entry) => !(entry.metadata.kind === "rule" && entry.metadata.alwaysOn === true));
 
 export const buildResolvedContextCatalog = (
   kind: "rules" | "skills",
@@ -200,7 +184,7 @@ export const buildResolvedContextCatalog = (
   entries.map((entry) => ({
     scope: entry.layer,
     kind,
-    path: normalizeCatalogEntryPath(kind, entry.layer, entry.path),
+    path: entry.path,
     title: entry.metadata.title,
     topics: [...entry.metadata.topics],
     description: entry.metadata.kind === "skill" ? entry.metadata.description : toPreview(entry.content),

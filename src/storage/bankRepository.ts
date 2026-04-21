@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { createStarterFiles, resolveBankPaths } from "../core/bank/layout.js";
 import type {
   EntryKind,
@@ -53,10 +51,6 @@ export class BankRepository {
     await ensureManagedDirectory(this.rootPath, this.paths.projectsDirectory);
     await ensureManagedDirectory(this.rootPath, this.paths.mcpDirectory);
     await ensureManagedDirectory(this.rootPath, this.paths.integrationsDirectory);
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.sharedRulesDirectory, "core"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.sharedRulesDirectory, "stacks"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.sharedRulesDirectory, "providers"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.sharedRulesDirectory, "topics"));
   }
 
   async ensureStarterFiles(): Promise<void> {

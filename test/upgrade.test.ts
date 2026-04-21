@@ -8,6 +8,7 @@ import { UpgradeService } from "../src/core/upgrade/upgradeService.js";
 import type { CommandRunner } from "../src/core/providers/types.js";
 import { BankRepository } from "../src/storage/bankRepository.js";
 import { createConnectedClient, TextPayloadSchema, callToolStructured, writeProjectFiles } from "./helpers/mcpTestUtils.js";
+import { resolveProjectIdentity } from "../src/core/projects/identity.js";
 
 const createLegacyBankFixture = async (
   enabledProviders: Array<"codex" | "cursor" | "claude-code"> = ["cursor"],
@@ -101,7 +102,7 @@ test("resolve_context requires a bank upgrade before any missing project-bank pr
   assert.equal(resolved.bankRoot, bankRoot);
   assert.equal(resolved.sourceRoot, legacyBankRoot);
   assert.equal(resolved.storageVersion, 1);
-  assert.equal(resolved.expectedStorageVersion, 2);
+  assert.equal(resolved.expectedStorageVersion, 3);
   assert.match(resolved.text, /AI Guidance Bank update is required before resolving repository context/i);
   assert.match(resolved.text, /Do not start project-bank creation, sync, or normal repository-context work until the bank-level update is complete/i);
 });
@@ -142,6 +143,10 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
       2,
     )}\n`,
   );
+  await mkdir(path.join(legacyBankRoot, "shared", "rules", "topics"), { recursive: true });
+  await writeFile(path.join(legacyBankRoot, "shared", "rules", ".DS_Store"), "metadata");
+  await writeFile(path.join(legacyBankRoot, "shared", "rules", "topics", "README.md"), "# Topic Rules\n");
+  await writeFile(path.join(legacyBankRoot, "shared", "skills", "README.md"), "# Skills\n");
 
   const result = await new UpgradeService().run({
     bankRoot,
@@ -154,14 +159,17 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
   assert.equal(result.sourceRoot, legacyBankRoot);
   assert.equal(result.migratedBankRoot, true);
   assert.equal(result.previousStorageVersion, 1);
-  assert.equal(result.storageVersion, 2);
+  assert.equal(result.storageVersion, 3);
   assert.deepEqual(result.enabledProviders, ["codex", "cursor", "claude-code"]);
   await assert.rejects(access(legacyBankRoot));
 
   const upgradedRepository = new BankRepository(bankRoot);
   const upgradedManifest = await upgradedRepository.readManifest();
-  assert.equal(upgradedManifest.storageVersion, 2);
+  assert.equal(upgradedManifest.storageVersion, 3);
   assert.deepEqual(upgradedManifest.enabledProviders, ["codex", "cursor", "claude-code"]);
+  await assert.rejects(access(path.join(bankRoot, "shared", "rules", ".DS_Store")));
+  await assert.rejects(access(path.join(bankRoot, "shared", "rules", "topics", "README.md")));
+  await assert.rejects(access(path.join(bankRoot, "shared", "skills", "README.md")));
 
   const cursorConfig = JSON.parse(await readFile(path.join(cursorConfigRoot, "mcp.json"), "utf8")) as {
     mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
@@ -202,4 +210,166 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
   assert.equal(resolved.sourceRoot, undefined);
   assert.match(resolved.text, /No project AI Guidance Bank exists for this repository yet/i);
   assert.doesNotMatch(resolved.text, /update is required before resolving repository context/i);
+});
+
+test("upgrade service returns all ambiguous legacy stack entries for agent resolution before mutating content", async () => {
+  const { bankRoot, legacyBankRoot, projectRoot } = await createLegacyBankFixture([]);
+  const projectId = resolveProjectIdentity(projectRoot).projectId;
+  const projectBankRoot = path.join(legacyBankRoot, "projects", projectId);
+
+  await mkdir(path.join(projectBankRoot, "rules", "topics"), { recursive: true });
+  await writeFile(
+    path.join(projectBankRoot, "manifest.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        projectId,
+        projectName: "demo-project",
+        projectPath: projectRoot,
+        detectedStacks: ["angular", "nodejs"],
+        createdAt: "2026-04-09T10:00:00.000Z",
+        updatedAt: "2026-04-09T10:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    path.join(projectBankRoot, "rules", "topics", "app-architecture.md"),
+    `---
+id: project-app-architecture
+kind: rule
+title: App Architecture
+stacks: [angular, nodejs]
+topics: [architecture]
+---
+
+# App Architecture
+
+- Keep browser and server boundaries explicit.
+`,
+  );
+
+  const result = await new UpgradeService().run({ bankRoot });
+
+  assert.equal(result.status, "needs_resolution");
+  assert.equal(result.bankRoot, bankRoot);
+  assert.equal(result.sourceRoot, legacyBankRoot);
+  assert.equal(result.migratedBankRoot, true);
+  assert.equal(result.previousStorageVersion, 1);
+  assert.equal(result.storageVersion, 1);
+  assert.equal(result.requiresResolution.length, 1);
+  assert.equal(result.requiresResolution[0]?.reason, "multi_stack_frontmatter");
+  assert.equal(result.requiresResolution[0]?.path, "app-architecture.md");
+  assert.deepEqual(result.requiresResolution[0]?.legacyFrontmatter, ["stacks: [angular, nodejs]"]);
+  assert.match(result.requiresResolution[0]?.requiredCurrentFrontmatter.join("\n") ?? "", /stack: <canonical-id>/);
+  assert.match(result.requiresResolution[0]?.requiredCurrentFrontmatter.join("\n") ?? "", /alwaysOn: true/i);
+  assert.match(result.requiresResolution[0]?.agentNextStep ?? "", /call upgrade_bank again/i);
+  assert.match(result.resolutionInstructions.join("\n"), /Never keep `stacks`/i);
+  assert.match(result.resolutionInstructions.join("\n"), /call `upgrade_bank` again/i);
+
+  const manifestContent = JSON.parse(await readFile(path.join(bankRoot, "manifest.json"), "utf8")) as {
+    storageVersion: number;
+  };
+  assert.equal(manifestContent.storageVersion, 1);
+
+  const unresolvedEntry = await readFile(
+    path.join(bankRoot, "projects", projectId, "rules", "app-architecture.md"),
+    "utf8",
+  );
+  assert.match(unresolvedEntry, /stacks: \[angular, nodejs\]/);
+});
+
+test("upgrade service asks the agent to resolve visible non-entry files before mutating content", async () => {
+  const { bankRoot, legacyBankRoot } = await createLegacyBankFixture([]);
+
+  await writeFile(path.join(legacyBankRoot, "shared", "rules", "notes.txt"), "Internal notes\n");
+
+  const result = await new UpgradeService().run({ bankRoot });
+
+  assert.equal(result.status, "needs_resolution");
+  assert.equal(result.requiresResolution.length, 1);
+  assert.equal(result.requiresResolution[0]?.reason, "unsupported_entry_file");
+  assert.equal(result.requiresResolution[0]?.path, "notes.txt");
+  assert.deepEqual(result.requiresResolution[0]?.allowedResolutions, [
+    "convert_to_rule_entry",
+    "move_outside_bank",
+    "remove_file",
+  ]);
+  assert.match(result.requiresResolution[0]?.agentNextStep ?? "", /call upgrade_bank again/i);
+
+  const manifestContent = JSON.parse(await readFile(path.join(bankRoot, "manifest.json"), "utf8")) as {
+    storageVersion: number;
+  };
+  assert.equal(manifestContent.storageVersion, 1);
+  assert.equal(await readFile(path.join(bankRoot, "shared", "rules", "notes.txt"), "utf8"), "Internal notes\n");
+});
+
+test("upgrade service migrates project directories even when the project manifest is missing", async () => {
+  const { bankRoot, cursorConfigRoot, legacyBankRoot } = await createLegacyBankFixture();
+  const orphanProjectId = "orphan-project-without-manifest";
+
+  await mkdir(path.join(legacyBankRoot, "projects", orphanProjectId, "rules", "core"), { recursive: true });
+  await writeFile(
+    path.join(legacyBankRoot, "projects", orphanProjectId, "rules", "core", "general.md"),
+    `---
+id: orphan-general
+kind: rule
+title: Orphan General
+stacks: []
+topics: [general]
+---
+
+# Orphan General
+
+- Keep orphan project guidance migratable even when its manifest is missing.
+`,
+  );
+
+  const result = await new UpgradeService().run({ bankRoot, cursorConfigRoot });
+
+  assert.equal(result.status, "upgraded");
+
+  const migratedEntry = await readFile(
+    path.join(bankRoot, "projects", orphanProjectId, "rules", "general.md"),
+    "utf8",
+  );
+  assert.match(migratedEntry, /alwaysOn: true/);
+  await assert.rejects(access(path.join(bankRoot, "projects", orphanProjectId, "rules", "core", "general.md")));
+});
+
+test("upgrade service cleans safe leftovers even when the bank is already current", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-current-cleanup-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+  const repository = new BankRepository(bankRoot);
+  const projectId = "current-project";
+
+  await repository.ensureStructure();
+  await repository.ensureStarterFiles();
+  await repository.writeManifest({
+    schemaVersion: 1,
+    storageVersion: 3,
+    bankId: "44444444-4444-4444-8444-444444444444",
+    createdAt: "2026-04-09T10:00:00.000Z",
+    updatedAt: "2026-04-09T10:00:00.000Z",
+    enabledProviders: [],
+    defaultMcpTransport: "stdio",
+  });
+  await mkdir(path.join(bankRoot, "bin"), { recursive: true });
+  await mkdir(path.join(bankRoot, "projects", projectId, "rules", "core"), { recursive: true });
+  await mkdir(path.join(bankRoot, "projects", projectId, "rules", "stacks"), { recursive: true });
+  await mkdir(path.join(bankRoot, "projects", projectId, "rules", "topics"), { recursive: true });
+  await writeFile(path.join(bankRoot, ".DS_Store"), "metadata");
+  await writeFile(path.join(bankRoot, "bin", ".DS_Store"), "metadata");
+  await writeFile(path.join(bankRoot, "projects", ".DS_Store"), "metadata");
+
+  const result = await new UpgradeService().run({ bankRoot });
+
+  assert.equal(result.status, "already_current");
+  await assert.rejects(access(path.join(bankRoot, ".DS_Store")));
+  await assert.rejects(access(path.join(bankRoot, "bin", ".DS_Store")));
+  await assert.rejects(access(path.join(bankRoot, "projects", ".DS_Store")));
+  await assert.rejects(access(path.join(bankRoot, "projects", projectId, "rules", "core")));
+  await assert.rejects(access(path.join(bankRoot, "projects", projectId, "rules", "stacks")));
+  await assert.rejects(access(path.join(bankRoot, "projects", projectId, "rules", "topics")));
 });

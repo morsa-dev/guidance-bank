@@ -20,7 +20,7 @@ const UpsertSkillArgsSchema = z
       .string()
       .trim()
       .min(1)
-      .describe("Skill folder path relative to the selected skills root, for example adding-feature or stacks/angular/adding-feature."),
+      .describe("Skill folder path relative to the selected skills root, for example adding-feature or component-audit."),
     content: z
       .string()
       .min(1)
@@ -47,7 +47,7 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
           .string()
           .trim()
           .min(1)
-          .describe("Skill folder path relative to the selected skills root, for example adding-feature or stacks/angular/adding-feature."),
+          .describe("Skill folder path relative to the selected skills root, for example adding-feature or component-audit."),
         content: z
           .string()
           .min(1)

@@ -138,9 +138,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
       content:
-        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
     },
     EntryMutationSchema,
   );
@@ -152,9 +152,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "topics/admin-dashboard.md",
+      path: "admin-dashboard.md",
       content:
-        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstacks: [angular]\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstack: angular\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
     },
     EntryMutationSchema,
   );
@@ -166,13 +166,13 @@ test("upsert tools write shared and project entries that resolve_context exposes
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "stacks/angular/component-audit",
+      path: "component-audit",
       content:
-        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
     },
     EntryMutationSchema,
   );
-  assert.equal(sharedSkill.filePath, "stacks/angular/component-audit/SKILL.md");
+  assert.equal(sharedSkill.filePath, "component-audit/SKILL.md");
 
   const projectSkill = await callToolStructured(
     client,
@@ -180,9 +180,9 @@ test("upsert tools write shared and project entries that resolve_context exposes
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "stacks/angular/adding-admin-widget",
+      path: "adding-admin-widget",
       content:
-        "---\nid: project-adding-admin-widget\nkind: skill\ntitle: Adding Admin Widget\nname: adding-admin-widget\ndescription: Add a new admin widget in this repository.\nstacks: [angular]\ntopics: [widgets]\n---\n\n# Adding Admin Widget\n\n1. Start from the existing dashboard feature shell.\n",
+        "---\nid: project-adding-admin-widget\nkind: skill\ntitle: Adding Admin Widget\nname: adding-admin-widget\ndescription: Add a new admin widget in this repository.\nstack: angular\ntopics: [widgets]\n---\n\n# Adding Admin Widget\n\n1. Start from the existing dashboard feature shell.\n",
     },
     EntryMutationSchema,
   );
@@ -224,13 +224,13 @@ test("upsert tools write shared and project entries that resolve_context exposes
   assert.match(resolved.text, /Catalog Summary/);
   assert.match(resolved.text, /- Rules: \d+ entries\./i);
   assert.match(resolved.text, /- Skills: \d+ entries\./i);
-  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/angular-architecture.md"), true);
-  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "topics/admin-dashboard.md"), true);
-  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/component-audit/SKILL.md"), true);
-  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "stacks/angular/adding-admin-widget/SKILL.md"), true);
+  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "angular-architecture.md"), true);
+  assert.equal(resolved.rulesCatalog?.some((entry) => entry.path === "admin-dashboard.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "component-audit/SKILL.md"), true);
+  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "adding-admin-widget/SKILL.md"), true);
 });
 
-test("resolve_context normalizes legacy scoped skill paths and read_entry accepts the normalized path", async (t) => {
+test("resolve_context returns skill paths exactly as stored and read_entry accepts those paths", async (t) => {
   const { projectRoot, client, close } = await setupAngularProject();
   t.after(close);
 
@@ -240,9 +240,9 @@ test("resolve_context normalizes legacy scoped skill paths and read_entry accept
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "shared/task-based-reading",
+      path: "task-based-reading",
       content:
-        "---\nid: shared-task-based-reading\nkind: skill\ntitle: Task Based Reading\nname: task-based-reading\ndescription: Read the repo by task.\nstacks: [angular]\ntopics: [reading]\n---\n\n# Task Based Reading\n\n1. Start from the route entrypoint.\n",
+        "---\nid: shared-task-based-reading\nkind: skill\ntitle: Task Based Reading\nname: task-based-reading\ndescription: Read the repo by task.\nstack: angular\ntopics: [reading]\n---\n\n# Task Based Reading\n\n1. Start from the route entrypoint.\n",
     },
     EntryMutationSchema,
   );
@@ -253,9 +253,9 @@ test("resolve_context normalizes legacy scoped skill paths and read_entry accept
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "project/angular-components",
+      path: "angular-components",
       content:
-        "---\nid: project-angular-components\nkind: skill\ntitle: Angular Components\nname: angular-components\ndescription: Project-specific Angular component rules.\nstacks: [angular]\ntopics: [components]\n---\n\n# Angular Components\n\n1. Follow the existing component style in this project.\n",
+        "---\nid: project-angular-components\nkind: skill\ntitle: Angular Components\nname: angular-components\ndescription: Project-specific Angular component rules.\nstack: angular\ntopics: [components]\n---\n\n# Angular Components\n\n1. Follow the existing component style in this project.\n",
     },
     EntryMutationSchema,
   );
@@ -282,8 +282,6 @@ test("resolve_context normalizes legacy scoped skill paths and read_entry accept
 
   assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "task-based-reading/SKILL.md"), true);
   assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "angular-components/SKILL.md"), true);
-  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "shared/task-based-reading/SKILL.md"), false);
-  assert.equal(resolved.skillsCatalog?.some((entry) => entry.path === "project/angular-components/SKILL.md"), false);
 
   const sharedSkill = await callToolStructured(
     client,
@@ -312,9 +310,9 @@ test("delete_entry removes previously written entries", async (t) => {
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "topics/admin-dashboard.md",
+      path: "admin-dashboard.md",
       content:
-        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstacks: [angular]\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstack: angular\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
     },
     EntryMutationSchema,
   );
@@ -324,9 +322,9 @@ test("delete_entry removes previously written entries", async (t) => {
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "stacks/angular/component-audit",
+      path: "component-audit",
       content:
-        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
     },
     EntryMutationSchema,
   );
@@ -334,7 +332,7 @@ test("delete_entry removes previously written entries", async (t) => {
   const deletedRule = await callToolStructured(
     client,
     "delete_entry",
-    { scope: "project", kind: "rules", projectPath: projectRoot, path: "topics/admin-dashboard.md" },
+    { scope: "project", kind: "rules", projectPath: projectRoot, path: "admin-dashboard.md" },
     DeleteEntrySchema,
   );
   assert.equal(deletedRule.status, "deleted");
@@ -342,14 +340,14 @@ test("delete_entry removes previously written entries", async (t) => {
   const deletedSkill = await callToolStructured(
     client,
     "delete_entry",
-    { scope: "shared", kind: "skills", projectPath: projectRoot, path: "stacks/angular/component-audit" },
+    { scope: "shared", kind: "skills", projectPath: projectRoot, path: "component-audit" },
     DeleteEntrySchema,
   );
   assert.equal(deletedSkill.status, "deleted");
 
   const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.doesNotMatch(resolved.text, /### project\/topics\/admin-dashboard\.md/);
-  assert.doesNotMatch(resolved.text, /### shared\/stacks\/angular\/component-audit\/SKILL\.md/);
+  assert.doesNotMatch(resolved.text, /### project\/admin-dashboard\.md/);
+  assert.doesNotMatch(resolved.text, /### shared\/component-audit\/SKILL\.md/);
 });
 
 test("delete_guidance_source removes discovered provider-project guidance after move confirmation", async (t) => {
@@ -437,9 +435,9 @@ test("clear_project_bank removes only the current project bank and allows recrea
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
       content:
-        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
     },
     EntryMutationSchema,
   );
@@ -449,9 +447,9 @@ test("clear_project_bank removes only the current project bank and allows recrea
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "topics/admin-dashboard.md",
+      path: "admin-dashboard.md",
       content:
-        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstacks: [angular]\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
+        "---\nid: project-admin-dashboard\nkind: rule\ntitle: Admin Dashboard\nstack: angular\ntopics: [dashboard]\n---\n\n# Admin Dashboard\n\n- Prefer existing feature containers over new top-level modules.\n",
     },
     EntryMutationSchema,
   );
@@ -476,7 +474,7 @@ test("clear_project_bank removes only the current project bank and allows recrea
   const sharedRule = await callToolStructured(
     client,
     "read_entry",
-    { kind: "rules", path: "topics/angular-architecture.md" },
+    { kind: "rules", path: "angular-architecture.md" },
     z.object({ path: z.string(), content: z.string() }),
   );
   assert.match(sharedRule.content, /Keep route containers thin\./);
@@ -500,9 +498,9 @@ test("project entries override shared entries by canonical id instead of path", 
     {
       scope: "shared",
       projectPath: projectRoot,
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
       content:
-        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Shared baseline architecture rule.\n",
+        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstack: angular\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Shared baseline architecture rule.\n",
     },
     EntryMutationSchema,
   );
@@ -512,9 +510,9 @@ test("project entries override shared entries by canonical id instead of path", 
     {
       scope: "project",
       projectPath: projectRoot,
-      path: "topics/admin-architecture.md",
+      path: "admin-architecture.md",
       content:
-        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Project-specific architecture override.\n",
+        "---\nid: architecture-boundaries\nkind: rule\ntitle: Architecture Boundaries\nstack: angular\ntopics: [architecture]\n---\n\n# Architecture Boundaries\n\n- Project-specific architecture override.\n",
     },
     EntryMutationSchema,
   );
@@ -540,7 +538,7 @@ test("project entries override shared entries by canonical id instead of path", 
     }),
   );
   const architectureEntries =
-    resolved.rulesCatalog?.filter((entry) => entry.path === "topics/admin-architecture.md") ?? [];
+    resolved.rulesCatalog?.filter((entry) => entry.path === "admin-architecture.md") ?? [];
   assert.equal(architectureEntries.length, 1);
   assert.equal(architectureEntries[0]?.scope, "project");
   assert.match(architectureEntries[0]?.description ?? "", /Project-specific architecture override\./);
@@ -558,9 +556,9 @@ test("entry mutations append audit events with provider and sessionRef metadata"
       scope: "shared",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-123",
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
       content:
-        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
     },
     EntryMutationSchema,
   );
@@ -571,9 +569,9 @@ test("entry mutations append audit events with provider and sessionRef metadata"
       scope: "shared",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-123",
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
       content:
-        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstacks: [angular]\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n- Keep reusable layout rules centralized.\n",
+        "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n- Keep reusable layout rules centralized.\n",
     },
     EntryMutationSchema,
   );
@@ -585,7 +583,7 @@ test("entry mutations append audit events with provider and sessionRef metadata"
       kind: "rules",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-123",
-      path: "topics/angular-architecture.md",
+      path: "angular-architecture.md",
     },
     DeleteEntrySchema,
   );
@@ -610,7 +608,7 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     events.map((event) => event.sessionRef),
     ["cursor:thread-123", "cursor:thread-123", "cursor:thread-123"],
   );
-  assert.equal(events[0]?.path, "topics/angular-architecture.md");
+  assert.equal(events[0]?.path, "angular-architecture.md");
   assert.ok(typeof events[0]?.deltaChars === "number" && (events[0].deltaChars as number) > 0);
   assert.ok(typeof events[1]?.deltaChars === "number" && (events[1].deltaChars as number) > 0);
   assert.ok(typeof events[2]?.deltaChars === "number" && (events[2].deltaChars as number) < 0);
@@ -630,9 +628,9 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
       scope: "shared",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-skill-audit",
-      path: "stacks/angular/component-audit/skill.md",
+      path: "component-audit/skill.md",
       content:
-        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
     },
     EntryMutationSchema,
   );
@@ -643,9 +641,9 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
       scope: "shared",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-skill-audit",
-      path: "stacks/angular/component-audit/Skill.md",
+      path: "component-audit/Skill.md",
       content:
-        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstacks: [angular]\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n2. Check template dependencies.\n",
+        "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n2. Check template dependencies.\n",
     },
     EntryMutationSchema,
   );
@@ -657,7 +655,7 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
       kind: "skills",
       projectPath: projectRoot,
       sessionRef: "cursor:thread-skill-audit",
-      path: "stacks/angular/component-audit/skill.md",
+      path: "component-audit/skill.md",
     },
     DeleteEntrySchema,
   );

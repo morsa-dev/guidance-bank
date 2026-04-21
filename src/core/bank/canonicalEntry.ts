@@ -10,15 +10,22 @@ import type {
 
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
 
+const hasExactlyOneSelector = (frontmatter: { stack?: unknown; alwaysOn?: unknown }): boolean =>
+  (frontmatter.stack !== undefined) !== (frontmatter.alwaysOn === true);
+
 const RuleFrontmatterSchema = z
   .object({
     id: z.string().trim().min(1),
     kind: z.literal("rule"),
     title: z.string().trim().min(1),
-    stacks: z.array(DetectableStackSchema).default([]),
+    stack: DetectableStackSchema.optional(),
+    alwaysOn: z.literal(true).optional(),
     topics: z.array(z.string().trim().min(1)).default([]),
   })
-  .strict();
+  .strict()
+  .refine(hasExactlyOneSelector, {
+    message: "Canonical entry frontmatter must include exactly one selector: `stack` or `alwaysOn: true`.",
+  });
 
 const SkillFrontmatterSchema = z
   .object({
@@ -27,10 +34,14 @@ const SkillFrontmatterSchema = z
     title: z.string().trim().min(1),
     name: z.string().trim().min(1).optional(),
     description: z.string().trim().min(1),
-    stacks: z.array(DetectableStackSchema).default([]),
+    stack: DetectableStackSchema.optional(),
+    alwaysOn: z.literal(true).optional(),
     topics: z.array(z.string().trim().min(1)).default([]),
   })
-  .strict();
+  .strict()
+  .refine(hasExactlyOneSelector, {
+    message: "Canonical entry frontmatter must include exactly one selector: `stack` or `alwaysOn: true`.",
+  });
 
 const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/u;
 
@@ -49,6 +60,14 @@ const parseScalarValue = (rawValue: string): unknown => {
     }
 
     return innerValue.split(",").map((item) => item.trim().replace(/^['"]|['"]$/gu, ""));
+  }
+
+  if (trimmedValue === "true") {
+    return true;
+  }
+
+  if (trimmedValue === "false") {
+    return false;
   }
 
   return trimmedValue.replace(/^['"]|['"]$/gu, "");
@@ -123,20 +142,29 @@ export const parseCanonicalSkillDocument = (content: string): CanonicalSkillDocu
   };
 };
 
+const serializeEntrySelector = (frontmatter: CanonicalRuleFrontmatter | CanonicalSkillFrontmatter): string => {
+  if (frontmatter.stack !== undefined) {
+    return `stack: ${frontmatter.stack}\n`;
+  }
+
+  if (frontmatter.alwaysOn === true) {
+    return "alwaysOn: true\n";
+  }
+
+  throw new Error("Canonical entry frontmatter must include `stack` or `alwaysOn: true`.");
+};
+
 export const serializeCanonicalRuleFrontmatter = (frontmatter: CanonicalRuleFrontmatter): string => `---
 id: ${frontmatter.id}
 kind: rule
 title: ${frontmatter.title}
-stacks: [${frontmatter.stacks.join(", ")}]
-topics: [${frontmatter.topics.join(", ")}]
+${serializeEntrySelector(frontmatter)}topics: [${frontmatter.topics.join(", ")}]
 ---`;
 
 export const serializeCanonicalSkillFrontmatter = (frontmatter: CanonicalSkillFrontmatter): string => `---
 id: ${frontmatter.id}
 kind: skill
 title: ${frontmatter.title}
-${frontmatter.name ? `name: ${frontmatter.name}
-` : ""}description: ${frontmatter.description}
-stacks: [${frontmatter.stacks.join(", ")}]
-topics: [${frontmatter.topics.join(", ")}]
+${frontmatter.name ? `name: ${frontmatter.name}\n` : ""}description: ${frontmatter.description}
+${serializeEntrySelector(frontmatter)}topics: [${frontmatter.topics.join(", ")}]
 ---`;

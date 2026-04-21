@@ -230,10 +230,10 @@ What to do:
 - Convert approved guidance into canonical AI Guidance Bank rules and skills
 - Keep imported content durable, operational, and reusable across future sessions
 - Split entries between project scope and shared scope when appropriate
-- Assign stable ids, titles, topics, and stacks
+- Assign stable ids, titles, topics, and stack metadata
 - Deduplicate against existing AI Guidance Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
-- In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`topics/example.md\` or \`adding-feature\`, not \`rules/topics/example.md\` or \`skills/adding-feature\`
+- In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`example.md\` or \`adding-feature\`, not \`rules/example.md\` or \`skills/adding-feature\`
 - If the user simply confirmed \`ok\`, follow the default policy: make AI Guidance Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
 - If the user confirmed \`not ok\`, still migrate useful guidance into the canonical AI Guidance Bank but leave the legacy sources untouched even if that creates temporary duplication
 - When replacing or deleting an existing AI Guidance Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
@@ -294,7 +294,7 @@ Finish the project AI Guidance Bank creation flow.
 What to do:
 - Deduplicate overlapping rules and skills
 - Verify scope split between shared and project entries
-- Check ids, titles, topics, and stacks for consistency
+- Check ids, titles, topics, and stack metadata for consistency
 - Keep only durable guidance that should survive across sessions; leave conversational context out
 - If confidence is low for any high-impact rule, ask the user before keeping it
 - Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
