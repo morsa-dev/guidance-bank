@@ -1,111 +1,27 @@
 import { z } from "zod";
 
-import {
-  createProjectBankManifest,
-} from "../../../core/bank/project.js";
-import { buildCreateBankPrompt } from "../../../core/projects/createBankPrompt.js";
 import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
-import { discoverCurrentProjectBank } from "../../../core/projects/discoverCurrentProjectBank.js";
-import {
-  buildCreateBankIterationPrompt,
-  buildReadyProjectBankPrompt,
-} from "../../../core/projects/createBankIterationPrompt.js";
-import { getCreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../../registerTools.js";
 import { MCP_TOOL_NAMES } from "../../toolNames.js";
-import { applyCreateBankChanges } from "./apply.js";
-import {
-  createExternalGuidanceSourceKey,
-  type ExternalGuidanceDecision,
-} from "../../../core/bank/externalGuidanceDecisions.js";
-import type { ExistingGuidanceSource } from "../../../core/projects/discoverExistingGuidance.js";
-import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../../core/projects/guidanceStrategies.js";
-import {
-  buildCreateBankResponseText,
-  getCreateBankApplyBlockedMessage,
-  normalizeApplyDeletions,
-  normalizeApplyWrites,
-  shouldWarnAboutIterationMismatch,
-} from "./runtime.js";
 import { writeToolAuditEvent } from "../auditUtils.js";
+import {
+  applyCreateBankRequestChanges,
+  ensureCreateFlowProjectManifest,
+} from "./execution.js";
+import {
+  getCreateBankRequestError,
+  shouldLogIterationMismatch,
+} from "./guards.js";
+import {
+  persistProviderGlobalGuidanceDecisions,
+  shouldPersistProviderGlobalDecisions,
+} from "./providerGlobalDecisions.js";
+import { buildCreateBankToolPayload } from "./response.js";
 import {
   CreateBankArgsSchema,
   CreateBankInputShape,
   CreateBankOutputShape,
 } from "./schemas.js";
-
-const toExternalGuidanceDecision = (strategy: GuidanceSourceStrategy): ExternalGuidanceDecision => {
-  switch (strategy) {
-    case "copy":
-    case "keep_source_fill_gaps":
-      return "copy_to_shared_keep_source";
-    case "move":
-      return "move_to_bank_cleanup_allowed";
-    case "keep_provider_native":
-      return "keep_provider_native";
-    case "ignore":
-      return "ignore";
-  }
-};
-
-const recordProviderGlobalGuidanceDecisions = async ({
-  options,
-  discoveredSources,
-  confirmedSourceStrategies,
-  sessionRef,
-}: {
-  options: McpServerRuntimeOptions;
-  discoveredSources: readonly ExistingGuidanceSource[];
-  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
-  sessionRef: string | null;
-}): Promise<void> => {
-  const strategiesBySourceRef = new Map(confirmedSourceStrategies.map((strategy) => [strategy.sourceRef, strategy]));
-  const providerGlobalSources = discoveredSources.filter(
-    (source) => source.scope === "provider-global" && source.provider !== null,
-  );
-
-  if (providerGlobalSources.length === 0) {
-    return;
-  }
-
-  const state = await options.repository.readExternalGuidanceDecisionState();
-  const decidedAt = new Date().toISOString();
-
-  for (const source of providerGlobalSources) {
-    if (source.provider === null) {
-      continue;
-    }
-
-    const strategy = strategiesBySourceRef.get(source.relativePath);
-    if (!strategy) {
-      continue;
-    }
-
-    const sourceKey = createExternalGuidanceSourceKey({
-      scope: "provider-global",
-      provider: source.provider,
-      relativePath: source.relativePath,
-    });
-
-    state.sources[sourceKey] = {
-      sourceKey,
-      sourceRef: source.relativePath,
-      scope: "provider-global",
-      provider: source.provider,
-      kind: source.kind,
-      entryType: source.entryType,
-      fingerprint: source.fingerprint,
-      decision: toExternalGuidanceDecision(strategy.strategy),
-      strategy: strategy.strategy,
-      decidedAt,
-      sessionRef,
-      note: strategy.note,
-    };
-  }
-
-  state.updatedAt = decidedAt;
-  await options.repository.writeExternalGuidanceDecisionState(state);
-};
 
 const registerCreateLikeTool = (
   server: Parameters<ToolRegistrar>[0],
@@ -160,134 +76,42 @@ const registerCreateLikeTool = (
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
-      if (flowContext.unknownReferenceIds.length > 0) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Unknown reference project ids for tool ${toolName}: ${flowContext.unknownReferenceIds.join(", ")}`,
-            },
-          ],
-        };
-      }
-
-      if (
-        parsedArgs.data.sourceReviewDecision !== undefined &&
-        parsedArgs.data.sourceReviewBucket === undefined &&
-        flowContext.pendingSourceReviewBuckets.length > 1
-      ) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `When more than one external-guidance review bucket is pending, specify sourceReviewBucket explicitly. Pending buckets: ${flowContext.pendingSourceReviewBuckets.map((bucket) => bucket.bucket).join(", ")}.`,
-            },
-          ],
-        };
-      }
-
-      const {
-        identity,
-        projectContext,
-        existingManifest,
-        existingState,
-        selectedReferenceProjects,
-        existingBankUpdatedAt,
-        existingBankUpdatedDaysAgo,
-        effectiveIteration,
-        stepCompletionRequired,
-        sourceStrategyRequired,
-        stepOutcomeRequired,
-        syncRequired,
-        improvementEntryPoint,
-        extendedContext,
-        confirmedSourceStrategies,
-        pendingSourceReviewBuckets,
-      } = flowContext;
-
-      if (
-        existingState !== null &&
-        shouldWarnAboutIterationMismatch(
-          existingState.createIteration,
-          requestedIteration,
-          effectiveIteration,
-          stepCompletionRequired,
-          sourceStrategyRequired,
-          stepOutcomeRequired,
-        )
-      ) {
-        console.warn(
-          `create_bank iteration mismatch for project ${identity.projectId}: stored=${existingState.createIteration}, requested=${requestedIteration}, effective=${effectiveIteration}. Overwriting stored iteration.`,
-        );
-      }
-      const applyBlockedMessage = getCreateBankApplyBlockedMessage({
-        hasApply: parsedArgs.data.apply !== undefined,
-        syncRequired,
-        improvementEntryPoint,
-        phase: syncRequired
-          ? "sync_required"
-          : improvementEntryPoint
-            ? "ready_to_improve"
-            : getCreateFlowPhase(effectiveIteration),
-        hasDiscoveredSources: extendedContext.discoveredSources.length > 0,
-        stepCompletionRequired,
-        sourceStrategyRequired,
-        stepOutcomeRequired,
+      const requestError = getCreateBankRequestError({
+        toolName,
+        args: parsedArgs.data,
+        flowContext,
       });
-      if (applyBlockedMessage !== null) {
+      if (requestError !== null) {
         return {
           isError: true,
           content: [
             {
               type: "text",
-              text: applyBlockedMessage,
+              text: requestError,
             },
           ],
         };
       }
 
-      if (existingManifest === null) {
-        await options.repository.ensureProjectStructure(identity.projectId);
-        await options.repository.writeProjectManifest(
-          identity.projectId,
-          createProjectBankManifest(
-            identity.projectId,
-            identity.projectName,
-            identity.projectPath,
-            projectContext.detectedStacks,
-          ),
+      if (shouldLogIterationMismatch({ flowContext, requestedIteration })) {
+        console.warn(
+          `create_bank iteration mismatch for project ${flowContext.identity.projectId}: stored=${flowContext.existingState?.createIteration}, requested=${requestedIteration}, effective=${flowContext.effectiveIteration}. Overwriting stored iteration.`,
         );
       }
 
-      const projectBankPath = options.repository.paths.projectDirectory(identity.projectId);
-      const rulesDirectory = options.repository.paths.projectRulesDirectory(identity.projectId);
-      const skillsDirectory = options.repository.paths.projectSkillsDirectory(identity.projectId);
-      let currentBankSnapshot =
-        existingManifest === null
-          ? {
-              ...extendedContext.currentBankSnapshot,
-              exists: true,
-            }
-          : extendedContext.currentBankSnapshot;
-      const applyResults = parsedArgs.data.apply
-        ? await applyCreateBankChanges({
-            repository: options.repository,
-            auditLogger: options.auditLogger,
-            projectId: identity.projectId,
-            projectPath: identity.projectPath,
-            sessionRef: parsedArgs.data.sessionRef ?? null,
-            writes: normalizeApplyWrites(parsedArgs.data.apply.writes),
-            deletions: normalizeApplyDeletions(parsedArgs.data.apply.deletions),
-          })
-        : {
-            writes: [],
-            deletions: [],
-          };
-      if (parsedArgs.data.apply) {
-        currentBankSnapshot = await discoverCurrentProjectBank(options.repository, identity.projectId, true);
-      }
+      await ensureCreateFlowProjectManifest({
+        options,
+        flowContext,
+      });
+      const projectBankPath = options.repository.paths.projectDirectory(flowContext.identity.projectId);
+      const rulesDirectory = options.repository.paths.projectRulesDirectory(flowContext.identity.projectId);
+      const skillsDirectory = options.repository.paths.projectSkillsDirectory(flowContext.identity.projectId);
+      const { currentBankSnapshot, applyResults } = await applyCreateBankRequestChanges({
+        options,
+        flowContext,
+        args: parsedArgs.data,
+      });
+
       const {
         effectiveIteration: finalEffectiveIteration,
         phase: finalPhase,
@@ -305,114 +129,55 @@ const registerCreateLikeTool = (
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         applyResults,
       });
-      const shouldRecordProviderGlobalDecisions =
-        (parsedArgs.data.sourceReviewDecision === "keep" &&
-          parsedArgs.data.sourceReviewBucket === "provider-global") ||
-        (getCreateFlowPhase(existingState?.createIteration ?? effectiveIteration) === "import_selected_guidance" &&
-          (parsedArgs.data.apply !== undefined || parsedArgs.data.stepOutcome !== undefined));
-      if (shouldRecordProviderGlobalDecisions) {
-        await recordProviderGlobalGuidanceDecisions({
+
+      if (
+        shouldPersistProviderGlobalDecisions({
+          args: parsedArgs.data,
+          flowContext,
+        })
+      ) {
+        await persistProviderGlobalGuidanceDecisions({
           options,
-          discoveredSources: extendedContext.discoveredSources,
-          confirmedSourceStrategies,
+          discoveredSources: flowContext.extendedContext.discoveredSources,
+          confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
           sessionRef: parsedArgs.data.sessionRef ?? null,
         });
       }
-      await options.repository.writeProjectState(identity.projectId, nextState);
-      const prompt =
-        syncRequired
-          ? "Project AI Guidance Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current AI Guidance Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
-          : improvementEntryPoint
-            ? buildReadyProjectBankPrompt({
-                updatedAt: existingBankUpdatedAt,
-                updatedDaysAgo: existingBankUpdatedDaysAgo,
-              })
-          : finalMustContinue || finalCompletedFlowThisCall
-            ? buildCreateBankIterationPrompt({
-                iteration: finalEffectiveIteration,
-                projectName: identity.projectName,
-                projectPath: identity.projectPath,
-                projectBankPath,
-                rulesDirectory,
-                skillsDirectory,
-                detectedStacks: projectContext.detectedStacks,
-                selectedReferenceProjects,
-                discoveredSources: extendedContext.discoveredSources,
-                confirmedSourceStrategies,
-                pendingSourceReviewBuckets,
-                currentBankSnapshot,
-                hasExistingProjectBank: existingManifest !== null,
-              })
-            : "Project AI Guidance Bank already exists for this repository and is ready.";
-      const creationPrompt =
-        finalEffectiveIteration === 0
-          ? buildCreateBankPrompt({
-              projectName: identity.projectName,
-              projectPath: identity.projectPath,
-              projectBankPath,
-              rulesDirectory,
-              skillsDirectory,
-              detectedStacks: projectContext.detectedStacks,
-              selectedReferenceProjects,
-            })
-          : null;
 
-      const payload = {
-        status: existingManifest === null ? "created" : "already_exists",
-        syncRequired,
-        projectId: identity.projectId,
-        projectName: identity.projectName,
-        projectPath: identity.projectPath,
-        projectBankPath,
-        rulesDirectory,
-        skillsDirectory,
-        detectedStacks: projectContext.detectedStacks,
-        phase: finalPhase,
-        iteration: finalEffectiveIteration,
-        discoveredSources: extendedContext.discoveredSources,
-        pendingSourceReviewBuckets,
-        nextSourceReviewBucket: pendingSourceReviewBuckets[0]?.bucket ?? null,
-        currentBankSnapshot,
-        selectedReferenceProjects,
-        creationState: nextState.creationState,
-        confirmedSourceStrategies,
-        stepCompletionRequired: finalStepCompletionRequired,
-        sourceStrategyRequired,
-        stepOutcomeRequired: finalStepOutcomeRequired,
-        mustContinue: finalMustContinue,
-        nextIteration: finalNextIteration,
-        existingBankUpdatedAt,
-        existingBankUpdatedDaysAgo,
-        applyResults,
-        prompt,
-        creationPrompt,
-        text: buildCreateBankResponseText({
-          syncRequired,
-          applyResults,
-          stepCompletionRequired: finalStepCompletionRequired,
-          sourceStrategyRequired,
-          stepOutcomeRequired: finalStepOutcomeRequired,
-          pendingSourceReviewBuckets,
-          nextIteration: finalNextIteration,
-          improvementEntryPoint,
-          mustContinue: finalMustContinue,
-          completedFlowThisCall: finalCompletedFlowThisCall,
+      await options.repository.writeProjectState(flowContext.identity.projectId, nextState);
+      const payload = buildCreateBankToolPayload({
+        flowContext,
+        finalExecution: {
+          effectiveIteration: finalEffectiveIteration,
           phase: finalPhase,
-        }),
-      } as const;
+          stepCompletionRequired: finalStepCompletionRequired,
+          stepOutcomeRequired: finalStepOutcomeRequired,
+          mustContinue: finalMustContinue,
+          nextIteration: finalNextIteration,
+          completedFlowThisCall: finalCompletedFlowThisCall,
+          nextState,
+        },
+        currentBankSnapshot,
+        applyResults,
+        paths: {
+          projectBankPath,
+          rulesDirectory,
+          skillsDirectory,
+        },
+      });
 
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
         tool: toolName,
         action: "create_flow",
-        projectId: identity.projectId,
-        projectPath: identity.projectPath,
+        projectId: flowContext.identity.projectId,
+        projectPath: flowContext.identity.projectPath,
         details: {
           phase: finalPhase,
           iteration: finalEffectiveIteration,
           creationState: nextState.creationState,
-          syncRequired,
+          syncRequired: flowContext.syncRequired,
           mustContinue: finalMustContinue,
           applyWrites: applyResults.writes.length,
           applyDeletions: applyResults.deletions.length,
