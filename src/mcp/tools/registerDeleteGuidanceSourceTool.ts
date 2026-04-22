@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -11,6 +12,7 @@ import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 import { buildInvalidToolArgsResult, buildStructuredToolResult } from "./entryMutationHelpers.js";
+import { resolveAuditSessionRef } from "./sessionRefResolver.js";
 
 const DeleteGuidanceSourceArgsSchema = z
   .object({
@@ -23,6 +25,81 @@ const DeleteGuidanceSourceArgsSchema = z
       .describe("Absolute path to a discovered repository-local or provider-project guidance source."),
   })
   .strict();
+
+const snapshotGuidanceFile = async (
+  sourceRootPath: string,
+  filePath: string,
+): Promise<{ relativePath: string; sha256: string; byteCount: number; contentBase64: string }> => {
+  const stats = await fs.lstat(filePath);
+
+  if (stats.isSymbolicLink()) {
+    throw new ValidationError(`Guidance source cannot contain symbolic links: ${filePath}`);
+  }
+
+  if (!stats.isFile()) {
+    throw new ValidationError(`Unsupported guidance source path type: ${filePath}`);
+  }
+
+  const content = await fs.readFile(filePath);
+  const relativePath = path.relative(sourceRootPath, filePath);
+
+  return {
+    relativePath: relativePath.length === 0 ? path.basename(filePath) : relativePath,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    byteCount: content.byteLength,
+    contentBase64: content.toString("base64"),
+  };
+};
+
+const snapshotGuidanceDirectory = async (
+  sourceRootPath: string,
+  directoryPath: string,
+): Promise<Array<{ relativePath: string; sha256: string; byteCount: number; contentBase64: string }>> => {
+  const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+  const snapshots: Array<{ relativePath: string; sha256: string; byteCount: number; contentBase64: string }> = [];
+
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const entryPath = path.join(directoryPath, entry.name);
+
+    if (entry.isSymbolicLink()) {
+      throw new ValidationError(`Guidance source cannot contain symbolic links: ${entryPath}`);
+    }
+
+    if (entry.isDirectory()) {
+      snapshots.push(...(await snapshotGuidanceDirectory(sourceRootPath, entryPath)));
+      continue;
+    }
+
+    if (entry.isFile()) {
+      snapshots.push(await snapshotGuidanceFile(sourceRootPath, entryPath));
+      continue;
+    }
+
+    throw new ValidationError(`Unsupported guidance source path type: ${entryPath}`);
+  }
+
+  return snapshots;
+};
+
+const snapshotGuidanceSource = async (
+  sourcePath: string,
+): Promise<Array<{ relativePath: string; sha256: string; byteCount: number; contentBase64: string }>> => {
+  const stats = await fs.lstat(sourcePath);
+
+  if (stats.isSymbolicLink()) {
+    throw new ValidationError(`Guidance source cannot be a symbolic link: ${sourcePath}`);
+  }
+
+  if (stats.isFile()) {
+    return [await snapshotGuidanceFile(sourcePath, sourcePath)];
+  }
+
+  if (stats.isDirectory()) {
+    return snapshotGuidanceDirectory(sourcePath, sourcePath);
+  }
+
+  throw new ValidationError(`Unsupported guidance source path type: ${sourcePath}`);
+};
 
 const deleteGuidancePath = async (targetPath: string): Promise<"deleted" | "not_found"> => {
   try {
@@ -106,6 +183,22 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
           ],
         };
       }
+
+      const sourceFiles = await snapshotGuidanceSource(targetPath);
+      await options.auditLogger.writeGuidanceSourceVersion({
+        sessionRef: resolveAuditSessionRef(parsedArgs.data.sessionRef),
+        tool: MCP_TOOL_NAMES.deleteGuidanceSource,
+        action: "delete_snapshot",
+        projectId: identity.projectId,
+        projectPath: identity.projectPath,
+        sourcePath: targetPath,
+        relativePath: source.relativePath,
+        kind: source.kind,
+        scope: source.scope,
+        sourceProvider: source.provider,
+        entryType: source.entryType,
+        files: sourceFiles,
+      });
 
       const status = await deleteGuidancePath(targetPath);
       await writeToolAuditEvent({

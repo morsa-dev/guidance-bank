@@ -7,6 +7,9 @@ export type BankPaths = {
   manifestFile: string;
   auditDirectory: string;
   auditEventsFile: string;
+  historyDirectory: string;
+  entryHistoryEventsFile: string;
+  guidanceSourceHistoryEventsFile: string;
   sharedDirectory: string;
   sharedRulesDirectory: string;
   sharedSkillsDirectory: string;
@@ -27,6 +30,9 @@ export const resolveBankPaths = (root: string): BankPaths => ({
   manifestFile: path.join(root, "manifest.json"),
   auditDirectory: path.join(root, "audit"),
   auditEventsFile: path.join(root, "audit", "events.ndjson"),
+  historyDirectory: path.join(root, "history"),
+  entryHistoryEventsFile: path.join(root, "history", "entry-events.ndjson"),
+  guidanceSourceHistoryEventsFile: path.join(root, "history", "guidance-source-events.ndjson"),
   sharedDirectory: path.join(root, "shared"),
   sharedRulesDirectory: path.join(root, "shared", "rules"),
   sharedSkillsDirectory: path.join(root, "shared", "skills"),

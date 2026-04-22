@@ -1,4 +1,5 @@
 import type { EntryKind, EntryScope } from "../../core/bank/types.js";
+import { createUnifiedDiff } from "../../core/audit/createUnifiedDiff.js";
 import { summarizeEntryContent } from "../../core/audit/summarizeEntryContent.js";
 import type { AuditLogger } from "../../storage/auditLogger.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
@@ -52,7 +53,7 @@ export const writeEntryAuditEvent = async ({
   const effectiveSessionRef = resolveAuditSessionRef(sessionRef);
 
   try {
-    await auditLogger.writeEvent({
+    const auditEvent = await auditLogger.writeEvent({
       sessionRef: effectiveSessionRef,
       tool,
       action,
@@ -65,6 +66,26 @@ export const writeEntryAuditEvent = async ({
       after,
       deltaChars: after.charCount - before.charCount,
       deltaLines: after.lineCount - before.lineCount,
+    });
+    await auditLogger.writeEntryVersion({
+      auditEventId: auditEvent.eventId,
+      sessionRef: effectiveSessionRef,
+      tool,
+      action,
+      scope,
+      kind,
+      projectId,
+      projectPath,
+      path,
+      before,
+      after,
+      beforeContent,
+      afterContent,
+      unifiedDiff: createUnifiedDiff({
+        path,
+        beforeContent,
+        afterContent,
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown audit logging error.";

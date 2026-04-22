@@ -405,6 +405,32 @@ test("delete_guidance_source removes discovered provider-project guidance after 
     assert.equal(deletedRepoSource.scope, "repository-local");
     assert.equal(deletedRepoSource.provider, null);
 
+    const sourceHistoryEvents = (await readFile(path.join(bankRoot, "history", "guidance-source-events.ndjson"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    assert.equal(sourceHistoryEvents.length, 2);
+    assert.equal(sourceHistoryEvents[0]?.tool, "delete_guidance_source");
+    assert.equal(sourceHistoryEvents[0]?.action, "delete_snapshot");
+    assert.equal(sourceHistoryEvents[0]?.scope, "provider-project");
+    assert.equal(sourceHistoryEvents[0]?.sourceProvider, "codex");
+    assert.equal(sourceHistoryEvents[0]?.entryType, "directory");
+    const providerSourceFile = (sourceHistoryEvents[0]?.files as Array<Record<string, unknown>>)[0];
+    assert.equal(providerSourceFile?.relativePath, "troubleshooting/SKILL.md");
+    assert.equal(
+      Buffer.from(providerSourceFile?.contentBase64 as string, "base64").toString("utf8"),
+      "---\nname: troubleshooting\n---\n",
+    );
+    assert.equal(sourceHistoryEvents[1]?.scope, "repository-local");
+    assert.equal(sourceHistoryEvents[1]?.entryType, "file");
+    const repositorySourceFile = (sourceHistoryEvents[1]?.files as Array<Record<string, unknown>>)[0];
+    assert.equal(repositorySourceFile?.relativePath, "AGENTS.md");
+    assert.equal(
+      Buffer.from(repositorySourceFile?.contentBase64 as string, "base64").toString("utf8"),
+      "# Legacy guidance\n",
+    );
+
     const createStructured = await callToolStructured(
       client,
       "create_bank",
@@ -615,6 +641,27 @@ test("entry mutations append audit events with provider and sessionRef metadata"
   assert.equal((events[0]?.before as { exists?: boolean })?.exists, false);
   assert.equal((events[1]?.before as { entryId?: string | null })?.entryId, "shared-angular-architecture");
   assert.equal((events[2]?.after as { exists?: boolean })?.exists, false);
+
+  const historyContent = await readFile(path.join(bankRoot, "history", "entry-events.ndjson"), "utf8");
+  const historyEvents = historyContent
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((event) => event.sessionRef === "cursor:thread-123");
+
+  assert.equal(historyEvents.length, 3);
+  assert.deepEqual(
+    historyEvents.map((event) => event.auditEventId),
+    events.map((event) => event.eventId),
+  );
+  assert.equal(historyEvents[0]?.beforeContent, null);
+  assert.match(historyEvents[0]?.afterContent as string, /Keep route containers thin/i);
+  assert.match(historyEvents[1]?.beforeContent as string, /Keep route containers thin/i);
+  assert.match(historyEvents[1]?.afterContent as string, /Keep reusable layout rules centralized/i);
+  assert.match(historyEvents[1]?.unifiedDiff as string, /\+- Keep reusable layout rules centralized/i);
+  assert.match(historyEvents[2]?.beforeContent as string, /Keep reusable layout rules centralized/i);
+  assert.equal(historyEvents[2]?.afterContent, null);
+  assert.match(historyEvents[2]?.unifiedDiff as string, /-- Keep reusable layout rules centralized/i);
 });
 
 test("skill audit snapshots resolve existing entries when the tool path ends with skill.md in any case", async (t) => {

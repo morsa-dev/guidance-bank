@@ -309,7 +309,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(importStructured.prompt, /Write reusable cross-project rules or skills to `scope: "shared"`/i);
   assert.match(importStructured.prompt, /Legacy Source Cleanup Contract/i);
   assert.match(importStructured.prompt, /call `delete_guidance_source` with the discovered absolute `sourcePath`/i);
-  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills, Cursor project rules, and Claude project skills/i);
+  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills, Cursor project rules\/skills, and Claude project rules\/skills/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 

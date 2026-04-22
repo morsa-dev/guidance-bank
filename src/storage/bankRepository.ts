@@ -51,6 +51,7 @@ export class BankRepository {
     await ensureManagedDirectory(this.rootPath, this.paths.projectsDirectory);
     await ensureManagedDirectory(this.rootPath, this.paths.mcpDirectory);
     await ensureManagedDirectory(this.rootPath, this.paths.integrationsDirectory);
+    await ensureManagedDirectory(this.rootPath, this.paths.historyDirectory);
   }
 
   async ensureStarterFiles(): Promise<void> {
