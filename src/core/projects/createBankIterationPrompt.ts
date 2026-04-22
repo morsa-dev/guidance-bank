@@ -107,6 +107,16 @@ ${confirmedSourceStrategies
   .join("\n")}`;
 };
 
+const LEGACY_CLEANUP_CONTRACT = `## Legacy Source Cleanup Contract
+
+AI Guidance Bank is the canonical guidance layer after the user approves \`ok\`.
+
+- A confirmed \`move\` decision means: migrate the useful source content into AI Guidance Bank, verify the canonical write, then remove the migrated legacy source with \`delete_guidance_source\`
+- Use \`delete_guidance_source\` for both repository-local sources and provider-project sources such as Codex project skills, Cursor project rules/skills, and Claude project rules/skills
+- Delete only discovered source paths that were fully migrated or made obsolete by stronger canonical bank entries
+- Leave a source in place when it contains unmigrated material, when deletion was not approved, or when it is a container that still holds non-migrated files
+- In the step outcome or final report, name any migrated source that remains in the provider/repository layer and explain why it was intentionally kept`;
+
 const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
   detectedStacks.length === 0
     ? `## Detected Stacks
@@ -225,17 +235,21 @@ ${renderDiscoveredSourcesSection(discoveredSources)}
 
 ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
 
+${LEGACY_CLEANUP_CONTRACT}
+
 What to do:
 - Treat the confirmed source decisions below as the internal execution plan for this import step
 - Convert approved guidance into canonical AI Guidance Bank rules and skills
 - Keep imported content durable, operational, and reusable across future sessions
 - Split entries between project scope and shared scope when appropriate
+- Write reusable cross-project rules or skills to \`scope: "shared"\`; write repository-specific conventions, paths, workflows, and architecture boundaries to \`scope: "project"\`
 - Assign stable ids, titles, topics, and stack metadata
 - Deduplicate against existing AI Guidance Bank content before writing
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`example.md\` or \`adding-feature\`, not \`rules/example.md\` or \`skills/adding-feature\`
 - If the user simply confirmed \`ok\`, follow the default policy: make AI Guidance Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
 - If the user confirmed \`not ok\`, still migrate useful guidance into the canonical AI Guidance Bank but leave the legacy sources untouched even if that creates temporary duplication
+- For each confirmed \`move\` source that was successfully migrated, call \`delete_guidance_source\` with the discovered absolute \`sourcePath\` after the canonical write is verified
 - When replacing or deleting an existing AI Guidance Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
@@ -291,6 +305,8 @@ ${STABLE_CONTRACT_NOTE}
 
 Finish the project AI Guidance Bank creation flow.
 
+${LEGACY_CLEANUP_CONTRACT}
+
 What to do:
 - Deduplicate overlapping rules and skills
 - Verify scope split between shared and project entries
@@ -306,9 +322,11 @@ Final pass checklist:
 - Remove near-duplicate entries and merge them into the clearest canonical version
 - Ensure each entry is either clearly a \`rule\` or clearly a \`skill\`
 - Ensure project overrides do not duplicate shared guidance without adding real specificity
+- Move entries into shared scope when they are provider-independent and likely useful across repositories; keep project scope for guidance tied to this repository's files, commands, stack versions, or architecture
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
 - Confirm the bank is not materially poorer than the strongest project evidence from this run
 - For each high-value area identified during derive, confirm whether it is covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason
+- Confirm no migrated provider-project guidance source still duplicates canonical bank content; if one does, call \`delete_guidance_source\` when the approved strategy was \`move\`, or name why it must remain
 - Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates

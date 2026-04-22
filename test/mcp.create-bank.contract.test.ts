@@ -306,6 +306,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
   assert.match(importStructured.prompt, /If the user simply confirmed `ok`/i);
+  assert.match(importStructured.prompt, /Write reusable cross-project rules or skills to `scope: "shared"`/i);
+  assert.match(importStructured.prompt, /Legacy Source Cleanup Contract/i);
+  assert.match(importStructured.prompt, /call `delete_guidance_source` with the discovered absolute `sourcePath`/i);
+  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills, Cursor project rules, and Claude project skills/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 
@@ -394,7 +398,10 @@ test("create_bank later iterations expose review import derive and finalize prom
     /duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments/i,
   );
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
+  assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
+  assert.match(finalizeStructured.prompt, /Legacy Source Cleanup Contract/i);
+  assert.match(finalizeStructured.prompt, /no migrated provider-project guidance source still duplicates canonical bank content/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
