@@ -7,6 +7,10 @@ import {
   setProjectBankSourceStrategies,
 } from "../bank/project.js";
 import type { ProjectBankState, ProjectCreationState } from "../bank/types.js";
+import {
+  createExternalGuidanceSourceKey,
+  type ExternalGuidanceDecisionState,
+} from "../bank/externalGuidanceDecisions.js";
 import { detectProjectContext } from "../context/detectProjectContext.js";
 import {
   getCreateFlowPhase,
@@ -201,6 +205,24 @@ const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   },
 };
 
+const isProviderGlobalSourceSuppressed = (
+  source: ExistingGuidanceSource,
+  decisionState: ExternalGuidanceDecisionState,
+): boolean => {
+  if (source.scope !== "provider-global" || source.provider === null) {
+    return false;
+  }
+
+  const sourceKey = createExternalGuidanceSourceKey({
+    scope: source.scope,
+    provider: source.provider,
+    relativePath: source.relativePath,
+  });
+  const decision = decisionState.sources[sourceKey];
+
+  return decision !== undefined && decision.fingerprint === source.fingerprint;
+};
+
 const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
   if (updatedAt === null) {
     return null;
@@ -289,13 +311,16 @@ const loadExtendedCreateBankContext = async (
     };
   }
 
-  const [discoveredSources, currentBankSnapshot] = await Promise.all([
+  const [allDiscoveredSources, currentBankSnapshot, externalGuidanceDecisionState] = await Promise.all([
     discoverExistingGuidance(projectPath),
     discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
+    repository.readExternalGuidanceDecisionState(),
   ]);
 
   return {
-    discoveredSources,
+    discoveredSources: allDiscoveredSources.filter(
+      (source) => !isProviderGlobalSourceSuppressed(source, externalGuidanceDecisionState),
+    ),
     currentBankSnapshot,
   };
 };

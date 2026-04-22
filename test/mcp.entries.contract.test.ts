@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import process from "node:process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -36,7 +37,7 @@ const DeleteGuidanceSourceSchema = z.object({
   sourcePath: z.string(),
   relativePath: z.string(),
   kind: z.string(),
-  scope: z.enum(["repository-local", "provider-project"]),
+  scope: z.enum(["repository-local", "provider-project", "provider-global"]),
   provider: z.enum(["codex", "cursor", "claude"]).nullable(),
 });
 
@@ -54,14 +55,6 @@ const withTemporaryHome = async <T>(homePath: string, run: () => Promise<T>): Pr
     }
   }
 };
-
-const encodeCursorProjectPath = (projectPath: string): string =>
-  path
-    .resolve(projectPath)
-    .split(path.sep)
-    .filter(Boolean)
-    .join("-")
-    .replaceAll(" ", "-");
 
 const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
   await callToolStructured(client, "create_bank", { projectPath }, z.object({ projectId: z.string() }));
@@ -355,13 +348,6 @@ test("delete_guidance_source removes discovered provider-project guidance after 
   const projectRoot = path.join(tempDirectoryPath, "angular-admin");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
   const codexProjectSkillsRoot = path.join(fakeHome, ".codex", "skills", "projects", "angular-admin");
-  const cursorProjectRulesRoot = path.join(
-    fakeHome,
-    ".cursor",
-    "projects",
-    encodeCursorProjectPath(projectRoot),
-    "rules",
-  );
 
   await writeProjectFiles(projectRoot, {
     "package.json": JSON.stringify({ name: "angular-admin" }, null, 2),
@@ -370,8 +356,6 @@ test("delete_guidance_source removes discovered provider-project guidance after 
 
   await mkdir(path.join(codexProjectSkillsRoot, "troubleshooting"), { recursive: true });
   await writeFile(path.join(codexProjectSkillsRoot, "troubleshooting", "SKILL.md"), "---\nname: troubleshooting\n---\n");
-  await mkdir(cursorProjectRulesRoot, { recursive: true });
-  await writeFile(path.join(cursorProjectRulesRoot, "architecture.mdc"), "# Architecture\n");
 
   await withTemporaryHome(fakeHome, async () => {
     const { client, close } = await createConnectedClient(bankRoot, { provider: "codex" });
@@ -446,7 +430,7 @@ test("delete_guidance_source removes discovered provider-project guidance after 
 
     assert.deepEqual(
       createStructured.discoveredSources.map((source) => source.relativePath),
-      [`~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules`, `~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules/architecture.mdc`],
+      [],
     );
   });
 });

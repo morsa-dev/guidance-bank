@@ -20,6 +20,8 @@ import { ProjectBankStore } from "./projectBankStore.js";
 import { ProviderIntegrationStore } from "./providerIntegrationStore.js";
 import { AuditStore } from "./auditStore.js";
 import type { AuditEvent } from "../core/audit/types.js";
+import { ExternalGuidanceDecisionStore } from "./externalGuidanceDecisionStore.js";
+import type { ExternalGuidanceDecisionState } from "../core/bank/externalGuidanceDecisions.js";
 
 export class BankRepository {
   readonly paths: ReturnType<typeof resolveBankPaths>;
@@ -28,6 +30,7 @@ export class BankRepository {
   private readonly entries: EntryStore;
   private readonly providerIntegrations: ProviderIntegrationStore;
   private readonly auditStore: AuditStore;
+  private readonly externalGuidanceDecisions: ExternalGuidanceDecisionStore;
 
   constructor(readonly rootPath: string) {
     this.paths = resolveBankPaths(rootPath);
@@ -36,6 +39,7 @@ export class BankRepository {
     this.entries = new EntryStore(rootPath, this.paths);
     this.providerIntegrations = new ProviderIntegrationStore(rootPath, this.paths);
     this.auditStore = new AuditStore(rootPath, this.paths);
+    this.externalGuidanceDecisions = new ExternalGuidanceDecisionStore(rootPath, this.paths);
   }
 
   // TODO: Multi-agent concurrency is still last-write-wins at the entry level.
@@ -127,6 +131,14 @@ export class BankRepository {
 
   async readAuditEventsOptional(): Promise<AuditEvent[]> {
     return this.auditStore.readEventsOptional();
+  }
+
+  async readExternalGuidanceDecisionState(): Promise<ExternalGuidanceDecisionState> {
+    return this.externalGuidanceDecisions.readState();
+  }
+
+  async writeExternalGuidanceDecisionState(state: ExternalGuidanceDecisionState): Promise<void> {
+    await this.externalGuidanceDecisions.writeState(state);
   }
 
   async listEntries(kind: EntryKind, groupPath?: string): Promise<ListedEntry[]> {

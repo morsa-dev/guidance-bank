@@ -22,7 +22,7 @@ const DeleteGuidanceSourceArgsSchema = z
       .string()
       .trim()
       .min(1)
-      .describe("Absolute path to a discovered repository-local or provider-project guidance source."),
+      .describe("Absolute path to a discovered repository-local, provider-project, or provider-global guidance source."),
   })
   .strict();
 
@@ -135,7 +135,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
     {
       title: "Delete External Guidance Source",
       description:
-        "Delete a discovered repository-local or provider-project guidance source after the user explicitly chose a move-to-Memory-Bank strategy.",
+        "Delete a discovered repository-local, provider-project, or provider-global guidance source after the user explicitly chose a move-to-Memory-Bank strategy.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -147,7 +147,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
           .string()
           .trim()
           .min(1)
-          .describe("Absolute path to a discovered repository-local or provider-project guidance source."),
+          .describe("Absolute path to a discovered repository-local, provider-project, or provider-global guidance source."),
       },
       outputSchema: {
         status: z.enum(["deleted", "not_found"]),
@@ -157,7 +157,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
         sourcePath: z.string(),
         relativePath: z.string(),
         kind: z.string(),
-        scope: z.enum(["repository-local", "provider-project"]),
+        scope: z.enum(["repository-local", "provider-project", "provider-global"]),
         provider: z.enum(["codex", "cursor", "claude"]).nullable(),
       },
     },

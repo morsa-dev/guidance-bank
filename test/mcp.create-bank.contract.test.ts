@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import { z } from "zod";
 
@@ -26,7 +27,7 @@ const CreateBankSchema = z.object({
   confirmedSourceStrategies: z.array(
     z.object({
       sourceRef: z.string(),
-      strategy: z.enum(["ignore", "copy", "move", "keep_source_fill_gaps"]),
+      strategy: z.enum(["ignore", "copy", "move", "keep_source_fill_gaps", "keep_provider_native"]),
       note: z.string().nullable(),
     }),
   ),
@@ -63,7 +64,9 @@ const CreateBankSchema = z.object({
     z.object({
       kind: z.string(),
       entryType: z.string(),
+      scope: z.string(),
       relativePath: z.string(),
+      fingerprint: z.string(),
     }),
   ),
   currentBankSnapshot: z.object({
@@ -104,14 +107,6 @@ const withTemporaryHome = async <T>(homePath: string, run: () => Promise<T>): Pr
     }
   }
 };
-
-const encodeCursorProjectPath = (projectPath: string): string =>
-  path
-    .resolve(projectPath)
-    .split(path.sep)
-    .filter(Boolean)
-    .join("-")
-    .replaceAll(" ", "-");
 
 test("create_bank iteration 0 scaffolds a project bank and reports discovered inputs", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
@@ -162,21 +157,16 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   );
 });
 
-test("create_bank discovers provider-project guidance sources for codex and cursor", async (t) => {
+test("create_bank discovers codex project guidance and keeps Cursor rules repository-local", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
   const codexProjectSkillsRoot = path.join(fakeHome, ".codex", "skills", "projects", "demo-project");
-  const cursorProjectRulesRoot = path.join(
-    fakeHome,
-    ".cursor",
-    "projects",
-    encodeCursorProjectPath(projectRoot),
-    "rules",
-  );
 
   await writeProjectFiles(projectRoot, {
     "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    ".cursor/rules/architecture.mdc": "# Cursor Architecture\n",
+    ".cursorrules": "# Legacy Cursor Rules\n",
   });
 
   await mkdir(path.join(codexProjectSkillsRoot, "routing-seo-ssr"), { recursive: true });
@@ -184,8 +174,6 @@ test("create_bank discovers provider-project guidance sources for codex and curs
     path.join(codexProjectSkillsRoot, "routing-seo-ssr", "SKILL.md"),
     "---\nname: routing-seo-ssr\ndescription: demo\n---\n",
   );
-  await mkdir(cursorProjectRulesRoot, { recursive: true });
-  await writeFile(path.join(cursorProjectRulesRoot, "architecture.mdc"), "# Cursor Architecture\n");
 
   const structured = await withTemporaryHome(fakeHome, async () => {
     const { client, close } = await createConnectedClient(bankRoot);
@@ -196,15 +184,261 @@ test("create_bank discovers provider-project guidance sources for codex and curs
 
   assert.deepEqual(
     structured.discoveredSources
-      .filter((source) => source.kind === "codex-project" || source.kind === "cursor-project")
+      .filter((source) => source.kind === "codex-project")
       .map((source) => source.relativePath),
     [
       "~/.codex/skills/projects/demo-project",
       "~/.codex/skills/projects/demo-project/routing-seo-ssr/SKILL.md",
-      `~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules`,
-      `~/.cursor/projects/${encodeCursorProjectPath(projectRoot)}/rules/architecture.mdc`,
     ],
   );
+  assert.equal(
+    structured.discoveredSources.some((source) => source.relativePath === ".cursor/rules/architecture.mdc"),
+    true,
+  );
+  assert.equal(structured.discoveredSources.some((source) => source.relativePath === ".cursorrules"), true);
+});
+
+test("create_bank discovers provider-global guidance and remembers review decisions", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const otherProjectRoot = path.join(tempDirectoryPath, "other-project");
+  const changedProjectRoot = path.join(tempDirectoryPath, "changed-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexGlobalSkillRoot = path.join(fakeHome, ".codex", "skills", "language-rules");
+  const codexSystemSkillRoot = path.join(fakeHome, ".codex", "skills", ".system", "internal");
+  const codexOtherProjectSkillRoot = path.join(fakeHome, ".codex", "skills", "projects", "other-project", "other-skill");
+  const claudeGlobalRoot = path.join(fakeHome, ".claude");
+  const claudeGlobalRulesRoot = path.join(claudeGlobalRoot, "rules");
+  const claudeGlobalSkillRoot = path.join(claudeGlobalRoot, "skills", "explain-code");
+  const claudeGlobalCommandsRoot = path.join(claudeGlobalRoot, "commands");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+  await writeProjectFiles(otherProjectRoot, {
+    "package.json": JSON.stringify({ name: "other-project" }, null, 2),
+  });
+  await writeProjectFiles(changedProjectRoot, {
+    "package.json": JSON.stringify({ name: "changed-project" }, null, 2),
+  });
+
+  await mkdir(codexGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# Codex Global Language Rules\n");
+  await mkdir(codexSystemSkillRoot, { recursive: true });
+  await writeFile(path.join(codexSystemSkillRoot, "SKILL.md"), "# Hidden System Skill\n");
+  await mkdir(codexOtherProjectSkillRoot, { recursive: true });
+  await writeFile(path.join(codexOtherProjectSkillRoot, "SKILL.md"), "# Other Project Skill\n");
+  await mkdir(claudeGlobalRoot, { recursive: true });
+  await writeFile(path.join(claudeGlobalRoot, "CLAUDE.md"), "# Claude Global Rules\n");
+  await mkdir(claudeGlobalRulesRoot, { recursive: true });
+  await writeFile(path.join(claudeGlobalRulesRoot, "preferences.md"), "# Claude Preferences\n");
+  await mkdir(claudeGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(claudeGlobalSkillRoot, "SKILL.md"), "---\nname: explain-code\n---\n");
+  await mkdir(claudeGlobalCommandsRoot, { recursive: true });
+  await writeFile(path.join(claudeGlobalCommandsRoot, "review.md"), "# Claude Review Command\n");
+
+  await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    const structured = await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+    const providerGlobalSources = structured.discoveredSources.filter((source) => source.scope === "provider-global");
+
+    assert.deepEqual(
+      providerGlobalSources.map((source) => source.relativePath),
+      [
+        "~/.claude/CLAUDE.md",
+        "~/.claude/commands",
+        "~/.claude/commands/review.md",
+        "~/.claude/rules",
+        "~/.claude/rules/preferences.md",
+        "~/.claude/skills/explain-code",
+        "~/.claude/skills/explain-code/SKILL.md",
+        "~/.codex/skills/language-rules",
+        "~/.codex/skills/language-rules/SKILL.md",
+      ],
+    );
+    assert.equal(providerGlobalSources.every((source) => source.fingerprint.length > 0), true);
+    assert.equal(
+      structured.discoveredSources.some((source) => source.relativePath.includes(".system")),
+      false,
+    );
+    assert.equal(
+      structured.discoveredSources.some((source) => source.relativePath.includes("projects/other-project")),
+      false,
+    );
+
+    await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+    const importStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        stepCompleted: true,
+        sourceReviewDecision: "ok",
+      },
+      CreateBankSchema,
+    );
+
+    assert.deepEqual(
+      importStructured.confirmedSourceStrategies
+        .filter(
+          (strategy) =>
+            strategy.sourceRef.includes("language-rules") ||
+            strategy.sourceRef.includes("CLAUDE.md") ||
+            strategy.sourceRef.includes("preferences.md"),
+        )
+        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+      [
+        ["~/.claude/CLAUDE.md", "copy"],
+        ["~/.claude/rules/preferences.md", "copy"],
+        ["~/.codex/skills/language-rules", "ignore"],
+        ["~/.codex/skills/language-rules/SKILL.md", "copy"],
+      ],
+    );
+    assert.match(importStructured.prompt, /provider-global sources confirmed by `ok`/i);
+    assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
+
+    await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 3,
+        stepCompleted: true,
+        stepOutcome: "no_changes",
+        stepOutcomeNote: "Provider-global guidance was reviewed for this test and no additional import was needed.",
+      },
+      CreateBankSchema,
+    );
+
+    const decisions = JSON.parse(
+      await readFile(path.join(bankRoot, "external-guidance-decisions.json"), "utf8"),
+    ) as {
+      sources: Record<string, { decision: string; fingerprint: string; sourceRef: string }>;
+    };
+    const codexGlobalDecision = Object.values(decisions.sources).find(
+      (decision) => decision.sourceRef === "~/.codex/skills/language-rules/SKILL.md",
+    );
+
+    assert.equal(codexGlobalDecision?.decision, "copy_to_shared_keep_source");
+    assert.equal(typeof codexGlobalDecision?.fingerprint, "string");
+
+    const otherProjectStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: otherProjectRoot },
+      CreateBankSchema,
+    );
+
+    assert.equal(
+      otherProjectStructured.discoveredSources.some((source) => source.scope === "provider-global"),
+      false,
+    );
+    assert.equal(
+      otherProjectStructured.discoveredSources.some((source) => source.relativePath.includes("projects/other-project")),
+      true,
+    );
+
+    await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# Codex Global Language Rules\n\nChanged later.\n");
+    const changedProjectStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: changedProjectRoot },
+      CreateBankSchema,
+    );
+
+    assert.equal(
+      changedProjectStructured.discoveredSources.some(
+        (source) => source.relativePath === "~/.codex/skills/language-rules/SKILL.md",
+      ),
+      true,
+    );
+    assert.equal(
+      changedProjectStructured.discoveredSources.some((source) => source.relativePath === "~/.claude/CLAUDE.md"),
+      false,
+    );
+  });
+});
+
+test("create_bank remembers provider-global not-ok decisions without importing", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const laterProjectRoot = path.join(tempDirectoryPath, "later-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexGlobalSkillRoot = path.join(fakeHome, ".codex", "skills", "typescript-diagnostics");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+  await writeProjectFiles(laterProjectRoot, {
+    "package.json": JSON.stringify({ name: "later-project" }, null, 2),
+  });
+  await mkdir(codexGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# TypeScript Diagnostics\n");
+
+  await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+    await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+    const importStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        stepCompleted: true,
+        sourceReviewDecision: "not_ok",
+      },
+      CreateBankSchema,
+    );
+
+    assert.deepEqual(
+      importStructured.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("typescript-diagnostics"))
+        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+      [
+        ["~/.codex/skills/typescript-diagnostics", "ignore"],
+        ["~/.codex/skills/typescript-diagnostics/SKILL.md", "keep_provider_native"],
+      ],
+    );
+
+    const decisions = JSON.parse(
+      await readFile(path.join(bankRoot, "external-guidance-decisions.json"), "utf8"),
+    ) as {
+      sources: Record<string, { decision: string; sourceRef: string }>;
+    };
+    const codexGlobalDecision = Object.values(decisions.sources).find(
+      (decision) => decision.sourceRef === "~/.codex/skills/typescript-diagnostics/SKILL.md",
+    );
+
+    assert.equal(codexGlobalDecision?.decision, "keep_provider_native");
+
+    const laterStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: laterProjectRoot },
+      CreateBankSchema,
+    );
+
+    assert.equal(
+      laterStructured.discoveredSources.some((source) => source.scope === "provider-global"),
+      false,
+    );
+  });
 });
 
 test("create_bank later iterations expose review import derive and finalize prompts", async (t) => {
@@ -309,7 +543,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(importStructured.prompt, /Write reusable cross-project rules or skills to `scope: "shared"`/i);
   assert.match(importStructured.prompt, /Legacy Source Cleanup Contract/i);
   assert.match(importStructured.prompt, /call `delete_guidance_source` with the discovered absolute `sourcePath`/i);
-  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills, Cursor project rules\/skills, and Claude project rules\/skills/i);
+  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 

@@ -5,6 +5,7 @@ import type { ProviderId } from "./types.js";
 export type BankPaths = {
   root: string;
   manifestFile: string;
+  externalGuidanceDecisionsFile: string;
   auditDirectory: string;
   auditEventsFile: string;
   historyDirectory: string;
@@ -28,6 +29,7 @@ export type BankPaths = {
 export const resolveBankPaths = (root: string): BankPaths => ({
   root,
   manifestFile: path.join(root, "manifest.json"),
+  externalGuidanceDecisionsFile: path.join(root, "external-guidance-decisions.json"),
   auditDirectory: path.join(root, "audit"),
   auditEventsFile: path.join(root, "audit", "events.ndjson"),
   historyDirectory: path.join(root, "history"),

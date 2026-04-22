@@ -85,8 +85,8 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 - AI Guidance Bank stores durable rules, skills, and reusable project guidance across sessions
 - Use \`phase\` as the primary guide during the create/improve flow; treat \`iteration\` as diagnostic only
 - Use real project code, shared AI Guidance Bank context, selected reference projects, and explicit user instructions as the main inputs
-- External repository-local or provider-project guidance must be reviewed explicitly in later steps before import
-- Provider-local skills, provider-global skills, and model-native instructions may help analysis, but they never count as canonical AI Guidance Bank coverage
+- External repository-local, provider-project, and provider-global guidance must be reviewed explicitly in later steps before import
+- Provider-local skills, provider-global skills, and model-native instructions may help analysis, but they never count as canonical AI Guidance Bank coverage until useful guidance is imported into shared/project AI Guidance Bank entries
 
 ## Writing Contract
 

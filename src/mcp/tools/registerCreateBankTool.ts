@@ -15,6 +15,12 @@ import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js
 import { MCP_TOOL_NAMES } from "../toolNames.js";
 import { applyCreateBankChanges } from "./createBankApply.js";
 import {
+  createExternalGuidanceSourceKey,
+  type ExternalGuidanceDecision,
+} from "../../core/bank/externalGuidanceDecisions.js";
+import type { ExistingGuidanceSource } from "../../core/projects/discoverExistingGuidance.js";
+import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../core/projects/guidanceStrategies.js";
+import {
   buildCreateBankResponseText,
   getCreateBankApplyBlockedMessage,
   normalizeApplyDeletions,
@@ -27,6 +33,79 @@ import {
   CreateBankInputShape,
   CreateBankOutputShape,
 } from "./createBankToolSchemas.js";
+
+const toExternalGuidanceDecision = (strategy: GuidanceSourceStrategy): ExternalGuidanceDecision => {
+  switch (strategy) {
+    case "copy":
+    case "keep_source_fill_gaps":
+      return "copy_to_shared_keep_source";
+    case "move":
+      return "move_to_bank_cleanup_allowed";
+    case "keep_provider_native":
+      return "keep_provider_native";
+    case "ignore":
+      return "ignore";
+  }
+};
+
+const recordProviderGlobalGuidanceDecisions = async ({
+  options,
+  discoveredSources,
+  confirmedSourceStrategies,
+  sessionRef,
+}: {
+  options: McpServerRuntimeOptions;
+  discoveredSources: readonly ExistingGuidanceSource[];
+  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
+  sessionRef: string | null;
+}): Promise<void> => {
+  const strategiesBySourceRef = new Map(confirmedSourceStrategies.map((strategy) => [strategy.sourceRef, strategy]));
+  const providerGlobalSources = discoveredSources.filter(
+    (source) => source.scope === "provider-global" && source.provider !== null,
+  );
+
+  if (providerGlobalSources.length === 0) {
+    return;
+  }
+
+  const state = await options.repository.readExternalGuidanceDecisionState();
+  const decidedAt = new Date().toISOString();
+
+  for (const source of providerGlobalSources) {
+    if (source.provider === null) {
+      continue;
+    }
+
+    const strategy = strategiesBySourceRef.get(source.relativePath);
+    if (!strategy) {
+      continue;
+    }
+
+    const sourceKey = createExternalGuidanceSourceKey({
+      scope: "provider-global",
+      provider: source.provider,
+      relativePath: source.relativePath,
+    });
+
+    state.sources[sourceKey] = {
+      sourceKey,
+      sourceRef: source.relativePath,
+      scope: "provider-global",
+      provider: source.provider,
+      kind: source.kind,
+      entryType: source.entryType,
+      fingerprint: source.fingerprint,
+      decision: toExternalGuidanceDecision(strategy.strategy),
+      strategy: strategy.strategy,
+      decidedAt,
+      sessionRef,
+      note: strategy.note,
+    };
+  }
+
+  state.updatedAt = decidedAt;
+  await options.repository.writeExternalGuidanceDecisionState(state);
+};
 
 const registerCreateLikeTool = (
   server: Parameters<ToolRegistrar>[0],
@@ -208,6 +287,18 @@ const registerCreateLikeTool = (
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         applyResults,
       });
+      const shouldRecordProviderGlobalDecisions =
+        parsedArgs.data.sourceReviewDecision === "not_ok" ||
+        (getCreateFlowPhase(existingState?.createIteration ?? effectiveIteration) === "import_selected_guidance" &&
+          (parsedArgs.data.apply !== undefined || parsedArgs.data.stepOutcome !== undefined));
+      if (shouldRecordProviderGlobalDecisions) {
+        await recordProviderGlobalGuidanceDecisions({
+          options,
+          discoveredSources: extendedContext.discoveredSources,
+          confirmedSourceStrategies,
+          sessionRef: parsedArgs.data.sessionRef ?? null,
+        });
+      }
       await options.repository.writeProjectState(identity.projectId, nextState);
       const prompt =
         syncRequired

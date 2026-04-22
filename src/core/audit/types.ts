@@ -72,7 +72,7 @@ export type GuidanceSourceVersionEvent = {
   sourcePath: string;
   relativePath: string;
   kind: string;
-  scope: "repository-local" | "provider-project";
+  scope: "repository-local" | "provider-project" | "provider-global";
   sourceProvider: "codex" | "cursor" | "claude" | null;
   entryType: "file" | "directory";
   files: GuidanceSourceFileSnapshot[];

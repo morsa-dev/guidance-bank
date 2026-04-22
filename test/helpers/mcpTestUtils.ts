@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
@@ -28,6 +29,10 @@ export const createInitializedBank = async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const homePath = path.join(tempDirectoryPath, "home");
+
+  await mkdir(homePath, { recursive: true });
+  process.env.HOME = homePath;
 
   await new InitService().run({
     bankRoot,
@@ -39,6 +44,7 @@ export const createInitializedBank = async () => {
   return {
     tempDirectoryPath,
     bankRoot,
+    homePath,
     repository: new BankRepository(bankRoot),
   };
 };

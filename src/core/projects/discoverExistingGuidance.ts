@@ -1,7 +1,8 @@
 import path from "node:path";
-import { promises as fs } from "node:fs";
 
 import { discoverProviderProjectGuidance, type ProviderProjectGuidanceProvider } from "./providerProjectGuidance.js";
+import { discoverProviderGlobalGuidance } from "./providerGlobalGuidance.js";
+import { fingerprintGuidancePath, listFilesRecursively, pathExists } from "./guidanceFingerprint.js";
 
 export type ExistingGuidanceSourceKind =
   | "agents"
@@ -10,11 +11,11 @@ export type ExistingGuidanceSourceKind =
   | "cursor"
   | "claude"
   | "codex"
-  | "cursor-project"
-  | "claude-project"
-  | "codex-project";
+  | "codex-project"
+  | "claude-global"
+  | "codex-global";
 export type ExistingGuidanceSourceEntryType = "file" | "directory";
-export type ExistingGuidanceSourceScope = "repository-local" | "provider-project";
+export type ExistingGuidanceSourceScope = "repository-local" | "provider-project" | "provider-global";
 
 export type ExistingGuidanceSource = {
   kind: ExistingGuidanceSourceKind;
@@ -23,10 +24,12 @@ export type ExistingGuidanceSource = {
   provider: ProviderProjectGuidanceProvider | null;
   path: string;
   relativePath: string;
+  fingerprint: string;
 };
 
 const fileCandidates: Array<{ kind: ExistingGuidanceSourceKind; relativePath: string }> = [
   { kind: "agents", relativePath: "AGENTS.md" },
+  { kind: "cursor", relativePath: ".cursorrules" },
   { kind: "claude-md", relativePath: "CLAUDE.md" },
   { kind: "claude-md", relativePath: "claude.md" },
   { kind: "copilot", relativePath: "copilot-instructions.md" },
@@ -38,35 +41,6 @@ const directoryCandidates: Array<{ kind: ExistingGuidanceSourceKind; relativePat
   { kind: "claude", relativePath: ".claude" },
   { kind: "codex", relativePath: ".codex" },
 ];
-
-const pathExists = async (targetPath: string): Promise<boolean> => {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const listFilesRecursively = async (directoryPath: string): Promise<string[]> => {
-  const directoryEntries = await fs.readdir(directoryPath, { withFileTypes: true });
-  const filePaths: string[] = [];
-
-  for (const directoryEntry of directoryEntries.sort((left, right) => left.name.localeCompare(right.name))) {
-    const entryPath = path.join(directoryPath, directoryEntry.name);
-
-    if (directoryEntry.isDirectory()) {
-      filePaths.push(...(await listFilesRecursively(entryPath)));
-      continue;
-    }
-
-    if (directoryEntry.isFile()) {
-      filePaths.push(entryPath);
-    }
-  }
-
-  return filePaths;
-};
 
 export const discoverExistingGuidance = async (projectPath: string): Promise<ExistingGuidanceSource[]> => {
   const resolvedProjectPath = path.resolve(projectPath);
@@ -86,6 +60,7 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
       provider: null,
       path: candidatePath,
       relativePath: candidate.relativePath,
+      fingerprint: await fingerprintGuidancePath(candidatePath, "file"),
     });
   }
 
@@ -103,6 +78,7 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
       provider: null,
       path: candidatePath,
       relativePath: candidate.relativePath,
+      fingerprint: await fingerprintGuidancePath(candidatePath, "directory"),
     });
 
     const nestedFilePaths = await listFilesRecursively(candidatePath);
@@ -114,18 +90,14 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
         provider: null,
         path: nestedFilePath,
         relativePath: path.relative(resolvedProjectPath, nestedFilePath),
+        fingerprint: await fingerprintGuidancePath(nestedFilePath, "file"),
       });
     }
   }
 
   const providerProjectSources = await discoverProviderProjectGuidance(resolvedProjectPath);
   for (const source of providerProjectSources) {
-    const kind: ExistingGuidanceSourceKind =
-      source.provider === "codex"
-        ? "codex-project"
-        : source.provider === "cursor"
-          ? "cursor-project"
-          : "claude-project";
+    const kind: ExistingGuidanceSourceKind = "codex-project";
 
     discoveredSources.push({
       kind,
@@ -134,6 +106,22 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
       provider: source.provider,
       path: source.path,
       relativePath: source.relativePath,
+      fingerprint: source.fingerprint,
+    });
+  }
+
+  const providerGlobalSources = await discoverProviderGlobalGuidance();
+  for (const source of providerGlobalSources) {
+    const kind: ExistingGuidanceSourceKind = source.provider === "codex" ? "codex-global" : "claude-global";
+
+    discoveredSources.push({
+      kind,
+      entryType: source.entryType,
+      scope: "provider-global",
+      provider: source.provider,
+      path: source.path,
+      relativePath: source.relativePath,
+      fingerprint: source.fingerprint,
     });
   }
 

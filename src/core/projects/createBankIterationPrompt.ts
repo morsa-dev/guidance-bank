@@ -78,13 +78,13 @@ const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuid
   if (discoveredSources.length === 0) {
     return `## Discovered Guidance Sources
 
-No repository-local or provider-project guidance sources were discovered for this project.`;
+No repository-local, provider-project, or provider-global guidance sources were discovered for this project.`;
   }
 
   return `## Discovered Guidance Sources
 
 ${discoveredSources
-  .map((source) => `- [${source.kind}${source.scope === "provider-project" && source.provider ? `/${source.provider}` : ""}] ${source.relativePath} (${source.entryType}, ${source.scope})`)
+  .map((source) => `- [${source.kind}${source.scope !== "repository-local" && source.provider ? `/${source.provider}` : ""}] ${source.relativePath} (${source.entryType}, ${source.scope})`)
   .join("\n")}`;
 };
 
@@ -112,7 +112,8 @@ const LEGACY_CLEANUP_CONTRACT = `## Legacy Source Cleanup Contract
 AI Guidance Bank is the canonical guidance layer after the user approves \`ok\`.
 
 - A confirmed \`move\` decision means: migrate the useful source content into AI Guidance Bank, verify the canonical write, then remove the migrated legacy source with \`delete_guidance_source\`
-- Use \`delete_guidance_source\` for both repository-local sources and provider-project sources such as Codex project skills, Cursor project rules/skills, and Claude project rules/skills
+- Use \`delete_guidance_source\` for both repository-local sources and provider-project sources such as Codex project skills
+- Provider-global sources are different: import useful provider-independent guidance into shared AI Guidance Bank, remember the decision, and keep the provider-global source unless the user explicitly approves cleanup for that source
 - Delete only discovered source paths that were fully migrated or made obsolete by stronger canonical bank entries
 - Leave a source in place when it contains unmigrated material, when deletion was not approved, or when it is a container that still holds non-migrated files
 - In the step outcome or final report, name any migrated source that remains in the provider/repository layer and explain why it was intentionally kept`;
@@ -203,13 +204,13 @@ Project path:
 ${renderDiscoveredSourcesSection(discoveredSources)}
 
 What to do:
-- Treat the listed repository-local and provider-project sources as the guaranteed inputs for this review
+- Treat the listed repository-local, provider-project, and provider-global sources as the guaranteed inputs for this review
 - Skip purely empty, obsolete, or trivial sources without bothering the user
 - By default, do not expose internal strategy labels to the user
 - Treat AI Guidance Bank as the durable canonical rules-and-skills layer for the project
 - Ask for one simple confirmation:
   - \`ok\`: make AI Guidance Bank the canonical source for this project and migrate useful guidance by the default policy
-  - \`not ok\`: leave legacy guidance untouched and do not treat it as canonical AI Guidance Bank coverage
+  - \`not ok\`: keep provider-native guidance separate, remember that decision for currently discovered provider-global sources, and do not treat it as canonical AI Guidance Bank coverage
 - When the simple confirmation is enough, advance with \`sourceReviewDecision: "ok"\` or \`sourceReviewDecision: "not_ok"\`
 - Ask a more detailed follow-up only when deletion is risky enough that the simple confirmation is not safe
 - Keep the user-facing review short and action-oriented:
@@ -220,6 +221,10 @@ What to do:
 
 Decision rules:
 - Treat provider-project guidance as legacy project-specific input that usually needs review or migration
+- Treat provider-global guidance as user-level provider-native input that may affect this project and should usually be imported into shared AI Guidance Bank when it is provider-independent
+- Treat Cursor and Claude project guidance in the repository itself as repository-local sources, not provider-project sources
+- Do not inspect, import, or delete provider-project guidance for other projects
+- Do not delete provider-global guidance during this review step; cleanup of provider-global sources requires a separate explicit user decision after migration
 - Never delete or rewrite any original source during this review step`;
 
 const buildImportSelectedPrompt = (
@@ -248,8 +253,10 @@ What to do:
 - Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`example.md\` or \`adding-feature\`, not \`rules/example.md\` or \`skills/adding-feature\`
 - If the user simply confirmed \`ok\`, follow the default policy: make AI Guidance Bank canonical, migrate useful file-level guidance, ignore empty or container-only sources automatically, and clean up migrated legacy files when it is safe to do so after successful writes and verification
-- If the user confirmed \`not ok\`, still migrate useful guidance into the canonical AI Guidance Bank but leave the legacy sources untouched even if that creates temporary duplication
+- For provider-global sources confirmed by \`ok\`, import useful provider-independent guidance into \`scope: "shared"\`, remember the decision, and keep the provider-global source in place unless the user separately approves cleanup
+- If the user confirmed \`not ok\`, do not migrate those sources in this pass; keep provider-native guidance separate and rely on the persisted decision to avoid repeated prompts until content changes
 - For each confirmed \`move\` source that was successfully migrated, call \`delete_guidance_source\` with the discovered absolute \`sourcePath\` after the canonical write is verified
+- Never call \`delete_guidance_source\` for provider-global sources unless the user explicitly approved cleanup for that specific provider-global source
 - When replacing or deleting an existing AI Guidance Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
 
@@ -263,7 +270,8 @@ Safety rules:
 - Do not delete, rewrite, or trim any original source unless the confirmed review decision allows cleanup and the migration was already written and verified successfully
 - If the user did not clearly approve an action for a source, leave that source untouched
 - If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
-- Do not count provider-local or provider-global guidance as existing AI Guidance Bank coverage when deciding what still needs to be written`;
+- Do not count provider-local or provider-global guidance as existing AI Guidance Bank coverage when deciding what still needs to be written
+- Do not import or delete provider-project guidance belonging to other projects`;
 
 const buildDeriveFromProjectPrompt = (
   projectPath: string,
@@ -327,6 +335,7 @@ Final pass checklist:
 - Confirm the bank is not materially poorer than the strongest project evidence from this run
 - For each high-value area identified during derive, confirm whether it is covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason
 - Confirm no migrated provider-project guidance source still duplicates canonical bank content; if one does, call \`delete_guidance_source\` when the approved strategy was \`move\`, or name why it must remain
+- Confirm provider-global sources that affect this project were either imported into shared AI Guidance Bank, intentionally kept provider-native by remembered decision, or skipped with a short reason
 - Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates
