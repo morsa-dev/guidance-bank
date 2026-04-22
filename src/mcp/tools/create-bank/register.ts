@@ -2,37 +2,37 @@ import { z } from "zod";
 
 import {
   createProjectBankManifest,
-} from "../../core/bank/project.js";
-import { buildCreateBankPrompt } from "../../core/projects/createBankPrompt.js";
-import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../core/projects/createBankFlow.js";
-import { discoverCurrentProjectBank } from "../../core/projects/discoverCurrentProjectBank.js";
+} from "../../../core/bank/project.js";
+import { buildCreateBankPrompt } from "../../../core/projects/createBankPrompt.js";
+import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+import { discoverCurrentProjectBank } from "../../../core/projects/discoverCurrentProjectBank.js";
 import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
-} from "../../core/projects/createBankIterationPrompt.js";
-import { getCreateFlowPhase } from "../../core/projects/createFlowPhases.js";
-import type { McpServerRuntimeOptions, ToolRegistrar } from "../registerTools.js";
-import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { applyCreateBankChanges } from "./createBankApply.js";
+} from "../../../core/projects/createBankIterationPrompt.js";
+import { getCreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
+import type { McpServerRuntimeOptions, ToolRegistrar } from "../../registerTools.js";
+import { MCP_TOOL_NAMES } from "../../toolNames.js";
+import { applyCreateBankChanges } from "./apply.js";
 import {
   createExternalGuidanceSourceKey,
   type ExternalGuidanceDecision,
-} from "../../core/bank/externalGuidanceDecisions.js";
-import type { ExistingGuidanceSource } from "../../core/projects/discoverExistingGuidance.js";
-import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../core/projects/guidanceStrategies.js";
+} from "../../../core/bank/externalGuidanceDecisions.js";
+import type { ExistingGuidanceSource } from "../../../core/projects/discoverExistingGuidance.js";
+import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../../core/projects/guidanceStrategies.js";
 import {
   buildCreateBankResponseText,
   getCreateBankApplyBlockedMessage,
   normalizeApplyDeletions,
   normalizeApplyWrites,
   shouldWarnAboutIterationMismatch,
-} from "./createBankToolRuntime.js";
-import { writeToolAuditEvent } from "./auditUtils.js";
+} from "./runtime.js";
+import { writeToolAuditEvent } from "../auditUtils.js";
 import {
   CreateBankArgsSchema,
   CreateBankInputShape,
   CreateBankOutputShape,
-} from "./createBankToolSchemas.js";
+} from "./schemas.js";
 
 const toExternalGuidanceDecision = (strategy: GuidanceSourceStrategy): ExternalGuidanceDecision => {
   switch (strategy) {

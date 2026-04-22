@@ -5,7 +5,7 @@ import type { BankRepository } from "../storage/bankRepository.js";
 import type { AuditLogger } from "../storage/auditLogger.js";
 import { registerBankManifestTool } from "./tools/registerBankManifestTool.js";
 import { registerClearProjectBankTool } from "./tools/registerClearProjectBankTool.js";
-import { registerCreateBankTool } from "./tools/registerCreateBankTool.js";
+import { registerCreateBankTool } from "./tools/create-bank/register.js";
 import { registerDeleteEntryTool } from "./tools/registerDeleteEntryTool.js";
 import { registerDeleteGuidanceSourceTool } from "./tools/registerDeleteGuidanceSourceTool.js";
 import { registerListEntriesTool } from "./tools/registerListEntriesTool.js";

@@ -1,7 +1,7 @@
-import type { CreateFlowPhase } from "../../core/projects/createFlowPhases.js";
-import type { PendingSourceReviewBucket } from "../../core/projects/sourceReviewBuckets.js";
-import type { CreateBankApplyResults } from "./createBankApply.js";
-import type { CreateBankArgs } from "./createBankToolSchemas.js";
+import type { CreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
+import type { PendingSourceReviewBucket } from "../../../core/projects/sourceReviewBuckets.js";
+import type { CreateBankApplyResults } from "./apply.js";
+import type { CreateBankArgs } from "./schemas.js";
 
 export const shouldWarnAboutIterationMismatch = (
   storedIteration: number | null,
