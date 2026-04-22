@@ -1,4 +1,5 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
 
 import { discoverProviderProjectGuidance, type ProviderProjectGuidanceProvider } from "./providerProjectGuidance.js";
 import { discoverProviderGlobalGuidance } from "./providerGlobalGuidance.js";
@@ -45,6 +46,7 @@ const directoryCandidates: Array<{ kind: ExistingGuidanceSourceKind; relativePat
 export const discoverExistingGuidance = async (projectPath: string): Promise<ExistingGuidanceSource[]> => {
   const resolvedProjectPath = path.resolve(projectPath);
   const discoveredSources: ExistingGuidanceSource[] = [];
+  const discoveredFileRealPaths = new Set<string>();
 
   for (const candidate of fileCandidates) {
     const candidatePath = path.join(resolvedProjectPath, candidate.relativePath);
@@ -53,14 +55,20 @@ export const discoverExistingGuidance = async (projectPath: string): Promise<Exi
       continue;
     }
 
+    const resolvedCandidatePath = await fs.realpath(candidatePath);
+    if (discoveredFileRealPaths.has(resolvedCandidatePath)) {
+      continue;
+    }
+    discoveredFileRealPaths.add(resolvedCandidatePath);
+
     discoveredSources.push({
       kind: candidate.kind,
       entryType: "file",
       scope: "repository-local",
       provider: null,
-      path: candidatePath,
+      path: resolvedCandidatePath,
       relativePath: candidate.relativePath,
-      fingerprint: await fingerprintGuidancePath(candidatePath, "file"),
+      fingerprint: await fingerprintGuidancePath(resolvedCandidatePath, "file"),
     });
   }
 

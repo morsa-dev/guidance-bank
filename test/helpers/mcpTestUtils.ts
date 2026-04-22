@@ -25,7 +25,7 @@ export const createSuccessfulCommandRunner = (): CommandRunner => async ({ comma
   stderr: "",
 });
 
-export const createInitializedBank = async () => {
+export const createInitializedBank = async (options: { selectedProviders?: Array<"codex" | "cursor" | "claude-code"> } = {}) => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-mcp-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
@@ -38,7 +38,7 @@ export const createInitializedBank = async () => {
     bankRoot,
     cursorConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
-    selectedProviders: ["cursor"],
+    selectedProviders: options.selectedProviders ?? ["cursor"],
   });
 
   return {

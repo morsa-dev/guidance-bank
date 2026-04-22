@@ -129,6 +129,18 @@ const deleteGuidancePath = async (targetPath: string): Promise<"deleted" | "not_
   }
 };
 
+const resolveComparablePath = async (targetPath: string): Promise<string> => {
+  try {
+    return await fs.realpath(targetPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return path.resolve(targetPath);
+    }
+
+    throw error;
+  }
+};
+
 export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options) => {
   server.registerTool(
     MCP_TOOL_NAMES.deleteGuidanceSource,
@@ -170,9 +182,18 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
       const discoveredSources = await discoverExistingGuidance(identity.projectPath);
       const targetPath = path.resolve(parsedArgs.data.sourcePath);
-      const source = discoveredSources.find((candidate) => path.resolve(candidate.path) === targetPath);
+      const comparableTargetPath = await resolveComparablePath(targetPath);
+      const matchingSource = await (async () => {
+        for (const candidate of discoveredSources) {
+          if ((await resolveComparablePath(candidate.path)) === comparableTargetPath) {
+            return candidate;
+          }
+        }
 
-      if (!source) {
+        return null;
+      })();
+
+      if (!matchingSource) {
         return {
           isError: true as const,
           content: [
@@ -192,11 +213,11 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
         projectId: identity.projectId,
         projectPath: identity.projectPath,
         sourcePath: targetPath,
-        relativePath: source.relativePath,
-        kind: source.kind,
-        scope: source.scope,
-        sourceProvider: source.provider,
-        entryType: source.entryType,
+        relativePath: matchingSource.relativePath,
+        kind: matchingSource.kind,
+        scope: matchingSource.scope,
+        sourceProvider: matchingSource.provider,
+        entryType: matchingSource.entryType,
         files: sourceFiles,
       });
 
@@ -211,9 +232,9 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
         details: {
           status,
           sourcePath: targetPath,
-          relativePath: source.relativePath,
-          scope: source.scope,
-          provider: source.provider,
+          relativePath: matchingSource.relativePath,
+          scope: matchingSource.scope,
+          provider: matchingSource.provider,
         },
       });
 
@@ -223,10 +244,10 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
         projectName: identity.projectName,
         projectPath: identity.projectPath,
         sourcePath: targetPath,
-        relativePath: source.relativePath,
-        kind: source.kind,
-        scope: source.scope,
-        provider: source.provider,
+        relativePath: matchingSource.relativePath,
+        kind: matchingSource.kind,
+        scope: matchingSource.scope,
+        provider: matchingSource.provider,
       });
     },
   );

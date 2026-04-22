@@ -8,6 +8,7 @@ import {
 } from "./types.js";
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
 import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrategies.js";
+import { SOURCE_REVIEW_BUCKETS } from "../projects/sourceReviewBuckets.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
@@ -18,6 +19,8 @@ const ConfirmedGuidanceSourceStrategySchema = z
     sourceRef: z.string().trim().min(1),
     strategy: GuidanceSourceStrategySchema,
     note: z.string().trim().min(1).nullable(),
+    fingerprint: z.string().trim().min(1).optional(),
+    reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
   })
   .strict();
 

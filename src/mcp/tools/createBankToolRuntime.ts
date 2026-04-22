@@ -1,4 +1,5 @@
 import type { CreateFlowPhase } from "../../core/projects/createFlowPhases.js";
+import type { PendingSourceReviewBucket } from "../../core/projects/sourceReviewBuckets.js";
 import type { CreateBankApplyResults } from "./createBankApply.js";
 import type { CreateBankArgs } from "./createBankToolSchemas.js";
 
@@ -102,7 +103,7 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   if (sourceStrategyRequired) {
-    return "Cannot apply create-flow changes until the external guidance review decision is recorded. Re-call create_bank for the review phase with sourceReviewDecision (`ok` or `not_ok`) before importing or applying changes.";
+    return "Cannot apply create-flow changes until the pending external guidance review buckets are resolved. Re-call create_bank for the review phase with sourceReviewBucket plus sourceReviewDecision (`migrate` or `keep`) before importing or applying changes.";
   }
 
   if (stepOutcomeRequired) {
@@ -125,6 +126,7 @@ export const buildCreateBankResponseText = ({
   stepCompletionRequired,
   sourceStrategyRequired,
   stepOutcomeRequired,
+  pendingSourceReviewBuckets,
   nextIteration,
   improvementEntryPoint,
   mustContinue,
@@ -136,6 +138,7 @@ export const buildCreateBankResponseText = ({
   stepCompletionRequired: boolean;
   sourceStrategyRequired: boolean;
   stepOutcomeRequired: boolean;
+  pendingSourceReviewBuckets: PendingSourceReviewBucket[];
   nextIteration: number | null;
   improvementEntryPoint: boolean;
   mustContinue: boolean;
@@ -171,7 +174,11 @@ export const buildCreateBankResponseText = ({
   }
 
   if (sourceStrategyRequired && nextIteration !== null) {
-    return `Record an external guidance review decision before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only. Re-call create_bank with iteration: ${nextIteration}, stepCompleted: true, and either sourceReviewDecision: \`ok\` or \`not_ok\`.`;
+    const nextBucket = pendingSourceReviewBuckets[0];
+    const nextBucketInstruction = nextBucket
+      ? ` Resolve the next pending review bucket \`${nextBucket.bucket}\` first.`
+      : "";
+    return `Record the pending external guidance review bucket decisions before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only.${nextBucketInstruction} Re-call create_bank with sourceReviewBucket plus sourceReviewDecision: \`migrate\` or \`keep\`. Advance with iteration: ${nextIteration} and stepCompleted: true only after every pending review bucket is resolved.`;
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {

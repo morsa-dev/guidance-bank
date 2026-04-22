@@ -1,4 +1,5 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
+import type { ProviderId } from "../bank/types.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../bank/lifecycle.js";
 import {
   createProjectBankState,
@@ -22,11 +23,17 @@ import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./d
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
 import { findReferenceProjects } from "./findReferenceProjects.js";
 import {
-  buildDefaultSourceStrategies,
   type ConfirmedGuidanceSourceStrategy,
   type SourceReviewDecision,
 } from "./guidanceStrategies.js";
 import { resolveProjectIdentity } from "./identity.js";
+import {
+  applySourceReviewDecision,
+  buildPendingSourceReviewBuckets,
+  matchesStoredSourceStrategy,
+  type PendingSourceReviewBucket,
+  type SourceReviewBucket,
+} from "./sourceReviewBuckets.js";
 
 type CreateBankExtendedContext = {
   discoveredSources: ExistingGuidanceSource[];
@@ -43,6 +50,7 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
   sourceReviewDecision?: SourceReviewDecision;
+  sourceReviewBucket?: SourceReviewBucket;
 };
 
 export type ResolvedCreateBankFlowContext = {
@@ -69,6 +77,7 @@ export type ResolvedCreateBankFlowContext = {
   completedFlowThisCall: boolean;
   extendedContext: CreateBankExtendedContext;
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
+  pendingSourceReviewBuckets: PendingSourceReviewBucket[];
 };
 
 type CreateBankApplyOutcome = {
@@ -205,6 +214,28 @@ const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   },
 };
 
+const ACTIVE_PROVIDER_TO_DISCOVERY_PROVIDER: Partial<Record<ProviderId, NonNullable<ExistingGuidanceSource["provider"]>>> = {
+  codex: "codex",
+  cursor: "cursor",
+  "claude-code": "claude",
+};
+
+const filterSourcesForActiveProviders = (
+  sources: readonly ExistingGuidanceSource[],
+  enabledProviders: readonly ProviderId[],
+): ExistingGuidanceSource[] => {
+  const activeProviders = new Set(
+    enabledProviders.flatMap((providerId) => {
+      const mappedProvider = ACTIVE_PROVIDER_TO_DISCOVERY_PROVIDER[providerId];
+      return mappedProvider ? [mappedProvider] : [];
+    }),
+  );
+
+  return sources.filter(
+    (source) => source.scope === "repository-local" || source.provider === null || activeProviders.has(source.provider),
+  );
+};
+
 const isProviderGlobalSourceSuppressed = (
   source: ExistingGuidanceSource,
   decisionState: ExternalGuidanceDecisionState,
@@ -299,6 +330,7 @@ export const resolveCreateFlowProgress = ({
 
 const loadExtendedCreateBankContext = async (
   repository: BankRepository,
+  enabledProviders: readonly ProviderId[],
   projectId: string,
   hasExistingProjectBank: boolean,
   projectPath: string,
@@ -318,8 +350,11 @@ const loadExtendedCreateBankContext = async (
   ]);
 
   return {
-    discoveredSources: allDiscoveredSources.filter(
-      (source) => !isProviderGlobalSourceSuppressed(source, externalGuidanceDecisionState),
+    discoveredSources: filterSourcesForActiveProviders(
+      allDiscoveredSources.filter(
+        (source) => !isProviderGlobalSourceSuppressed(source, externalGuidanceDecisionState),
+      ),
+      enabledProviders,
     ),
     currentBankSnapshot,
   };
@@ -335,6 +370,7 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcomeNote,
   referenceProjectIds,
   sourceReviewDecision,
+  sourceReviewBucket,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const [manifest, projectContext, existingManifest, existingState] = await Promise.all([
@@ -377,7 +413,8 @@ export const resolveCreateBankFlowContext = async ({
   const shouldTrackCreateFlow =
     existingManifest === null ||
     existingState?.creationState === "creating" ||
-    existingState?.creationState === "declined";
+    existingState?.creationState === "declined" ||
+    requestedIteration > 0;
   const nextCreationState = shouldTrackCreateFlow ? (isFlowComplete ? "ready" : "creating") : "ready";
   const improvementEntryPoint = lifecycleStatus === "ready" && effectiveIteration === 0;
   const mustContinue =
@@ -387,27 +424,49 @@ export const resolveCreateBankFlowContext = async ({
   const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
   const extendedContext = await loadExtendedCreateBankContext(
     repository,
+    manifest.enabledProviders,
     identity.projectId,
     existingManifest !== null,
     identity.projectPath,
     mustContinue || completedFlowThisCall,
   );
 
-  const knownSourceRefs = new Set(extendedContext.discoveredSources.map((source) => source.relativePath));
+  const storedSourceStrategies =
+    (existingState?.sourceStrategies ?? []).filter((strategy) =>
+      extendedContext.discoveredSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+    );
+  const pendingSourceReviewBucketsBeforeDecision = buildPendingSourceReviewBuckets({
+    discoveredSources: extendedContext.discoveredSources,
+    confirmedSourceStrategies: storedSourceStrategies,
+  });
+  const resolvedReviewBucket =
+    sourceReviewBucket ??
+    (sourceReviewDecision && pendingSourceReviewBucketsBeforeDecision.length === 1
+      ? pendingSourceReviewBucketsBeforeDecision[0]?.bucket
+      : undefined);
   const resolvedSourceStrategies =
-    sourceReviewDecision
-      ? buildDefaultSourceStrategies(extendedContext.discoveredSources, sourceReviewDecision)
-      : existingState?.sourceStrategies ?? [];
+    sourceReviewDecision && resolvedReviewBucket
+      ? applySourceReviewDecision({
+          existingStrategies: storedSourceStrategies,
+          discoveredSources: extendedContext.discoveredSources,
+          bucket: resolvedReviewBucket,
+          decision: sourceReviewDecision,
+        })
+      : storedSourceStrategies;
 
-  const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) => knownSourceRefs.has(strategy.sourceRef));
-  const confirmedSourceStrategyRefs = new Set(confirmedSourceStrategies.map((strategy) => strategy.sourceRef));
+  const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) =>
+    extendedContext.discoveredSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+  );
+  const pendingSourceReviewBuckets = buildPendingSourceReviewBuckets({
+    discoveredSources: extendedContext.discoveredSources,
+    confirmedSourceStrategies,
+  });
   const sourceReviewAdvanceRequested =
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
   const sourceStrategyRequired =
     !syncRequired &&
     sourceReviewAdvanceRequested &&
-    extendedContext.discoveredSources.length > 0 &&
-    extendedContext.discoveredSources.some((source) => !confirmedSourceStrategyRefs.has(source.relativePath));
+    pendingSourceReviewBuckets.length > 0;
 
   const adjustedEffectiveIteration = sourceStrategyRequired ? existingState?.createIteration ?? effectiveIteration : effectiveIteration;
   const adjustedIsFlowComplete = isCreateFlowComplete(adjustedEffectiveIteration);
@@ -449,5 +508,6 @@ export const resolveCreateBankFlowContext = async ({
     completedFlowThisCall: adjustedCompletedFlowThisCall,
     extendedContext,
     confirmedSourceStrategies,
+    pendingSourceReviewBuckets,
   };
 };

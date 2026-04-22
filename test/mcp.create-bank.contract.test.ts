@@ -31,6 +31,16 @@ const CreateBankSchema = z.object({
       note: z.string().nullable(),
     }),
   ),
+  pendingSourceReviewBuckets: z.array(
+    z.object({
+      bucket: z.enum(["repository-local", "provider-project", "provider-global"]),
+      title: z.string(),
+      promptLabel: z.string(),
+      sources: z.array(z.string()),
+      providers: z.array(z.enum(["codex", "cursor", "claude"])),
+    }),
+  ),
+  nextSourceReviewBucket: z.enum(["repository-local", "provider-project", "provider-global"]).nullable(),
   stepCompletionRequired: z.boolean(),
   sourceStrategyRequired: z.boolean(),
   stepOutcomeRequired: z.boolean(),
@@ -158,7 +168,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
 });
 
 test("create_bank discovers codex project guidance and keeps Cursor rules repository-local", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
   const codexProjectSkillsRoot = path.join(fakeHome, ".codex", "skills", "projects", "demo-project");
@@ -199,7 +209,9 @@ test("create_bank discovers codex project guidance and keeps Cursor rules reposi
 });
 
 test("create_bank discovers provider-global guidance and remembers review decisions", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({
+    selectedProviders: ["codex", "cursor", "claude-code"],
+  });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const otherProjectRoot = path.join(tempDirectoryPath, "other-project");
   const changedProjectRoot = path.join(tempDirectoryPath, "changed-project");
@@ -281,7 +293,8 @@ test("create_bank discovers provider-global guidance and remembers review decisi
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewDecision: "ok",
+        sourceReviewBucket: "provider-global",
+        sourceReviewDecision: "migrate",
       },
       CreateBankSchema,
     );
@@ -302,7 +315,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
         ["~/.codex/skills/language-rules/SKILL.md", "copy"],
       ],
     );
-    assert.match(importStructured.prompt, /provider-global sources confirmed by `ok`/i);
+    assert.match(importStructured.prompt, /provider-global sources confirmed by `migrate`/i);
     assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
 
     await callToolStructured(
@@ -367,8 +380,8 @@ test("create_bank discovers provider-global guidance and remembers review decisi
   });
 });
 
-test("create_bank remembers provider-global not-ok decisions without importing", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+test("create_bank remembers provider-global keep decisions without importing", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const laterProjectRoot = path.join(tempDirectoryPath, "later-project");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
@@ -401,7 +414,8 @@ test("create_bank remembers provider-global not-ok decisions without importing",
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewDecision: "not_ok",
+        sourceReviewBucket: "provider-global",
+        sourceReviewDecision: "keep",
       },
       CreateBankSchema,
     );
@@ -437,6 +451,101 @@ test("create_bank remembers provider-global not-ok decisions without importing",
     assert.equal(
       laterStructured.discoveredSources.some((source) => source.scope === "provider-global"),
       false,
+    );
+  });
+});
+
+test("create_bank reviews repository-local and provider-global buckets separately", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexGlobalSkillRoot = path.join(fakeHome, ".codex", "skills", "language-rules");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local guidance\n",
+  });
+  await mkdir(codexGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# TypeScript Diagnostics\n");
+
+  await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+    const reviewStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+
+    assert.deepEqual(
+      reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
+      ["repository-local", "provider-global"],
+    );
+    assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
+
+    const ambiguousDecision = await callToolResult(client, "create_bank", {
+      projectPath: projectRoot,
+      iteration: 1,
+      sourceReviewDecision: "migrate",
+    });
+    assert.equal(ambiguousDecision.isError, true);
+    assert.match(
+      ambiguousDecision.content[0]?.type === "text" ? ambiguousDecision.content[0].text : "",
+      /specify sourceReviewBucket explicitly/i,
+    );
+
+    const afterLocalDecision = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 1,
+        sourceReviewBucket: "repository-local",
+        sourceReviewDecision: "migrate",
+      },
+      CreateBankSchema,
+    );
+
+    assert.equal(afterLocalDecision.phase, "review_existing_guidance");
+    assert.deepEqual(
+      afterLocalDecision.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
+      ["provider-global"],
+    );
+    assert.equal(afterLocalDecision.nextSourceReviewBucket, "provider-global");
+    assert.deepEqual(
+      afterLocalDecision.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef === "AGENTS.md")
+        .map((strategy) => strategy.strategy),
+      ["move"],
+    );
+
+    const importStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        stepCompleted: true,
+        sourceReviewBucket: "provider-global",
+        sourceReviewDecision: "keep",
+      },
+      CreateBankSchema,
+    );
+
+    assert.equal(importStructured.phase, "import_selected_guidance");
+    assert.equal(importStructured.pendingSourceReviewBuckets.length, 0);
+    assert.equal(importStructured.nextSourceReviewBucket, null);
+    assert.deepEqual(
+      importStructured.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
+        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+      [
+        ["~/.codex/skills/language-rules", "ignore"],
+        ["~/.codex/skills/language-rules/SKILL.md", "keep_provider_native"],
+      ],
     );
   });
 });
@@ -486,13 +595,15 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.stepCompletionRequired, false);
   assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
+  assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
+  assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /by default, do not expose internal strategy labels/i);
   assert.match(reviewStructured.prompt, /short and action-oriented/i);
   assert.match(reviewStructured.prompt, /one explicit CTA question/i);
   assert.match(reviewStructured.prompt, /recommend one default action/i);
-  assert.match(reviewStructured.prompt, /sourceReviewDecision: "ok"/i);
-  assert.match(reviewStructured.prompt, /detailed follow-up/i);
+  assert.match(reviewStructured.prompt, /sourceReviewBucket: "repository-local"/i);
+  assert.match(reviewStructured.prompt, /sourceReviewDecision: "migrate" \| "keep"/i);
   assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
@@ -508,8 +619,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedImportStructured.stepCompletionRequired, false);
   assert.equal(blockedImportStructured.sourceStrategyRequired, true);
   assert.equal(blockedImportStructured.stepOutcomeRequired, false);
-  assert.match(blockedImportStructured.text, /Record an external guidance review decision/i);
-  assert.match(blockedImportStructured.text, /sourceReviewDecision/i);
+  assert.match(blockedImportStructured.text, /Record the pending external guidance review bucket decisions/i);
+  assert.match(blockedImportStructured.text, /sourceReviewBucket/i);
 
   const importStructured = await callToolStructured(
     client,
@@ -518,7 +629,8 @@ test("create_bank later iterations expose review import derive and finalize prom
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceReviewDecision: "ok",
+      sourceReviewBucket: "repository-local",
+      sourceReviewDecision: "migrate",
     },
     CreateBankSchema,
   );
@@ -539,7 +651,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(importStructured.prompt, /internal execution plan/i);
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
   assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
-  assert.match(importStructured.prompt, /If the user simply confirmed `ok`/i);
+  assert.match(importStructured.prompt, /For sources confirmed by `migrate`/i);
   assert.match(importStructured.prompt, /Write reusable cross-project rules or skills to `scope: "shared"`/i);
   assert.match(importStructured.prompt, /Legacy Source Cleanup Contract/i);
   assert.match(importStructured.prompt, /call `delete_guidance_source` with the discovered absolute `sourcePath`/i);
@@ -1532,7 +1644,8 @@ test("resolve_context blocks normal runtime context until the create flow is com
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceReviewDecision: "ok",
+      sourceReviewBucket: "repository-local",
+      sourceReviewDecision: "migrate",
     },
     CreateBankSchema,
   );
@@ -1689,7 +1802,7 @@ test("ready project banks ask the user whether to run an improvement pass before
     { projectPath: projectRoot, iteration: 1 },
     CreateBankSchema,
   );
-  assert.equal(improveStructured.creationState, "ready");
+  assert.equal(improveStructured.creationState, "creating");
   assert.equal(improveStructured.phase, "review_existing_guidance");
   assert.equal(improveStructured.stepCompletionRequired, false);
   assert.equal(improveStructured.mustContinue, true);
@@ -1699,8 +1812,10 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(improveStructured.creationPrompt, null);
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.equal(resolveStructured.creationState, "ready");
-  assert.match(resolveStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
+  assert.equal(resolveStructured.creationState, "creating");
+  assert.equal(resolveStructured.requiredAction, "continue_create_bank");
+  assert.equal(resolveStructured.createFlowPhase, "import_selected_guidance");
+  assert.match(resolveStructured.text, /Continue the create flow at phase `import_selected_guidance`/i);
 });
 
 test("improve_bank aliases the guided existing-bank flow", async (t) => {

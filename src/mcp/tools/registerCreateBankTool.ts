@@ -156,6 +156,7 @@ const registerCreateLikeTool = (
         stepOutcome: parsedArgs.data.stepOutcome ?? null,
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         ...(parsedArgs.data.sourceReviewDecision ? { sourceReviewDecision: parsedArgs.data.sourceReviewDecision } : {}),
+        ...(parsedArgs.data.sourceReviewBucket ? { sourceReviewBucket: parsedArgs.data.sourceReviewBucket } : {}),
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -166,6 +167,22 @@ const registerCreateLikeTool = (
             {
               type: "text",
               text: `Unknown reference project ids for tool ${toolName}: ${flowContext.unknownReferenceIds.join(", ")}`,
+            },
+          ],
+        };
+      }
+
+      if (
+        parsedArgs.data.sourceReviewDecision !== undefined &&
+        parsedArgs.data.sourceReviewBucket === undefined &&
+        flowContext.pendingSourceReviewBuckets.length > 1
+      ) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `When more than one external-guidance review bucket is pending, specify sourceReviewBucket explicitly. Pending buckets: ${flowContext.pendingSourceReviewBuckets.map((bucket) => bucket.bucket).join(", ")}.`,
             },
           ],
         };
@@ -187,6 +204,7 @@ const registerCreateLikeTool = (
         improvementEntryPoint,
         extendedContext,
         confirmedSourceStrategies,
+        pendingSourceReviewBuckets,
       } = flowContext;
 
       if (
@@ -288,7 +306,8 @@ const registerCreateLikeTool = (
         applyResults,
       });
       const shouldRecordProviderGlobalDecisions =
-        parsedArgs.data.sourceReviewDecision === "not_ok" ||
+        (parsedArgs.data.sourceReviewDecision === "keep" &&
+          parsedArgs.data.sourceReviewBucket === "provider-global") ||
         (getCreateFlowPhase(existingState?.createIteration ?? effectiveIteration) === "import_selected_guidance" &&
           (parsedArgs.data.apply !== undefined || parsedArgs.data.stepOutcome !== undefined));
       if (shouldRecordProviderGlobalDecisions) {
@@ -320,6 +339,7 @@ const registerCreateLikeTool = (
                 selectedReferenceProjects,
                 discoveredSources: extendedContext.discoveredSources,
                 confirmedSourceStrategies,
+                pendingSourceReviewBuckets,
                 currentBankSnapshot,
                 hasExistingProjectBank: existingManifest !== null,
               })
@@ -350,6 +370,8 @@ const registerCreateLikeTool = (
         phase: finalPhase,
         iteration: finalEffectiveIteration,
         discoveredSources: extendedContext.discoveredSources,
+        pendingSourceReviewBuckets,
+        nextSourceReviewBucket: pendingSourceReviewBuckets[0]?.bucket ?? null,
         currentBankSnapshot,
         selectedReferenceProjects,
         creationState: nextState.creationState,
@@ -370,6 +392,7 @@ const registerCreateLikeTool = (
           stepCompletionRequired: finalStepCompletionRequired,
           sourceStrategyRequired,
           stepOutcomeRequired: finalStepOutcomeRequired,
+          pendingSourceReviewBuckets,
           nextIteration: finalNextIteration,
           improvementEntryPoint,
           mustContinue: finalMustContinue,

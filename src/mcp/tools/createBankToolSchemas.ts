@@ -1,17 +1,31 @@
 import { z } from "zod";
 
 import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
-import { GUIDANCE_SOURCE_STRATEGIES, SOURCE_REVIEW_DECISIONS } from "../../core/projects/guidanceStrategies.js";
+import { GUIDANCE_SOURCE_STRATEGIES } from "../../core/projects/guidanceStrategies.js";
+import { SOURCE_REVIEW_BUCKETS } from "../../core/projects/sourceReviewBuckets.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
-const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
+const SourceReviewDecisionInputSchema = z.enum(["migrate", "keep", "ok", "not_ok"]).transform((value) => {
+  if (value === "ok") {
+    return "migrate";
+  }
+
+  if (value === "not_ok") {
+    return "keep";
+  }
+
+  return value;
+});
+const SourceReviewBucketSchema = z.enum(SOURCE_REVIEW_BUCKETS);
 
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
     sourceRef: z.string(),
     strategy: GuidanceSourceStrategySchema,
     note: z.string().nullable(),
+    fingerprint: z.string().optional(),
+    reviewBucket: SourceReviewBucketSchema.optional(),
   })
   .strict();
 
@@ -137,8 +151,11 @@ export const CreateBankInputShape = {
     .max(5)
     .optional()
     .describe("Optional project ids of existing AI Guidance Banks to use as reference material for the new project bank."),
-  sourceReviewDecision: SourceReviewDecisionSchema.optional().describe(
-    "Simple user confirmation for external guidance review. Use `ok` to migrate useful guidance into the canonical AI Guidance Bank and allow cleanup of legacy sources when the flow deems it safe, or `not_ok` to keep legacy sources in place after migration.",
+  sourceReviewDecision: SourceReviewDecisionInputSchema.optional().describe(
+    "Decision for the current external-guidance review bucket. Use `migrate` to import useful non-duplicate guidance into AI Guidance Bank for that bucket, or `keep` to leave those sources in place without importing from them. `ok` and `not_ok` remain accepted as aliases.",
+  ),
+  sourceReviewBucket: SourceReviewBucketSchema.optional().describe(
+    "Which external-guidance review bucket this decision applies to: `repository-local`, `provider-project`, or `provider-global`.",
   ),
   apply: z
     .object({
@@ -210,6 +227,16 @@ export const CreateBankOutputShape = {
       fingerprint: z.string(),
     }),
   ),
+  pendingSourceReviewBuckets: z.array(
+    z.object({
+      bucket: SourceReviewBucketSchema,
+      title: z.string(),
+      promptLabel: z.string(),
+      sources: z.array(z.string()),
+      providers: z.array(z.enum(["codex", "cursor", "claude"])),
+    }),
+  ),
+  nextSourceReviewBucket: SourceReviewBucketSchema.nullable(),
   currentBankSnapshot: z.object({
     exists: z.boolean(),
     entries: z.array(
