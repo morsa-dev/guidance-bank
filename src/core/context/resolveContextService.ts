@@ -8,7 +8,7 @@ import { detectBankUpgrade } from "../upgrade/upgradeService.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { DetectableStack, ResolvedGuidanceBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
-import { getCreateFlowPhase } from "../projects/createFlowPhases.js";
+import { getCreateFlowPhase } from "../projects/create-flow/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
 import {
   assertUniqueResolvedEntryIds,

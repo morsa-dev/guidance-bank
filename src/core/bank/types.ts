@@ -1,5 +1,5 @@
 import type { DetectableStack } from "../context/types.js";
-import type { ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrategies.js";
+import type { ConfirmedGuidanceSourceStrategy } from "../projects/create-flow/guidanceStrategies.js";
 
 export const PROVIDER_IDS = ["codex", "cursor", "claude-code"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];

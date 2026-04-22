@@ -1,32 +1,32 @@
-import type { BankRepository } from "../../storage/bankRepository.js";
-import type { ProviderId } from "../bank/types.js";
-import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../bank/lifecycle.js";
+import type { BankRepository } from "../../../storage/bankRepository.js";
+import type { ProviderId } from "../../bank/types.js";
+import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../../bank/lifecycle.js";
 import {
   createProjectBankState,
   markProjectBankSynced,
   setProjectBankCreateIteration,
   setProjectBankSourceStrategies,
-} from "../bank/project.js";
-import type { ProjectBankState, ProjectCreationState } from "../bank/types.js";
+} from "../../bank/project.js";
+import type { ProjectBankState, ProjectCreationState } from "../../bank/types.js";
 import {
   createExternalGuidanceSourceKey,
   type ExternalGuidanceDecisionState,
-} from "../bank/externalGuidanceDecisions.js";
-import { detectProjectContext } from "../context/detectProjectContext.js";
+} from "../../bank/externalGuidanceDecisions.js";
+import { detectProjectContext } from "../../context/detectProjectContext.js";
 import {
   getCreateFlowPhase,
   getNextCreateFlowIteration,
   isCreateFlowComplete,
   requiresCreateFlowStepOutcome,
 } from "./createFlowPhases.js";
-import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
-import { discoverExistingGuidance, type ExistingGuidanceSource } from "./discoverExistingGuidance.js";
-import { findReferenceProjects } from "./findReferenceProjects.js";
+import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
+import { discoverExistingGuidance, type ExistingGuidanceSource } from "../discoverExistingGuidance.js";
+import { findReferenceProjects } from "../findReferenceProjects.js";
 import {
   type ConfirmedGuidanceSourceStrategy,
   type SourceReviewDecision,
 } from "./guidanceStrategies.js";
-import { resolveProjectIdentity } from "./identity.js";
+import { resolveProjectIdentity } from "../identity.js";
 import {
   applySourceReviewDecision,
   buildPendingSourceReviewBuckets,

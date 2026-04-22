@@ -1,9 +1,9 @@
-import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
+import type { DetectableStack, ReferenceProjectCandidate } from "../../context/types.js";
 
 import { requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
-import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
-import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
+import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
+import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import {
   formatGuidanceSourceStrategy,
   type ConfirmedGuidanceSourceStrategy,

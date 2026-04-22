@@ -2,7 +2,7 @@ import {
   createProjectBankManifest,
 } from "../../../core/bank/project.js";
 import { discoverCurrentProjectBank } from "../../../core/projects/discoverCurrentProjectBank.js";
-import type { ResolvedCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
 import { applyCreateBankChanges, type CreateBankApplyResults } from "./apply.js";
 import { normalizeApplyDeletions, normalizeApplyWrites } from "./runtime.js";

@@ -1,5 +1,5 @@
-import type { CreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
-import type { PendingSourceReviewBucket } from "../../../core/projects/sourceReviewBuckets.js";
+import type { CreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
+import type { PendingSourceReviewBucket } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
 import type { CreateBankApplyResults } from "./apply.js";
 import type { CreateBankArgs } from "./schemas.js";
 

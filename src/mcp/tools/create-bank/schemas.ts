@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { CREATE_FLOW_PHASES } from "../../../core/projects/createFlowPhases.js";
-import { GUIDANCE_SOURCE_STRATEGIES } from "../../../core/projects/guidanceStrategies.js";
-import { SOURCE_REVIEW_BUCKETS } from "../../../core/projects/sourceReviewBuckets.js";
+import { CREATE_FLOW_PHASES } from "../../../core/projects/create-flow/createFlowPhases.js";
+import { GUIDANCE_SOURCE_STRATEGIES } from "../../../core/projects/create-flow/guidanceStrategies.js";
+import { SOURCE_REVIEW_BUCKETS } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "../sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);

@@ -1,6 +1,6 @@
 import type { ProjectCreationState } from "../bank/types.js";
 import type { CanonicalRuleFrontmatter, CanonicalSkillFrontmatter } from "../bank/types.js";
-import type { CreateFlowPhase } from "../projects/createFlowPhases.js";
+import type { CreateFlowPhase } from "../projects/create-flow/createFlowPhases.js";
 
 export const DETECTABLE_STACKS = ["nodejs", "typescript", "react", "nextjs", "angular", "ios", "other"] as const;
 export type DetectableStack = (typeof DETECTABLE_STACKS)[number];

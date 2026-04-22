@@ -1,4 +1,4 @@
-import { DETECTABLE_STACKS, type DetectableStack, type ReferenceProjectCandidate } from "../context/types.js";
+import { DETECTABLE_STACKS, type DetectableStack, type ReferenceProjectCandidate } from "../../context/types.js";
 
 type CreateBankPromptInput = {
   projectName: string;

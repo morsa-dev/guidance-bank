@@ -1,10 +1,10 @@
-import { buildCreateBankPrompt } from "../../../core/projects/createBankPrompt.js";
+import { buildCreateBankPrompt } from "../../../core/projects/create-flow/createBankPrompt.js";
 import {
   buildCreateBankIterationPrompt,
   buildReadyProjectBankPrompt,
-} from "../../../core/projects/createBankIterationPrompt.js";
-import type { CreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
-import type { ResolvedCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+} from "../../../core/projects/create-flow/createBankIterationPrompt.js";
+import type { CreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
+import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import { buildCreateBankResponseText } from "./runtime.js";
 import type { CreateBankApplyResults } from "./apply.js";
 

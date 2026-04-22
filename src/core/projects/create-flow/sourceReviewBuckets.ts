@@ -1,4 +1,4 @@
-import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
+import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./guidanceStrategies.js";
 
 export const SOURCE_REVIEW_BUCKETS = ["repository-local", "provider-project", "provider-global"] as const;

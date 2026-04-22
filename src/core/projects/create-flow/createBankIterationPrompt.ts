@@ -1,8 +1,8 @@
-import type { DetectableStack, ReferenceProjectCandidate } from "../context/types.js";
+import type { DetectableStack, ReferenceProjectCandidate } from "../../context/types.js";
 
 import { CREATE_FLOW_COMPLETED_ITERATION } from "./createFlowPhases.js";
-import type { CurrentProjectBankSnapshot } from "./discoverCurrentProjectBank.js";
-import type { ExistingGuidanceSource } from "./discoverExistingGuidance.js";
+import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
+import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import type { ConfirmedGuidanceSourceStrategy } from "./guidanceStrategies.js";
 import type { PendingSourceReviewBucket } from "./sourceReviewBuckets.js";
 import {

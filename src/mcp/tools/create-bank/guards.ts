@@ -1,5 +1,5 @@
-import { getCreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
-import type { ResolvedCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+import { getCreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
+import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import {
   getCreateBankApplyBlockedMessage,
   shouldWarnAboutIterationMismatch,

@@ -7,8 +7,8 @@ import {
   type ProjectCreationState,
 } from "./types.js";
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
-import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from "../projects/guidanceStrategies.js";
-import { SOURCE_REVIEW_BUCKETS } from "../projects/sourceReviewBuckets.js";
+import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from "../projects/create-flow/guidanceStrategies.js";
+import { SOURCE_REVIEW_BUCKETS } from "../projects/create-flow/sourceReviewBuckets.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);

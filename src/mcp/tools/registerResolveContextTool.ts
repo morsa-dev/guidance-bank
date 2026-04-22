@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CREATE_FLOW_PHASES } from "../../core/projects/createFlowPhases.js";
+import { CREATE_FLOW_PHASES } from "../../core/projects/create-flow/createFlowPhases.js";
 import { resolveGuidanceBankContext } from "../../core/context/resolveContextService.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";

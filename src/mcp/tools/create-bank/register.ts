@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../../registerTools.js";
 import { MCP_TOOL_NAMES } from "../../toolNames.js";
 import { writeToolAuditEvent } from "../auditUtils.js";

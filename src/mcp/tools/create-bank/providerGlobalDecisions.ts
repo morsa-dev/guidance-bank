@@ -2,10 +2,10 @@ import {
   createExternalGuidanceSourceKey,
   type ExternalGuidanceDecision,
 } from "../../../core/bank/externalGuidanceDecisions.js";
-import { getCreateFlowPhase } from "../../../core/projects/createFlowPhases.js";
+import { getCreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
 import type { ExistingGuidanceSource } from "../../../core/projects/discoverExistingGuidance.js";
-import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../../core/projects/guidanceStrategies.js";
-import type { ResolvedCreateBankFlowContext } from "../../../core/projects/createBankFlow.js";
+import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../../core/projects/create-flow/guidanceStrategies.js";
+import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
 import type { CreateBankArgs } from "./schemas.js";
 

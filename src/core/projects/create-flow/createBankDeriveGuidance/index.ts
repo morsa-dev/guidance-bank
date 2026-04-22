@@ -1,4 +1,4 @@
-import type { DetectableStack } from "../../context/types.js";
+import type { DetectableStack } from "../../../context/types.js";
 
 import { ANGULAR_DERIVE_GUIDANCE } from "./stacks/angular.js";
 import { IOS_DERIVE_GUIDANCE } from "./stacks/ios.js";
