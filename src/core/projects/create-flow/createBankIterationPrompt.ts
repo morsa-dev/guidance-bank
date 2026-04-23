@@ -31,6 +31,7 @@ type BuildCreateBankIterationPromptInput = {
   discoveredSources: ExistingGuidanceSource[];
   currentBankSnapshot: CurrentProjectBankSnapshot;
   hasExistingProjectBank?: boolean;
+  isSubsequentBucket?: boolean;
 };
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
@@ -51,10 +52,11 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
       projectPath,
       pendingSourceReviewBuckets,
     }),
-  ({ confirmedSourceStrategies, discoveredSources }) =>
+  ({ confirmedSourceStrategies, discoveredSources, isSubsequentBucket }) =>
     buildImportSelectedPrompt({
       confirmedSourceStrategies,
       discoveredSources,
+      isSubsequentBucket: isSubsequentBucket ?? false,
     }),
   ({ projectPath, detectedStacks, discoveredSources }) =>
     buildDeriveFromProjectPrompt({

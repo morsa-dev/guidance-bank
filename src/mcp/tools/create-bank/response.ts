@@ -71,6 +71,9 @@ export const buildCreateBankToolPayload = ({
     phase: finalExecution.phase,
     pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
   });
+  const isSubsequentImportBucket =
+    finalExecution.phase === "import_selected_guidance" &&
+    finalExecution.confirmedSourceStrategies.some((s) => s.importStatus === "completed");
   const importSourceStrategies =
     finalExecution.activeImportBucket === null
       ? []
@@ -80,7 +83,9 @@ export const buildCreateBankToolPayload = ({
         );
   const promptSourceStrategies =
     finalExecution.phase === "import_selected_guidance"
-      ? importSourceStrategies
+      ? isSubsequentImportBucket
+        ? finalExecution.confirmedSourceStrategies
+        : importSourceStrategies
       : finalExecution.confirmedSourceStrategies;
   const prompt =
     flowContext.syncRequired
@@ -105,6 +110,7 @@ export const buildCreateBankToolPayload = ({
               discoveredSources: flowContext.extendedContext.discoveredSources,
               currentBankSnapshot,
               hasExistingProjectBank: flowContext.existingManifest !== null,
+              isSubsequentBucket: isSubsequentImportBucket,
             })
           : "Project AI Guidance Bank already exists for this repository and is ready.";
 

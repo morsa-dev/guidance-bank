@@ -228,10 +228,26 @@ What to do:
 export const buildImportSelectedPrompt = ({
   confirmedSourceStrategies,
   discoveredSources,
+  isSubsequentBucket,
 }: {
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
   discoveredSources: readonly ExistingGuidanceSource[];
-}): string => `# Import Selected Guidance
+  isSubsequentBucket: boolean;
+}): string => {
+  if (isSubsequentBucket) {
+    return `# Import Next Bucket
+
+Continue applying the Source Transfer Protocol to the next approved bucket. The decisions below show what has already been processed and what remains pending.
+
+${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSources)}
+
+What to do:
+- Read each source confirmed as \`import_to_bank\` that is still pending
+- Apply the same process as the previous bucket: migrate useful non-duplicate guidance into AI Guidance Bank, remove each migrated item from the source immediately after the verified bank write
+- Use \`create_bank.apply\` for batched canonical writes; retry with fresh \`baseSha256\` on conflict`;
+  }
+
+  return `# Import Selected Guidance
 
 ${STABLE_CONTRACT_NOTE}
 
@@ -253,6 +269,7 @@ What to do:
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only
 - After each verified write, immediately clean up the migrated guidance from the original source before continuing to another guidance item
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry and retry with a fresh \`baseSha256\``;
+};
 
 export const buildDeriveFromProjectPrompt = ({
   projectPath,
