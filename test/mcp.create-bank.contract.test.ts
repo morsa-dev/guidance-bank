@@ -33,27 +33,13 @@ const CreateBankSchema = z.object({
       importStatus: z.enum(["pending", "completed"]).optional(),
     }),
   ),
-  pendingSourceReviewBuckets: z.array(
-    z.object({
+  sourceReview: z
+    .object({
       bucket: z.enum(["repository-local", "provider-project", "provider-global"]),
-      title: z.string(),
-      promptLabel: z.string(),
-      sources: z.array(
-        z.object({
-          sourceRef: z.string(),
-          entryType: z.enum(["file", "directory"]),
-          provider: z.enum(["codex", "cursor", "claude"]).nullable(),
-          kind: z.string(),
-          path: z.string(),
-        }),
-      ),
-      providers: z.array(z.enum(["codex", "cursor", "claude"])),
-      sourceCount: z.number().int().nonnegative(),
-      fileCount: z.number().int().nonnegative(),
-      directoryCount: z.number().int().nonnegative(),
-    }),
-  ),
-  nextSourceReviewBucket: z.enum(["repository-local", "provider-project", "provider-global"]).nullable(),
+      paths: z.array(z.string()),
+      decisionRequired: z.boolean(),
+    })
+    .nullable(),
   stepCompletionRequired: z.boolean(),
   sourceStrategyRequired: z.boolean(),
   stepOutcomeRequired: z.boolean(),
@@ -221,7 +207,7 @@ test("create_bank discovers codex project guidance and keeps Cursor rules reposi
   assert.equal(structured.discoveredSources.some((source) => source.relativePath === ".cursorrules"), true);
 });
 
-test("create_bank discovers provider-global guidance and remembers review decisions", async (t) => {
+test("create_bank discovers provider-global guidance and keeps import decisions flow-local", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank({
     selectedProviders: ["codex", "cursor", "claude-code"],
   });
@@ -306,7 +292,6 @@ test("create_bank discovers provider-global guidance and remembers review decisi
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewBucket: "provider-global",
         sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
@@ -342,18 +327,6 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       CreateBankSchema,
     );
 
-    const decisions = JSON.parse(
-      await readFile(path.join(bankRoot, "external-guidance-decisions.json"), "utf8"),
-    ) as {
-      sources: Record<string, { decision: string; fingerprint: string; sourceRef: string }>;
-    };
-    const codexGlobalDecision = Object.values(decisions.sources).find(
-      (decision) => decision.sourceRef === "~/.codex/skills/language-rules",
-    );
-
-    assert.equal(codexGlobalDecision?.decision, "move_to_bank_cleanup_allowed");
-    assert.equal(typeof codexGlobalDecision?.fingerprint, "string");
-
     const otherProjectStructured = await callToolStructured(
       client,
       "create_bank",
@@ -361,7 +334,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       CreateBankSchema,
     );
 
-    assert.equal(otherProjectStructured.pendingSourceReviewBuckets.some((bucket) => bucket.bucket === "provider-global"), false);
+    assert.equal(otherProjectStructured.sourceReview, null);
     assert.equal(
       otherProjectStructured.discoveredSources.some((source) => source.relativePath.includes("projects/other-project")),
       true,
@@ -383,7 +356,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
     );
     assert.equal(
       changedProjectStructured.discoveredSources.some((source) => source.relativePath === "~/.claude/CLAUDE.md"),
-      false,
+      true,
     );
   });
 });
@@ -422,7 +395,6 @@ test("create_bank remembers provider-global keep_external decisions without impo
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewBucket: "provider-global",
         sourceReviewDecision: "keep_external",
       },
       CreateBankSchema,
@@ -440,13 +412,11 @@ test("create_bank remembers provider-global keep_external decisions without impo
     const decisions = JSON.parse(
       await readFile(path.join(bankRoot, "external-guidance-decisions.json"), "utf8"),
     ) as {
-      sources: Record<string, { decision: string; sourceRef: string }>;
+      providerGlobal: { keepExternal: boolean; decidedAt: string | null; sessionRef: string | null };
     };
-    const codexGlobalDecision = Object.values(decisions.sources).find(
-      (decision) => decision.sourceRef === "~/.codex/skills/typescript-diagnostics",
-    );
 
-    assert.equal(codexGlobalDecision?.decision, "keep_provider_native");
+    assert.equal(decisions.providerGlobal.keepExternal, true);
+    assert.equal(typeof decisions.providerGlobal.decidedAt, "string");
 
     const laterStructured = await callToolStructured(
       client,
@@ -455,7 +425,20 @@ test("create_bank remembers provider-global keep_external decisions without impo
       CreateBankSchema,
     );
 
-    assert.equal(laterStructured.pendingSourceReviewBuckets.some((bucket) => bucket.bucket === "provider-global"), false);
+    assert.equal(laterStructured.sourceReview, null);
+    assert.equal(laterStructured.discoveredSources.some((source) => source.scope === "provider-global"), true);
+    const laterDeriveStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: laterProjectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+
+    assert.equal(laterDeriveStructured.phase, "derive_from_project");
+    assert.equal(laterDeriveStructured.sourceReview, null);
+    assert.match(laterDeriveStructured.prompt, /Kept Provider-Global Paths/i);
+    assert.match(laterDeriveStructured.prompt, /typescript-diagnostics/i);
+    assert.match(laterDeriveStructured.prompt, /do not duplicate rules/i);
   });
 });
 
@@ -484,22 +467,8 @@ test("create_bank reviews repository-local and provider-global buckets separatel
       CreateBankSchema,
     );
 
-    assert.deepEqual(
-      reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["provider-global", "repository-local"],
-    );
-    assert.equal(reviewStructured.nextSourceReviewBucket, "provider-global");
-
-    const ambiguousDecision = await callToolResult(client, "create_bank", {
-      projectPath: projectRoot,
-      iteration: 1,
-      sourceReviewDecision: "import_to_bank",
-    });
-    assert.equal(ambiguousDecision.isError, true);
-    assert.match(
-      ambiguousDecision.content[0]?.type === "text" ? ambiguousDecision.content[0].text : "",
-      /specify sourceReviewBucket explicitly/i,
-    );
+    assert.equal(reviewStructured.sourceReview?.bucket, "provider-global");
+    assert.equal(reviewStructured.sourceReview?.decisionRequired, true);
 
     const afterGlobalDecision = await callToolStructured(
       client,
@@ -507,18 +476,13 @@ test("create_bank reviews repository-local and provider-global buckets separatel
       {
         projectPath: projectRoot,
         iteration: 1,
-        sourceReviewBucket: "provider-global",
         sourceReviewDecision: "keep_external",
       },
       CreateBankSchema,
     );
 
     assert.equal(afterGlobalDecision.phase, "review_existing_guidance");
-    assert.deepEqual(
-      afterGlobalDecision.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["repository-local"],
-    );
-    assert.equal(afterGlobalDecision.nextSourceReviewBucket, "repository-local");
+    assert.equal(afterGlobalDecision.sourceReview?.bucket, "repository-local");
     assert.deepEqual(
       afterGlobalDecision.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
@@ -535,15 +499,13 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewBucket: "repository-local",
         sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
     );
 
     assert.equal(importStructured.phase, "import_selected_guidance");
-    assert.equal(importStructured.pendingSourceReviewBuckets.length, 0);
-    assert.equal(importStructured.nextSourceReviewBucket, null);
+    assert.equal(importStructured.sourceReview, null);
     assert.deepEqual(
       importStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef === "AGENTS.md")
@@ -586,17 +548,13 @@ test("create_bank returns to source review after importing one bucket when anoth
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewBucket: "provider-global",
         sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
     );
 
     assert.equal(importGlobalStructured.phase, "import_selected_guidance");
-    assert.deepEqual(
-      importGlobalStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["repository-local"],
-    );
+    assert.equal(importGlobalStructured.sourceReview, null);
     assert.deepEqual(
       importGlobalStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
@@ -621,11 +579,7 @@ test("create_bank returns to source review after importing one bucket when anoth
 
     assert.equal(nextReviewStructured.phase, "review_existing_guidance");
     assert.equal(nextReviewStructured.iteration, 1);
-    assert.equal(nextReviewStructured.nextSourceReviewBucket, "repository-local");
-    assert.deepEqual(
-      nextReviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["repository-local"],
-    );
+    assert.equal(nextReviewStructured.sourceReview?.bucket, "repository-local");
     assert.deepEqual(
       nextReviewStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
@@ -667,14 +621,13 @@ test("create_bank reviews source buckets without server-side semantic candidate 
     CreateBankSchema,
   );
 
-  assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
-  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.sourceCount, 2);
+  assert.equal(reviewStructured.sourceReview?.bucket, "repository-local");
   assert.equal(
-    reviewStructured.pendingSourceReviewBuckets[0]?.sources.some((source) => source.sourceRef === "CLAUDE.md"),
+    reviewStructured.sourceReview?.paths.some((sourcePath) => sourcePath.endsWith("CLAUDE.md")),
     true,
   );
   assert.equal(
-    reviewStructured.pendingSourceReviewBuckets[0]?.sources.some((source) => source.sourceRef === ".claude"),
+    reviewStructured.sourceReview?.paths.some((sourcePath) => sourcePath.endsWith(".claude")),
     true,
   );
   assert.equal(reviewStructured.prompt.includes("Candidate guidance:"), false);
@@ -686,7 +639,6 @@ test("create_bank reviews source buckets without server-side semantic candidate 
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceReviewBucket: "repository-local",
       sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
@@ -751,18 +703,15 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.stepCompletionRequired, false);
   assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
-  assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
-  assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
-  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.sourceCount, 2);
+  assert.equal(reviewStructured.sourceReview?.bucket, "repository-local");
+  assert.equal(reviewStructured.sourceReview?.paths.length, 2);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /Treat the source list as discovery only/i);
-  assert.match(reviewStructured.prompt, /Source count: 2/i);
-  assert.match(reviewStructured.prompt, /Sources to review:/i);
-  assert.match(reviewStructured.prompt, /sourceReviewBucket: "repository-local"/i);
-  assert.match(reviewStructured.prompt, /sourceReviewDecision: "import_to_bank" \| "keep_external"/i);
+  assert.match(reviewStructured.prompt, /Source Paths/i);
+  assert.match(reviewStructured.prompt, /Handle only bucket `repository-local`/i);
+  assert.match(reviewStructured.prompt, /Inspect the listed paths yourself/i);
+  assert.doesNotMatch(reviewStructured.prompt, /sourceReviewBucket/i);
   assert.match(reviewStructured.prompt, /import_to_bank/i);
   assert.match(reviewStructured.prompt, /keep_external/i);
-  assert.match(reviewStructured.prompt, /do not dump the full protocol or raw source inventory/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
 
@@ -777,8 +726,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedImportStructured.stepCompletionRequired, false);
   assert.equal(blockedImportStructured.sourceStrategyRequired, true);
   assert.equal(blockedImportStructured.stepOutcomeRequired, false);
-  assert.match(blockedImportStructured.text, /Record the pending external guidance review bucket decisions/i);
-  assert.match(blockedImportStructured.text, /sourceReviewBucket/i);
+  assert.match(blockedImportStructured.text, /Record the pending external guidance review decision/i);
+  assert.match(blockedImportStructured.text, /sourceReviewDecision/i);
 
   const importStructured = await callToolStructured(
     client,
@@ -787,7 +736,6 @@ test("create_bank later iterations expose review import derive and finalize prom
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceReviewBucket: "repository-local",
       sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
@@ -805,8 +753,10 @@ test("create_bank later iterations expose review import derive and finalize prom
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(importStructured.prompt, /The agent, not the server, decides/i);
+  assert.match(importStructured.prompt, /The agent, not the server, decides the correct AI Guidance Bank structure/i);
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
+  assert.match(importStructured.prompt, /Use the transfer plan you presented to the user/i);
+  assert.match(importStructured.prompt, /Preserve meaning, not source layout/i);
   assert.match(importStructured.prompt, /Read each source confirmed as/i);
   assert.match(importStructured.prompt, /Use `create_bank\.apply` for batched canonical writes/i);
   assert.match(importStructured.prompt, /For mixed sources, keep non-guidance content in place/i);
@@ -901,7 +851,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for final bank-entry fixes only/i);
-  assert.match(finalizeStructured.prompt, /Cleanup Rules/i);
+  assert.match(finalizeStructured.prompt, /Source Transfer Rules/i);
   assert.match(finalizeStructured.prompt, /no imported guidance remains duplicated in its original source/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
@@ -973,7 +923,6 @@ test("create_bank source review decision enters import phase without requiring a
     {
       projectPath: projectRoot,
       iteration: 1,
-      sourceReviewBucket: "repository-local",
       sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
@@ -1841,7 +1790,6 @@ test("resolve_context blocks normal runtime context until the create flow is com
       projectPath: projectRoot,
       iteration: 2,
       stepCompleted: true,
-      sourceReviewBucket: "repository-local",
       sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,

@@ -6,34 +6,7 @@ export type SourceReviewBucket = (typeof SOURCE_REVIEW_BUCKETS)[number];
 
 export type PendingSourceReviewBucket = {
   bucket: SourceReviewBucket;
-  title: string;
-  promptLabel: string;
-  sources: Array<{
-    sourceRef: string;
-    entryType: ExistingGuidanceSource["entryType"];
-    provider: ExistingGuidanceSource["provider"];
-    kind: ExistingGuidanceSource["kind"];
-    path: string;
-  }>;
-  providers: Array<NonNullable<ExistingGuidanceSource["provider"]>>;
-  sourceCount: number;
-  fileCount: number;
-  directoryCount: number;
-};
-
-const BUCKET_METADATA: Record<SourceReviewBucket, { title: string; promptLabel: string }> = {
-  "repository-local": {
-    title: "Repository-local guidance",
-    promptLabel: "project-local guidance files and folders in this repository",
-  },
-  "provider-project": {
-    title: "Provider project guidance",
-    promptLabel: "provider-managed project guidance for this repository",
-  },
-  "provider-global": {
-    title: "Provider global guidance",
-    promptLabel: "user-level provider guidance that can affect this project",
-  },
+  paths: string[];
 };
 
 const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceReviewDecision): string => {
@@ -44,10 +17,10 @@ const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceRevi
   }
 
   if (source.scope === "provider-global") {
-    return "Move useful provider-independent guidance into shared AI Guidance Bank and remove the migrated guidance from the provider-global source when fully replaced.";
+    return "Move useful provider-independent guidance into shared AI Guidance Bank and remove each migrated guidance item from the provider-global source immediately after the verified bank write.";
   }
 
-  return "Move useful non-duplicate guidance into AI Guidance Bank and remove the migrated guidance from the source only after the agent verifies it was fully replaced.";
+  return "Move useful non-duplicate guidance into AI Guidance Bank and remove each migrated guidance item from the source immediately after the verified bank write.";
 };
 
 export const sourceReviewBucketFor = (source: ExistingGuidanceSource): SourceReviewBucket => source.scope;
@@ -90,6 +63,16 @@ export const selectReviewableGuidanceSources = (
     );
   });
 };
+
+export const selectSourceReviewSources = (
+  discoveredSources: readonly ExistingGuidanceSource[],
+  providerGlobalKeptExternal: boolean,
+): ExistingGuidanceSource[] =>
+  selectReviewableGuidanceSources(
+    providerGlobalKeptExternal
+      ? discoveredSources.filter((source) => source.scope !== "provider-global")
+      : discoveredSources,
+  );
 
 export const applySourceReviewDecision = ({
   existingStrategies,
@@ -165,26 +148,10 @@ export const buildPendingSourceReviewBuckets = ({
       return [];
     }
 
-    const providers = [...new Set(unresolvedSources.flatMap((source) => (source.provider ? [source.provider] : [])))];
-    const metadata = BUCKET_METADATA[bucket];
-    const sources = unresolvedSources.map((source) => ({
-      sourceRef: source.relativePath,
-      entryType: source.entryType,
-      provider: source.provider,
-      kind: source.kind,
-      path: source.path,
-    }));
-
     return [
       {
         bucket,
-        title: metadata.title,
-        promptLabel: metadata.promptLabel,
-        sources,
-        providers,
-        sourceCount: unresolvedSources.length,
-        fileCount: unresolvedSources.filter((source) => source.entryType === "file").length,
-        directoryCount: unresolvedSources.filter((source) => source.entryType === "directory").length,
+        paths: unresolvedSources.map((source) => source.path),
       },
     ];
   });

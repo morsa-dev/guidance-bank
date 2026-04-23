@@ -21,6 +21,7 @@ import {
   buildPendingSourceReviewBuckets,
   completePendingImportBucket,
   getPendingImportBucket,
+  selectSourceReviewSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
 } from "./sourceReviewBuckets.js";
@@ -35,7 +36,6 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
   sourceReviewDecision?: SourceReviewDecision;
-  sourceReviewBucket?: SourceReviewBucket;
 };
 
 export type ResolvedCreateBankFlowContext = {
@@ -64,6 +64,7 @@ export type ResolvedCreateBankFlowContext = {
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
   activeImportBucket: SourceReviewBucket | null;
+  resolvedReviewBucket: SourceReviewBucket | null;
 };
 
 type CreateBankApplyOutcome = {
@@ -116,8 +117,11 @@ export const finalizeCreateBankExecution = ({
     ? completePendingImportBucket(flowContext.confirmedSourceStrategies, completedImportBucket)
     : flowContext.confirmedSourceStrategies;
   const pendingSourceReviewBuckets = completedImportPhase
-    ? buildPendingSourceReviewBuckets({
-        discoveredSources: flowContext.extendedContext.reviewSources,
+      ? buildPendingSourceReviewBuckets({
+        discoveredSources: selectSourceReviewSources(
+          flowContext.extendedContext.discoveredSources,
+          flowContext.extendedContext.providerGlobalKeptExternal,
+        ),
         confirmedSourceStrategies,
       })
     : flowContext.pendingSourceReviewBuckets;
@@ -204,7 +208,6 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcomeNote,
   referenceProjectIds,
   sourceReviewDecision,
-  sourceReviewBucket,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const [manifest, projectContext, existingManifest, existingState] = await Promise.all([
@@ -269,15 +272,16 @@ export const resolveCreateBankFlowContext = async ({
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
     activeImportBucket,
+    resolvedReviewBucket,
     sourceStrategyRequired,
   } = resolveCreateBankSourceReviewState({
     existingState,
-    reviewSources: extendedContext.reviewSources,
+    discoveredSources: extendedContext.discoveredSources,
+    providerGlobalKeptExternal: extendedContext.providerGlobalKeptExternal,
     syncRequired,
     requestedIteration,
     stepCompleted,
     sourceReviewDecision,
-    sourceReviewBucket,
   });
   const sourceReviewAdvanceRequested =
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
@@ -335,5 +339,6 @@ export const resolveCreateBankFlowContext = async ({
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
     activeImportBucket,
+    resolvedReviewBucket,
   };
 };

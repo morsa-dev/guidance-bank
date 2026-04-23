@@ -148,10 +148,7 @@ export const CreateBankInputShape = {
     .optional()
     .describe("Optional project ids of existing AI Guidance Banks to use as reference material for the new project bank."),
   sourceReviewDecision: SourceReviewDecisionInputSchema.optional().describe(
-    "Decision for the current external-guidance review bucket. Use `import_to_bank` to let the agent centralize useful guidance from this bucket into AI Guidance Bank, or `keep_external` to leave those sources provider-native/local and avoid importing them.",
-  ),
-  sourceReviewBucket: SourceReviewBucketSchema.optional().describe(
-    "Which external-guidance review bucket this decision applies to: `repository-local`, `provider-project`, or `provider-global`.",
+    "Decision for the current external-guidance review bucket. Use `import_to_bank` only after the user approves the agent's concrete transfer plan; the agent should move useful guidance into AI Guidance Bank and remove migrated guidance from the source. Use `keep_external` to leave those sources provider-native/local and avoid importing them.",
   ),
   apply: z
     .object({
@@ -223,37 +220,13 @@ export const CreateBankOutputShape = {
       fingerprint: z.string(),
     }),
   ),
-  pendingSourceReviewBuckets: z.array(
-    z.object({
+  sourceReview: z
+    .object({
       bucket: SourceReviewBucketSchema,
-      title: z.string(),
-      promptLabel: z.string(),
-      sources: z.array(
-        z.object({
-          sourceRef: z.string(),
-          entryType: z.enum(["file", "directory"]),
-          provider: z.enum(["codex", "cursor", "claude"]).nullable(),
-          kind: z.enum([
-            "agents",
-            "claude-md",
-            "copilot",
-            "cursor",
-            "claude",
-            "codex",
-            "codex-project",
-            "claude-global",
-            "codex-global",
-          ]),
-          path: z.string(),
-        }),
-      ),
-      providers: z.array(z.enum(["codex", "cursor", "claude"])),
-      sourceCount: z.number().int().nonnegative(),
-      fileCount: z.number().int().nonnegative(),
-      directoryCount: z.number().int().nonnegative(),
-    }),
-  ),
-  nextSourceReviewBucket: SourceReviewBucketSchema.nullable(),
+      paths: z.array(z.string()),
+      decisionRequired: z.boolean(),
+    })
+    .nullable(),
   currentBankSnapshot: z.object({
     exists: z.boolean(),
     entries: z.array(

@@ -45,36 +45,29 @@ ${confirmedSourceStrategies
 
 const renderPendingReviewBucketSection = (pendingBucket: PendingSourceReviewBucket | null): string => {
   if (pendingBucket === null) {
-    return `## Pending Review Bucket
-
-No unresolved external-guidance review bucket remains.`;
+    return "";
   }
 
-  const providerLine =
-    pendingBucket.providers.length > 0 ? `- Providers in this bucket: ${pendingBucket.providers.join(", ")}` : "";
-
-  const shownSources = pendingBucket.sources.slice(0, 12);
-  const sourceLimitLine =
-    pendingBucket.sources.length > shownSources.length
-      ? `- Showing first ${shownSources.length} of ${pendingBucket.sources.length} sources; inspect the full \`pendingSourceReviewBuckets[0].sources\` structured field if needed.`
-      : "";
-
-  return `## Pending Review Bucket
+  return `## Source Paths
 
 - Bucket: \`${pendingBucket.bucket}\`
-- Title: ${pendingBucket.title}
-- Scope summary: ${pendingBucket.promptLabel}
-- Source count: ${pendingBucket.sourceCount} (${pendingBucket.fileCount} files, ${pendingBucket.directoryCount} directories)
-${providerLine}
-- Sources to review:
-${shownSources
-  .map(
-    (source) =>
-      `  - [${source.entryType}] ${source.sourceRef}${source.provider ? ` (${source.provider})` : ""}: \`${source.path}\``,
-  )
-  .join("\n")}
-${sourceLimitLine}`;
+${pendingBucket.paths.map((sourcePath) => `- \`${sourcePath}\``).join("\n")}`;
 };
+
+const renderKeptProviderGlobalPathsSection = (paths: readonly string[]): string => {
+  if (paths.length === 0) {
+    return "";
+  }
+
+  return `## Kept Provider-Global Paths
+
+The user already chose to keep these global provider rules outside AI Guidance Bank. Inspect them only when needed to avoid creating duplicate bank entries; do not duplicate rules already covered there.
+
+${paths.map((sourcePath) => `- \`${sourcePath}\``).join("\n")}`;
+};
+
+const getProviderGlobalPaths = (sources: readonly ExistingGuidanceSource[]): string[] =>
+  sources.filter((source) => source.scope === "provider-global").map((source) => source.path);
 
 const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
   detectedStacks.length === 0
@@ -103,14 +96,17 @@ ${selectedReferenceProjects
   .join("\n")}`;
 };
 
-const LEGACY_CLEANUP_CONTRACT = `## Cleanup Rules
+const SOURCE_TRANSFER_CONTRACT = `## Source Transfer Rules
 
 - The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
-- Process approved sources item by item: import one useful guidance item, verify the canonical bank write, then immediately remove that migrated item from the source before importing the next item
+- Process approved sources item by item: move one useful guidance item into AI Guidance Bank, verify the canonical bank write, then immediately remove that migrated item from the source before importing the next item
+- Preserve meaning, not source layout. Split, merge, rename, or convert source guidance into the rule/skill structure that best fits AI Guidance Bank
+- Do not copy whole provider files or repository instruction files just because they exist; transfer only durable rules and reusable skills
 - If all useful guidance in a source was migrated and no non-guidance content remains, the agent may remove that now-empty source directly
 - For mixed sources, keep non-guidance content in place and remove only the migrated guidance text or file
-- Do not defer source cleanup to the final phase; if an item cannot be safely removed from the source, do not import that item yet
-- In the report, mention any approved source item intentionally left external because cleanup was unsafe`;
+- For repository-local files such as AGENTS.md, CLAUDE.md, or similar project notes, expect only some instructions to be transferable; leave project maps, temporary notes, and low-value noise in place
+- If an item cannot be safely removed from the source in the same step, do not import that item yet
+- In the report, mention any approved source item intentionally left external because source cleanup was unsafe`;
 
 const buildContinuationOutcomeInstruction = (iteration: number): string => {
   if (!requiresCreateFlowStepOutcome(iteration)) {
@@ -213,7 +209,7 @@ export const buildReviewExistingPrompt = ({
 
 ${STABLE_CONTRACT_NOTE}
 
-Review available external guidance before importing anything into AI Guidance Bank.
+Review external guidance before creating or importing bank entries.
 
 Project path:
 - \`${projectPath}\`
@@ -221,17 +217,12 @@ Project path:
 ${renderPendingReviewBucketSection(pendingBucket)}
 
 What to do:
-- Review one pending bucket at a time
-- Treat the source list as discovery only; inspect the source content yourself before importing anything
-- Treat AI Guidance Bank as the durable canonical rules-and-skills layer for the project
-- Ask for one explicit decision for the current pending bucket only:
-  - \`import_to_bank\`: centralize useful guidance from this bucket into AI Guidance Bank
-  - \`keep_external\`: leave this bucket provider-native/local and do not import it
-- Record the answer with \`sourceReviewBucket: "${pendingBucket?.bucket ?? "provider-global"}"\` and \`sourceReviewDecision: "import_to_bank" | "keep_external"\`
-- Keep the user-facing review short:
-  - summarize the bucket in 1-2 sentences
-  - end with one CTA asking whether to import to bank or keep external
-  - do not dump the full protocol or raw source inventory`;
+- Handle only bucket \`${pendingBucket?.bucket ?? "provider-global"}\` in this step.
+- Inspect the listed paths yourself.
+- If useful durable guidance exists, ask the user whether to move it into AI Guidance Bank and remove migrated items from the original sources.
+- If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
+- If the user wants to leave these sources external, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\`.
+- Keep the user-facing message short: one sentence naming the paths and one clear question.`;
 };
 
 export const buildImportSelectedPrompt = ({
@@ -244,17 +235,18 @@ export const buildImportSelectedPrompt = ({
 
 ${STABLE_CONTRACT_NOTE}
 
-Apply the confirmed source decisions. The agent, not the server, decides which guidance inside each approved source is useful.
+Apply the user-approved transfer plan for the current bucket. The agent, not the server, decides the correct AI Guidance Bank structure.
 
 ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSources)}
 
-${LEGACY_CLEANUP_CONTRACT}
+${SOURCE_TRANSFER_CONTRACT}
 
 What to do:
+- Use the transfer plan you presented to the user in the preceding review step; if no concrete plan was approved, stop and ask for approval instead of importing
 - Read each source confirmed as \`import_to_bank\`
-- Import only useful non-duplicate guidance from approved sources
+- Move only useful non-duplicate guidance from approved sources into AI Guidance Bank
 - If a source was kept external, treat it as existing external coverage and do not duplicate it during later project derivation
-- Keep the import focused on rules and skills, not raw source-file restatement
+- Keep the transfer focused on rules and skills, not raw source-file restatement
 - Use \`scope: "shared"\` for reusable provider-independent guidance and \`scope: "project"\` for repository-specific guidance
 - Prefer a small number of strong canonical entries over fragmented copies
 - Use \`create_bank.apply\` for batched canonical writes
@@ -265,9 +257,11 @@ What to do:
 export const buildDeriveFromProjectPrompt = ({
   projectPath,
   detectedStacks,
+  discoveredSources,
 }: {
   projectPath: string;
   detectedStacks: readonly DetectableStack[];
+  discoveredSources: readonly ExistingGuidanceSource[];
 }): string => `# Derive From Project
 
 ${STABLE_CONTRACT_NOTE}
@@ -276,6 +270,8 @@ Derive additional AI Guidance Bank entries from the real repository.
 
 Project path:
 - \`${projectPath}\`
+
+${renderKeptProviderGlobalPathsSection(getProviderGlobalPaths(discoveredSources))}
 
 What to do:
 - Inspect the real repository directly: project structure, entrypoints, configuration, source files, and recurring implementation patterns
@@ -305,7 +301,7 @@ ${STABLE_CONTRACT_NOTE}
 
 Finish the project AI Guidance Bank creation flow.
 
-${LEGACY_CLEANUP_CONTRACT}
+${SOURCE_TRANSFER_CONTRACT}
 
 What to do:
 - Deduplicate overlapping rules and skills

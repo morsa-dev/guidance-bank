@@ -111,7 +111,7 @@ export const getCreateBankApplyBlockedMessage = ({
   }
 
   if (sourceStrategyRequired) {
-    return "Cannot apply create-flow changes until the pending external guidance review buckets are resolved. Re-call create_bank for the review phase with sourceReviewBucket plus sourceReviewDecision (`import_to_bank` or `keep_external`) before importing or applying changes.";
+    return "Cannot apply create-flow changes until the current external guidance review is resolved. Re-call create_bank for the review phase with sourceReviewDecision (`import_to_bank` or `keep_external`) before importing or applying changes.";
   }
 
   if (stepOutcomeRequired) {
@@ -186,7 +186,7 @@ export const buildCreateBankResponseText = ({
     const nextBucketInstruction = nextBucket
       ? ` Resolve the next pending review bucket \`${nextBucket.bucket}\` first.`
       : "";
-    return `Record the pending external guidance review bucket decisions before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only.${nextBucketInstruction} Re-call create_bank with sourceReviewBucket plus sourceReviewDecision: \`import_to_bank\` or \`keep_external\`. Advance with iteration: ${nextIteration} and stepCompleted: true only after every pending review bucket is resolved.`;
+    return `Record the pending external guidance review decision before advancing from phase \`${phase}\`. Use \`phase\` as the primary guide and treat \`iteration\` as diagnostic only.${nextBucketInstruction} Re-call create_bank with sourceReviewDecision: \`import_to_bank\` or \`keep_external\`. Advance with iteration: ${nextIteration} and stepCompleted: true only after the current source review is resolved.`;
   }
 
   if (stepOutcomeRequired && nextIteration !== null) {

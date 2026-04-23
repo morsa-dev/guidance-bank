@@ -56,10 +56,11 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
       confirmedSourceStrategies,
       discoveredSources,
     }),
-  ({ projectPath, detectedStacks }) =>
+  ({ projectPath, detectedStacks, discoveredSources }) =>
     buildDeriveFromProjectPrompt({
       projectPath,
       detectedStacks,
+      discoveredSources,
     }),
   () => buildFinalizePrompt(),
   () => buildCompletedPrompt(),

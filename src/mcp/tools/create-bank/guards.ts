@@ -19,14 +19,6 @@ export const getCreateBankRequestError = ({
     return `Unknown reference project ids for tool ${toolName}: ${flowContext.unknownReferenceIds.join(", ")}`;
   }
 
-  if (
-    args.sourceReviewDecision !== undefined &&
-    args.sourceReviewBucket === undefined &&
-    flowContext.pendingSourceReviewBuckets.length > 1
-  ) {
-    return `When more than one external-guidance review bucket is pending, specify sourceReviewBucket explicitly. Pending buckets: ${flowContext.pendingSourceReviewBuckets.map((bucket) => bucket.bucket).join(", ")}.`;
-  }
-
   return getCreateBankApplyBlockedMessage({
     hasApply: args.apply !== undefined,
     syncRequired: flowContext.syncRequired,

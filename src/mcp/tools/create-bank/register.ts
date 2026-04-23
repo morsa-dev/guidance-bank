@@ -72,7 +72,6 @@ const registerCreateLikeTool = (
         stepOutcome: parsedArgs.data.stepOutcome ?? null,
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         ...(parsedArgs.data.sourceReviewDecision ? { sourceReviewDecision: parsedArgs.data.sourceReviewDecision } : {}),
-        ...(parsedArgs.data.sourceReviewBucket ? { sourceReviewBucket: parsedArgs.data.sourceReviewBucket } : {}),
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
       });
 
@@ -141,8 +140,6 @@ const registerCreateLikeTool = (
       ) {
         await persistProviderGlobalGuidanceDecisions({
           options,
-          discoveredSources: flowContext.extendedContext.discoveredSources,
-          confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
           sessionRef: parsedArgs.data.sessionRef ?? null,
         });
       }

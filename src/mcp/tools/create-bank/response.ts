@@ -26,6 +26,29 @@ type FinalizedCreateBankExecution = {
   };
 };
 
+const getCurrentSourceReview = ({
+  phase,
+  pendingSourceReviewBuckets,
+}: {
+  phase: CreateFlowPhase;
+  pendingSourceReviewBuckets: readonly PendingSourceReviewBucket[];
+}) => {
+  if (phase !== "review_existing_guidance") {
+    return null;
+  }
+
+  const pendingBucket = pendingSourceReviewBuckets[0] ?? null;
+  if (pendingBucket !== null) {
+    return {
+      bucket: pendingBucket.bucket,
+      paths: pendingBucket.paths,
+      decisionRequired: true,
+    };
+  }
+
+  return null;
+};
+
 export const buildCreateBankToolPayload = ({
   flowContext,
   finalExecution,
@@ -44,6 +67,10 @@ export const buildCreateBankToolPayload = ({
   };
 }) => {
   const { projectBankPath, rulesDirectory, skillsDirectory } = paths;
+  const sourceReview = getCurrentSourceReview({
+    phase: finalExecution.phase,
+    pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
+  });
   const importSourceStrategies =
     finalExecution.activeImportBucket === null
       ? []
@@ -107,8 +134,7 @@ export const buildCreateBankToolPayload = ({
     phase: finalExecution.phase,
     iteration: finalExecution.effectiveIteration,
     discoveredSources: flowContext.extendedContext.discoveredSources,
-    pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
-    nextSourceReviewBucket: finalExecution.pendingSourceReviewBuckets[0]?.bucket ?? null,
+    sourceReview,
     currentBankSnapshot,
     selectedReferenceProjects: flowContext.selectedReferenceProjects,
     creationState: finalExecution.nextState.creationState,

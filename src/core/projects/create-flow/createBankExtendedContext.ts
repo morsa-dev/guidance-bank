@@ -1,22 +1,17 @@
 import type { BankRepository } from "../../../storage/bankRepository.js";
 import type { ProviderId } from "../../bank/types.js";
-import {
-  createExternalGuidanceSourceKey,
-  type ExternalGuidanceDecisionState,
-} from "../../bank/externalGuidanceDecisions.js";
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "../discoverExistingGuidance.js";
-import { selectReviewableGuidanceSources } from "./sourceReviewBuckets.js";
 
 export type CreateBankExtendedContext = {
   discoveredSources: ExistingGuidanceSource[];
-  reviewSources: ExistingGuidanceSource[];
+  providerGlobalKeptExternal: boolean;
   currentBankSnapshot: CurrentProjectBankSnapshot;
 };
 
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   discoveredSources: [],
-  reviewSources: [],
+  providerGlobalKeptExternal: false,
   currentBankSnapshot: {
     exists: false,
     entries: [],
@@ -42,54 +37,6 @@ const filterSourcesForActiveProviders = (
 
   return sources.filter(
     (source) => source.scope === "repository-local" || source.provider === null || activeProviders.has(source.provider),
-  );
-};
-
-const isProviderGlobalSourceDecisionCurrent = (
-  source: ExistingGuidanceSource,
-  decisionState: ExternalGuidanceDecisionState,
-): boolean => {
-  if (source.scope !== "provider-global" || source.provider === null) {
-    return false;
-  }
-
-  const sourceKey = createExternalGuidanceSourceKey({
-    scope: source.scope,
-    provider: source.provider,
-    relativePath: source.relativePath,
-  });
-  const decision = decisionState.sources[sourceKey];
-
-  return decision !== undefined && decision.fingerprint === source.fingerprint;
-};
-
-const isDescendantOfSuppressedProviderGlobalDirectory = (
-  source: ExistingGuidanceSource,
-  suppressedProviderGlobalDirectories: readonly ExistingGuidanceSource[],
-): boolean => {
-  if (source.scope !== "provider-global" || source.provider === null) {
-    return false;
-  }
-
-  return suppressedProviderGlobalDirectories.some(
-    (directorySource) =>
-      directorySource.provider === source.provider &&
-      source.relativePath.startsWith(`${directorySource.relativePath}/`),
-  );
-};
-
-const filterSuppressedProviderGlobalSources = (
-  sources: readonly ExistingGuidanceSource[],
-  decisionState: ExternalGuidanceDecisionState,
-): ExistingGuidanceSource[] => {
-  const suppressedProviderGlobalDirectories = sources.filter(
-    (source) => source.entryType === "directory" && isProviderGlobalSourceDecisionCurrent(source, decisionState),
-  );
-
-  return sources.filter(
-    (source) =>
-      !isProviderGlobalSourceDecisionCurrent(source, decisionState) &&
-      !isDescendantOfSuppressedProviderGlobalDirectory(source, suppressedProviderGlobalDirectories),
   );
 };
 
@@ -121,15 +68,11 @@ export const loadExtendedCreateBankContext = async ({
     repository.readExternalGuidanceDecisionState(),
   ]);
 
-  const discoveredSources = filterSourcesForActiveProviders(
-    filterSuppressedProviderGlobalSources(allDiscoveredSources, externalGuidanceDecisionState),
-    enabledProviders,
-  );
-  const reviewSources = selectReviewableGuidanceSources(discoveredSources);
+  const discoveredSources = filterSourcesForActiveProviders(allDiscoveredSources, enabledProviders);
 
   return {
     discoveredSources,
-    reviewSources,
+    providerGlobalKeptExternal: externalGuidanceDecisionState.providerGlobal.keepExternal,
     currentBankSnapshot,
   };
 };

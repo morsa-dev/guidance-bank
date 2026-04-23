@@ -6,6 +6,7 @@ import {
   buildPendingSourceReviewBuckets,
   getPendingImportBucket,
   matchesStoredSourceStrategy,
+  selectSourceReviewSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
 } from "./sourceReviewBuckets.js";
@@ -14,54 +15,53 @@ export type CreateBankSourceReviewState = {
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
   activeImportBucket: SourceReviewBucket | null;
+  resolvedReviewBucket: SourceReviewBucket | null;
   sourceStrategyRequired: boolean;
 };
 
 export const resolveCreateBankSourceReviewState = ({
   existingState,
-  reviewSources,
+  discoveredSources,
+  providerGlobalKeptExternal,
   syncRequired,
   requestedIteration,
   stepCompleted,
   sourceReviewDecision,
-  sourceReviewBucket,
 }: {
   existingState: ProjectBankState | null;
-  reviewSources: readonly ExistingGuidanceSource[];
+  discoveredSources: readonly ExistingGuidanceSource[];
+  providerGlobalKeptExternal: boolean;
   syncRequired: boolean;
   requestedIteration: number;
   stepCompleted: boolean;
   sourceReviewDecision: SourceReviewDecision | undefined;
-  sourceReviewBucket: SourceReviewBucket | undefined;
 }): CreateBankSourceReviewState => {
+  const sources = selectSourceReviewSources(discoveredSources, providerGlobalKeptExternal);
   const storedSourceStrategies =
     (existingState?.sourceStrategies ?? []).filter((strategy) =>
-      reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+      sources.some((source) => matchesStoredSourceStrategy(source, strategy)),
     );
   const pendingSourceReviewBucketsBeforeDecision = buildPendingSourceReviewBuckets({
-    discoveredSources: reviewSources,
+    discoveredSources: sources,
     confirmedSourceStrategies: storedSourceStrategies,
   });
   const resolvedReviewBucket =
-    sourceReviewBucket ??
-    (sourceReviewDecision && pendingSourceReviewBucketsBeforeDecision.length === 1
-      ? pendingSourceReviewBucketsBeforeDecision[0]?.bucket
-      : undefined);
+    sourceReviewDecision ? pendingSourceReviewBucketsBeforeDecision[0]?.bucket : undefined;
   const resolvedSourceStrategies =
     sourceReviewDecision && resolvedReviewBucket
       ? applySourceReviewDecision({
           existingStrategies: storedSourceStrategies,
-          discoveredSources: reviewSources,
+          discoveredSources: sources,
           bucket: resolvedReviewBucket,
           decision: sourceReviewDecision,
         })
       : storedSourceStrategies;
 
   const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) =>
-    reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+    sources.some((source) => matchesStoredSourceStrategy(source, strategy)),
   );
   const pendingSourceReviewBuckets = buildPendingSourceReviewBuckets({
-    discoveredSources: reviewSources,
+    discoveredSources: sources,
     confirmedSourceStrategies,
   });
   const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);
@@ -77,6 +77,7 @@ export const resolveCreateBankSourceReviewState = ({
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
     activeImportBucket,
+    resolvedReviewBucket: resolvedReviewBucket ?? null,
     sourceStrategyRequired,
   };
 };

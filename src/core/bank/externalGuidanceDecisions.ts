@@ -1,25 +1,8 @@
 import { z } from "zod";
 
-export const EXTERNAL_GUIDANCE_DECISIONS = [
-  "copy_to_shared_keep_source",
-  "move_to_bank_cleanup_allowed",
-  "keep_provider_native",
-  "ignore",
-] as const;
-
-export type ExternalGuidanceDecision = (typeof EXTERNAL_GUIDANCE_DECISIONS)[number];
-
-export type ExternalGuidanceSourceDecision = {
-  sourceKey: string;
-  sourceRef: string;
-  scope: "provider-global";
-  provider: "codex" | "cursor" | "claude";
-  kind: string;
-  entryType: "file" | "directory";
-  fingerprint: string;
-  decision: ExternalGuidanceDecision;
-  strategy: string;
-  decidedAt: string;
+export type ProviderGlobalGuidanceDecision = {
+  keepExternal: boolean;
+  decidedAt: string | null;
   sessionRef: string | null;
   note: string | null;
 };
@@ -27,51 +10,70 @@ export type ExternalGuidanceSourceDecision = {
 export type ExternalGuidanceDecisionState = {
   schemaVersion: 1;
   updatedAt: string;
-  sources: Record<string, ExternalGuidanceSourceDecision>;
+  providerGlobal: ProviderGlobalGuidanceDecision;
 };
 
-const ExternalGuidanceDecisionSchema = z.enum(EXTERNAL_GUIDANCE_DECISIONS);
+const defaultProviderGlobalGuidanceDecision = (): ProviderGlobalGuidanceDecision => ({
+  keepExternal: false,
+  decidedAt: null,
+  sessionRef: null,
+  note: null,
+});
 
-const ExternalGuidanceSourceDecisionSchema = z
+const ProviderGlobalGuidanceDecisionSchema = z
   .object({
-    sourceKey: z.string().min(1),
-    sourceRef: z.string().min(1),
-    scope: z.literal("provider-global"),
-    provider: z.enum(["codex", "cursor", "claude"]),
-    kind: z.string().min(1),
-    entryType: z.enum(["file", "directory"]),
-    fingerprint: z.string().min(1),
-    decision: ExternalGuidanceDecisionSchema,
-    strategy: z.string().min(1),
-    decidedAt: z.iso.datetime(),
-    sessionRef: z.string().min(1).nullable(),
-    note: z.string().min(1).nullable(),
+    keepExternal: z.boolean().default(false),
+    decidedAt: z.iso.datetime().nullable().default(null),
+    sessionRef: z.string().min(1).nullable().default(null),
+    note: z.string().min(1).nullable().default(null),
   })
   .strict();
 
-export const ExternalGuidanceDecisionStateSchema = z
+const CurrentExternalGuidanceDecisionStateSchema = z
   .object({
     schemaVersion: z.literal(1),
     updatedAt: z.iso.datetime(),
-    sources: z.record(z.string().min(1), ExternalGuidanceSourceDecisionSchema).default({}),
+    providerGlobal: ProviderGlobalGuidanceDecisionSchema.default(defaultProviderGlobalGuidanceDecision()),
   })
   .strict();
 
-export const createExternalGuidanceSourceKey = ({
-  scope,
-  provider,
-  relativePath,
-}: {
-  scope: "provider-global";
-  provider: "codex" | "cursor" | "claude";
-  relativePath: string;
-}): string => `${scope}:${provider}:${relativePath}`;
+const LegacyExternalGuidanceSourceDecisionSchema = z
+  .object({
+    decision: z.string(),
+  })
+  .passthrough();
+
+const LegacyExternalGuidanceDecisionStateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    updatedAt: z.iso.datetime(),
+    sources: z.record(z.string().min(1), LegacyExternalGuidanceSourceDecisionSchema).default({}),
+  })
+  .passthrough()
+  .transform((value): ExternalGuidanceDecisionState => {
+    const keepExternal = Object.values(value.sources).some(
+      (source) => source.decision === "keep_provider_native" || source.decision === "ignore",
+    );
+
+    return {
+      schemaVersion: 1,
+      updatedAt: value.updatedAt,
+      providerGlobal: {
+        keepExternal,
+        decidedAt: keepExternal ? value.updatedAt : null,
+        sessionRef: null,
+        note: keepExternal
+          ? "Migrated from legacy provider-global source-level decision state."
+          : null,
+      },
+    };
+  });
 
 export const createExternalGuidanceDecisionState = (now = new Date()): ExternalGuidanceDecisionState => ({
   schemaVersion: 1,
   updatedAt: now.toISOString(),
-  sources: {},
+  providerGlobal: defaultProviderGlobalGuidanceDecision(),
 });
 
 export const parseExternalGuidanceDecisionState = (value: unknown): ExternalGuidanceDecisionState =>
-  ExternalGuidanceDecisionStateSchema.parse(value);
+  z.union([CurrentExternalGuidanceDecisionStateSchema, LegacyExternalGuidanceDecisionStateSchema]).parse(value);
