@@ -3,6 +3,7 @@ import type { DetectableStack, ReferenceProjectCandidate } from "../../context/t
 import { requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
+import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import {
   formatGuidanceSourceStrategy,
   type ConfirmedGuidanceSourceStrategy,
@@ -13,6 +14,7 @@ const STABLE_CONTRACT_NOTE = `Use \`phase\` as the main guide for the current cr
 
 const renderConfirmedSourceStrategiesSection = (
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
+  discoveredSources: readonly ExistingGuidanceSource[],
 ): string => {
   if (confirmedSourceStrategies.length === 0) {
     return `## Confirmed Source Decisions
@@ -20,13 +22,19 @@ const renderConfirmedSourceStrategiesSection = (
 No confirmed source decisions are stored yet for this flow.`;
   }
 
+  const sourcesByRef = new Map(discoveredSources.map((source) => [source.relativePath, source]));
+
   return `## Confirmed Source Decisions
 
 ${confirmedSourceStrategies
-  .map(
-    (strategy) =>
-      `- ${strategy.sourceRef} -> ${formatGuidanceSourceStrategy(strategy.strategy)}${strategy.note ? ` (${strategy.note})` : ""}`,
-  )
+  .map((strategy) => {
+    const source = sourcesByRef.get(strategy.sourceRef);
+    const sourceDetails = source
+      ? ` [${source.scope}${source.provider ? `/${source.provider}` : ""}, ${source.entryType}] \`${source.path}\``
+      : "";
+
+    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatGuidanceSourceStrategy(strategy.strategy)}${strategy.note ? ` (${strategy.note})` : ""}`;
+  })
   .join("\n")}`;
 };
 
@@ -40,22 +48,27 @@ No unresolved external-guidance review bucket remains.`;
   const providerLine =
     pendingBucket.providers.length > 0 ? `- Providers in this bucket: ${pendingBucket.providers.join(", ")}` : "";
 
+  const shownSources = pendingBucket.sources.slice(0, 12);
+  const sourceLimitLine =
+    pendingBucket.sources.length > shownSources.length
+      ? `- Showing first ${shownSources.length} of ${pendingBucket.sources.length} sources; inspect the full \`pendingSourceReviewBuckets[0].sources\` structured field if needed.`
+      : "";
+
   return `## Pending Review Bucket
 
 - Bucket: \`${pendingBucket.bucket}\`
 - Title: ${pendingBucket.title}
 - Scope summary: ${pendingBucket.promptLabel}
-- Candidate count: ${pendingBucket.candidateCount}
-- Recommended action: \`${pendingBucket.recommendedDecision}\`
+- Source count: ${pendingBucket.sourceCount} (${pendingBucket.fileCount} files, ${pendingBucket.directoryCount} directories)
 ${providerLine}
-- Candidate guidance:
-${pendingBucket.candidates
-  .slice(0, 8)
+- Sources to review:
+${shownSources
   .map(
-    (candidate) =>
-      `  - [${candidate.kind}] ${candidate.title} (${candidate.sourceRef}): ${candidate.summary}`,
+    (source) =>
+      `  - [${source.entryType}] ${source.sourceRef}${source.provider ? ` (${source.provider})` : ""}: \`${source.path}\``,
   )
-  .join("\n")}`;
+  .join("\n")}
+${sourceLimitLine}`;
 };
 
 const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
@@ -87,11 +100,11 @@ ${selectedReferenceProjects
 
 const LEGACY_CLEANUP_CONTRACT = `## Cleanup Rules
 
-- Prefer extracting only the useful guidance candidates; do not treat the whole source file as canonical by default
-- Delete a whole legacy source only when the migrated guidance fully replaced it
-- For mixed sources, keep the remaining source content in place instead of deleting the file
+- The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
+- Delete a whole legacy source only when the imported guidance fully replaced it and the approved strategy allows cleanup
+- For mixed sources, keep the remaining source content in place unless a precise partial cleanup is available
 - Never delete provider-global sources during this flow
-- In the report, mention any mixed source that still contains non-migrated content after import`;
+- In the report, mention any mixed source that still contains non-imported content after import`;
 
 const buildContinuationOutcomeInstruction = (iteration: number): string => {
   if (!requiresCreateFlowStepOutcome(iteration)) {
@@ -203,41 +216,44 @@ ${renderPendingReviewBucketSection(pendingBucket)}
 
 What to do:
 - Review one pending bucket at a time
-- The candidate list above already excludes low-signal sources that were auto-skipped
+- Treat the source list as discovery only; inspect the source content yourself before importing anything
 - Treat AI Guidance Bank as the durable canonical rules-and-skills layer for the project
 - Ask for one explicit decision for the current pending bucket only:
-  - \`migrate\`: import useful non-duplicate guidance from this bucket into AI Guidance Bank
-  - \`keep\`: do not import guidance from this bucket and leave the legacy sources in place
-- Record the answer with \`sourceReviewBucket: "${pendingBucket?.bucket ?? "repository-local"}"\` and \`sourceReviewDecision: "migrate" | "keep"\`
+  - \`import_to_bank\`: centralize useful guidance from this bucket into AI Guidance Bank
+  - \`keep_external\`: leave this bucket provider-native/local and do not import it
+- Record the answer with \`sourceReviewBucket: "${pendingBucket?.bucket ?? "provider-global"}"\` and \`sourceReviewDecision: "import_to_bank" | "keep_external"\`
 - Keep the user-facing review short:
   - summarize the bucket in 1-2 sentences
-  - recommend the bucket's \`recommendedDecision\`
-  - end with one CTA asking for \`migrate\` or \`keep\`
+  - end with one CTA asking whether to import to bank or keep external
   - do not dump the full protocol or raw source inventory`;
 };
 
 export const buildImportSelectedPrompt = ({
   confirmedSourceStrategies,
+  discoveredSources,
 }: {
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
+  discoveredSources: readonly ExistingGuidanceSource[];
 }): string => `# Import Selected Guidance
 
 ${STABLE_CONTRACT_NOTE}
 
-Apply the confirmed source decisions to the extracted guidance candidates only.
+Apply the confirmed source decisions. The agent, not the server, decides which guidance inside each approved source is useful.
 
-${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
+${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSources)}
 
 ${LEGACY_CLEANUP_CONTRACT}
 
 What to do:
-- Import only useful non-duplicate guidance from sources confirmed by \`migrate\`
+- Read each source confirmed as \`copy\`, \`move\`, or \`keep source, fill gaps in bank\`
+- Import only useful non-duplicate guidance from approved sources
+- If a source was kept external, treat it as existing external coverage and do not duplicate it during later project derivation
 - Keep the import focused on rules and skills, not raw source-file restatement
 - Use \`scope: "shared"\` for reusable provider-independent guidance and \`scope: "project"\` for repository-specific guidance
 - Prefer a small number of strong canonical entries over fragmented copies
 - Use \`create_bank.apply\` for batched canonical writes
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only
-- For mixed sources, keep the original source in place unless you can safely trim only the migrated guidance
+- For mixed sources, keep the original source in place unless you can safely trim only the imported guidance
 - For fully replaced repository-local or provider-project sources, use \`delete_guidance_source\` only after the canonical write is verified
 - Never call \`delete_guidance_source\` for provider-global sources
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry and retry with a fresh \`baseSha256\``;
@@ -306,7 +322,7 @@ Final pass checklist:
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
 - Confirm the bank is not materially poorer than the strongest project evidence from this run
 - For each high-value area identified during derive, confirm whether it is covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason
-- Confirm no migrated provider-project guidance source still duplicates canonical bank content; if one does, call \`delete_guidance_source\` when the approved strategy was \`move\`, or name why it must remain
+- Confirm no imported provider-project or repository-local guidance source still duplicates canonical bank content; call \`delete_guidance_source\` only when the source was fully replaced and the user-approved bucket was imported to the bank, or name why it must remain
 - Confirm provider-global sources that affect this project were either imported into shared AI Guidance Bank, intentionally kept provider-native by remembered decision, or skipped with a short reason
 - Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason

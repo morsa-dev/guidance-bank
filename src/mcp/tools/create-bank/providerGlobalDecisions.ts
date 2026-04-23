@@ -30,7 +30,7 @@ export const shouldPersistProviderGlobalDecisions = ({
   args: CreateBankArgs;
   flowContext: ResolvedCreateBankFlowContext;
 }): boolean =>
-  (args.sourceReviewDecision === "keep" && args.sourceReviewBucket === "provider-global") ||
+  (args.sourceReviewDecision === "keep_external" && args.sourceReviewBucket === "provider-global") ||
   (getCreateFlowPhase(flowContext.existingState?.createIteration ?? flowContext.effectiveIteration) ===
     "import_selected_guidance" &&
     (args.apply !== undefined || args.stepOutcome !== undefined));

@@ -22,7 +22,6 @@ import {
 import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
 import { discoverExistingGuidance, type ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import { findReferenceProjects } from "../findReferenceProjects.js";
-import { extractReviewableGuidanceSources, type ReviewableGuidanceSource } from "./extractGuidanceCandidates.js";
 import {
   type ConfirmedGuidanceSourceStrategy,
   type SourceReviewDecision,
@@ -32,13 +31,14 @@ import {
   applySourceReviewDecision,
   buildPendingSourceReviewBuckets,
   matchesStoredSourceStrategy,
+  selectReviewableGuidanceSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
 } from "./sourceReviewBuckets.js";
 
 type CreateBankExtendedContext = {
   discoveredSources: ExistingGuidanceSource[];
-  reviewableSources: ReviewableGuidanceSource[];
+  reviewSources: ExistingGuidanceSource[];
   currentBankSnapshot: CurrentProjectBankSnapshot;
 };
 
@@ -121,7 +121,7 @@ export const resolveNextCreateBankState = ({
     nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
     nextState = setProjectBankSourceStrategies(
       nextState,
-      nextCreationState === "ready" ? [] : confirmedSourceStrategies,
+      confirmedSourceStrategies,
     );
   }
 
@@ -210,7 +210,7 @@ export const finalizeCreateBankExecution = ({
 
 const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
   discoveredSources: [],
-  reviewableSources: [],
+  reviewSources: [],
   currentBankSnapshot: {
     exists: false,
     entries: [],
@@ -239,7 +239,7 @@ const filterSourcesForActiveProviders = (
   );
 };
 
-const isProviderGlobalSourceSuppressed = (
+const isProviderGlobalSourceDecisionCurrent = (
   source: ExistingGuidanceSource,
   decisionState: ExternalGuidanceDecisionState,
 ): boolean => {
@@ -255,6 +255,36 @@ const isProviderGlobalSourceSuppressed = (
   const decision = decisionState.sources[sourceKey];
 
   return decision !== undefined && decision.fingerprint === source.fingerprint;
+};
+
+const isDescendantOfSuppressedProviderGlobalDirectory = (
+  source: ExistingGuidanceSource,
+  suppressedProviderGlobalDirectories: readonly ExistingGuidanceSource[],
+): boolean => {
+  if (source.scope !== "provider-global" || source.provider === null) {
+    return false;
+  }
+
+  return suppressedProviderGlobalDirectories.some(
+    (directorySource) =>
+      directorySource.provider === source.provider &&
+      source.relativePath.startsWith(`${directorySource.relativePath}/`),
+  );
+};
+
+const filterSuppressedProviderGlobalSources = (
+  sources: readonly ExistingGuidanceSource[],
+  decisionState: ExternalGuidanceDecisionState,
+): ExistingGuidanceSource[] => {
+  const suppressedProviderGlobalDirectories = sources.filter(
+    (source) => source.entryType === "directory" && isProviderGlobalSourceDecisionCurrent(source, decisionState),
+  );
+
+  return sources.filter(
+    (source) =>
+      !isProviderGlobalSourceDecisionCurrent(source, decisionState) &&
+      !isDescendantOfSuppressedProviderGlobalDirectory(source, suppressedProviderGlobalDirectories),
+  );
 };
 
 const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
@@ -353,16 +383,14 @@ const loadExtendedCreateBankContext = async (
   ]);
 
   const discoveredSources = filterSourcesForActiveProviders(
-    allDiscoveredSources.filter(
-      (source) => !isProviderGlobalSourceSuppressed(source, externalGuidanceDecisionState),
-    ),
+    filterSuppressedProviderGlobalSources(allDiscoveredSources, externalGuidanceDecisionState),
     enabledProviders,
   );
-  const reviewableSources = await extractReviewableGuidanceSources(discoveredSources);
+  const reviewSources = selectReviewableGuidanceSources(discoveredSources);
 
   return {
     discoveredSources,
-    reviewableSources,
+    reviewSources,
     currentBankSnapshot,
   };
 };
@@ -440,10 +468,10 @@ export const resolveCreateBankFlowContext = async ({
 
   const storedSourceStrategies =
     (existingState?.sourceStrategies ?? []).filter((strategy) =>
-      extendedContext.reviewableSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+      extendedContext.reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
     );
   const pendingSourceReviewBucketsBeforeDecision = buildPendingSourceReviewBuckets({
-    discoveredSources: extendedContext.reviewableSources,
+    discoveredSources: extendedContext.reviewSources,
     confirmedSourceStrategies: storedSourceStrategies,
   });
   const resolvedReviewBucket =
@@ -455,17 +483,17 @@ export const resolveCreateBankFlowContext = async ({
     sourceReviewDecision && resolvedReviewBucket
       ? applySourceReviewDecision({
           existingStrategies: storedSourceStrategies,
-          discoveredSources: extendedContext.reviewableSources,
+          discoveredSources: extendedContext.reviewSources,
           bucket: resolvedReviewBucket,
           decision: sourceReviewDecision,
         })
       : storedSourceStrategies;
 
   const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) =>
-    extendedContext.reviewableSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
+    extendedContext.reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
   );
   const pendingSourceReviewBuckets = buildPendingSourceReviewBuckets({
-    discoveredSources: extendedContext.reviewableSources,
+    discoveredSources: extendedContext.reviewSources,
     confirmedSourceStrategies,
   });
   const sourceReviewAdvanceRequested =

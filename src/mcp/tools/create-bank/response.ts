@@ -59,6 +59,7 @@ export const buildCreateBankToolPayload = ({
               selectedReferenceProjects: flowContext.selectedReferenceProjects,
               confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
               pendingSourceReviewBuckets: flowContext.pendingSourceReviewBuckets,
+              discoveredSources: flowContext.extendedContext.discoveredSources,
               currentBankSnapshot,
               hasExistingProjectBank: flowContext.existingManifest !== null,
             })

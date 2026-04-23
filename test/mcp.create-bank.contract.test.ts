@@ -36,18 +36,19 @@ const CreateBankSchema = z.object({
       bucket: z.enum(["repository-local", "provider-project", "provider-global"]),
       title: z.string(),
       promptLabel: z.string(),
-      sources: z.array(z.string()),
-      providers: z.array(z.enum(["codex", "cursor", "claude"])),
-      candidateCount: z.number().int().nonnegative(),
-      recommendedDecision: z.enum(["migrate", "keep"]),
-      candidates: z.array(
+      sources: z.array(
         z.object({
           sourceRef: z.string(),
-          title: z.string(),
-          kind: z.enum(["rule", "skill"]),
-          summary: z.string(),
+          entryType: z.enum(["file", "directory"]),
+          provider: z.enum(["codex", "cursor", "claude"]).nullable(),
+          kind: z.string(),
+          path: z.string(),
         }),
       ),
+      providers: z.array(z.enum(["codex", "cursor", "claude"])),
+      sourceCount: z.number().int().nonnegative(),
+      fileCount: z.number().int().nonnegative(),
+      directoryCount: z.number().int().nonnegative(),
     }),
   ),
   nextSourceReviewBucket: z.enum(["repository-local", "provider-project", "provider-global"]).nullable(),
@@ -304,7 +305,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
         iteration: 2,
         stepCompleted: true,
         sourceReviewBucket: "provider-global",
-        sourceReviewDecision: "migrate",
+        sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
     );
@@ -315,16 +316,16 @@ test("create_bank discovers provider-global guidance and remembers review decisi
           (strategy) =>
             strategy.sourceRef.includes("language-rules") ||
             strategy.sourceRef.includes("CLAUDE.md") ||
-            strategy.sourceRef.includes("preferences.md"),
+            strategy.sourceRef.includes("rules"),
         )
         .map((strategy) => [strategy.sourceRef, strategy.strategy]),
       [
         ["~/.claude/CLAUDE.md", "copy"],
-        ["~/.claude/rules/preferences.md", "copy"],
-        ["~/.codex/skills/language-rules/SKILL.md", "copy"],
+        ["~/.claude/rules", "copy"],
+        ["~/.codex/skills/language-rules", "copy"],
       ],
     );
-    assert.match(importStructured.prompt, /Apply the confirmed source decisions to the extracted guidance candidates only/i);
+    assert.match(importStructured.prompt, /The agent, not the server, decides/i);
     assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
 
     await callToolStructured(
@@ -346,7 +347,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       sources: Record<string, { decision: string; fingerprint: string; sourceRef: string }>;
     };
     const codexGlobalDecision = Object.values(decisions.sources).find(
-      (decision) => decision.sourceRef === "~/.codex/skills/language-rules/SKILL.md",
+      (decision) => decision.sourceRef === "~/.codex/skills/language-rules",
     );
 
     assert.equal(codexGlobalDecision?.decision, "copy_to_shared_keep_source");
@@ -386,7 +387,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
   });
 });
 
-test("create_bank remembers provider-global keep decisions without importing", async (t) => {
+test("create_bank remembers provider-global keep_external decisions without importing", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const laterProjectRoot = path.join(tempDirectoryPath, "later-project");
@@ -421,7 +422,7 @@ test("create_bank remembers provider-global keep decisions without importing", a
         iteration: 2,
         stepCompleted: true,
         sourceReviewBucket: "provider-global",
-        sourceReviewDecision: "keep",
+        sourceReviewDecision: "keep_external",
       },
       CreateBankSchema,
     );
@@ -431,7 +432,7 @@ test("create_bank remembers provider-global keep decisions without importing", a
         .filter((strategy) => strategy.sourceRef.includes("typescript-diagnostics"))
         .map((strategy) => [strategy.sourceRef, strategy.strategy]),
       [
-        ["~/.codex/skills/typescript-diagnostics/SKILL.md", "keep_provider_native"],
+        ["~/.codex/skills/typescript-diagnostics", "keep_provider_native"],
       ],
     );
 
@@ -441,7 +442,7 @@ test("create_bank remembers provider-global keep decisions without importing", a
       sources: Record<string, { decision: string; sourceRef: string }>;
     };
     const codexGlobalDecision = Object.values(decisions.sources).find(
-      (decision) => decision.sourceRef === "~/.codex/skills/typescript-diagnostics/SKILL.md",
+      (decision) => decision.sourceRef === "~/.codex/skills/typescript-diagnostics",
     );
 
     assert.equal(codexGlobalDecision?.decision, "keep_provider_native");
@@ -484,14 +485,14 @@ test("create_bank reviews repository-local and provider-global buckets separatel
 
     assert.deepEqual(
       reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["repository-local", "provider-global"],
+      ["provider-global", "repository-local"],
     );
-    assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
+    assert.equal(reviewStructured.nextSourceReviewBucket, "provider-global");
 
     const ambiguousDecision = await callToolResult(client, "create_bank", {
       projectPath: projectRoot,
       iteration: 1,
-      sourceReviewDecision: "migrate",
+      sourceReviewDecision: "import_to_bank",
     });
     assert.equal(ambiguousDecision.isError, true);
     assert.match(
@@ -506,7 +507,7 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         projectPath: projectRoot,
         iteration: 1,
         sourceReviewBucket: "repository-local",
-        sourceReviewDecision: "migrate",
+        sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
     );
@@ -521,7 +522,7 @@ test("create_bank reviews repository-local and provider-global buckets separatel
       afterLocalDecision.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef === "AGENTS.md")
         .map((strategy) => strategy.strategy),
-      ["move"],
+      ["keep_source_fill_gaps"],
     );
 
     const importStructured = await callToolStructured(
@@ -532,7 +533,7 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         iteration: 2,
         stepCompleted: true,
         sourceReviewBucket: "provider-global",
-        sourceReviewDecision: "keep",
+        sourceReviewDecision: "keep_external",
       },
       CreateBankSchema,
     );
@@ -545,13 +546,13 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
         .map((strategy) => [strategy.sourceRef, strategy.strategy]),
       [
-        ["~/.codex/skills/language-rules/SKILL.md", "keep_provider_native"],
+        ["~/.codex/skills/language-rules", "keep_provider_native"],
       ],
     );
   });
 });
 
-test("create_bank auto-skips low-signal files and keeps mixed sources as fill-gaps migrations", async (t) => {
+test("create_bank reviews source buckets without server-side semantic candidate extraction", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -582,16 +583,16 @@ test("create_bank auto-skips low-signal files and keeps mixed sources as fill-ga
   );
 
   assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
-  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.candidateCount, 1);
+  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.sourceCount, 2);
   assert.equal(
-    reviewStructured.pendingSourceReviewBuckets[0]?.candidates.some((candidate) => candidate.title === "Architecture"),
+    reviewStructured.pendingSourceReviewBuckets[0]?.sources.some((source) => source.sourceRef === "CLAUDE.md"),
     true,
   );
   assert.equal(
-    reviewStructured.pendingSourceReviewBuckets[0]?.sources.includes(".claude/settings.local.json"),
-    false,
+    reviewStructured.pendingSourceReviewBuckets[0]?.sources.some((source) => source.sourceRef === ".claude"),
+    true,
   );
-  assert.equal(reviewStructured.prompt.includes("settings.local.json"), false);
+  assert.equal(reviewStructured.prompt.includes("Candidate guidance:"), false);
 
   const importStructured = await callToolStructured(
     client,
@@ -601,7 +602,7 @@ test("create_bank auto-skips low-signal files and keeps mixed sources as fill-ga
       iteration: 2,
       stepCompleted: true,
       sourceReviewBucket: "repository-local",
-      sourceReviewDecision: "migrate",
+      sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
   );
@@ -609,6 +610,12 @@ test("create_bank auto-skips low-signal files and keeps mixed sources as fill-ga
   assert.deepEqual(
     importStructured.confirmedSourceStrategies
       .filter((strategy) => strategy.sourceRef === "CLAUDE.md")
+      .map((strategy) => strategy.strategy),
+    ["keep_source_fill_gaps"],
+  );
+  assert.deepEqual(
+    importStructured.confirmedSourceStrategies
+      .filter((strategy) => strategy.sourceRef === ".claude")
       .map((strategy) => strategy.strategy),
     ["keep_source_fill_gaps"],
   );
@@ -661,14 +668,15 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
   assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
-  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.candidateCount, 2);
-  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.recommendedDecision, "migrate");
+  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.sourceCount, 2);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /low-signal sources that were auto-skipped/i);
-  assert.match(reviewStructured.prompt, /Recommended action: `migrate`/i);
-  assert.match(reviewStructured.prompt, /Candidate guidance:/i);
+  assert.match(reviewStructured.prompt, /Treat the source list as discovery only/i);
+  assert.match(reviewStructured.prompt, /Source count: 2/i);
+  assert.match(reviewStructured.prompt, /Sources to review:/i);
   assert.match(reviewStructured.prompt, /sourceReviewBucket: "repository-local"/i);
-  assert.match(reviewStructured.prompt, /sourceReviewDecision: "migrate" \| "keep"/i);
+  assert.match(reviewStructured.prompt, /sourceReviewDecision: "import_to_bank" \| "keep_external"/i);
+  assert.match(reviewStructured.prompt, /import_to_bank/i);
+  assert.match(reviewStructured.prompt, /keep_external/i);
   assert.match(reviewStructured.prompt, /do not dump the full protocol or raw source inventory/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
@@ -695,7 +703,7 @@ test("create_bank later iterations expose review import derive and finalize prom
       iteration: 2,
       stepCompleted: true,
       sourceReviewBucket: "repository-local",
-      sourceReviewDecision: "migrate",
+      sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
   );
@@ -707,16 +715,17 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.deepEqual(
     importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy]),
     [
-      [".cursor/rules.md", "move"],
-      ["AGENTS.md", "move"],
+      [".cursor", "keep_source_fill_gaps"],
+      ["AGENTS.md", "keep_source_fill_gaps"],
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(importStructured.prompt, /confirmed source decisions to the extracted guidance candidates only/i);
+  assert.match(importStructured.prompt, /The agent, not the server, decides/i);
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
+  assert.match(importStructured.prompt, /Read each source confirmed as/i);
   assert.match(importStructured.prompt, /Use `create_bank\.apply` for batched canonical writes/i);
   assert.match(importStructured.prompt, /For mixed sources, keep the original source in place/i);
-  assert.match(importStructured.prompt, /Delete a whole legacy source only when the migrated guidance fully replaced it/i);
+  assert.match(importStructured.prompt, /Delete a whole legacy source only when the imported guidance fully replaced it/i);
   assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
@@ -809,7 +818,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
   assert.match(finalizeStructured.prompt, /Cleanup Rules/i);
-  assert.match(finalizeStructured.prompt, /no migrated provider-project guidance source still duplicates canonical bank content/i);
+  assert.match(finalizeStructured.prompt, /no imported provider-project or repository-local guidance source still duplicates canonical bank content/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
@@ -1707,7 +1716,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
       iteration: 2,
       stepCompleted: true,
       sourceReviewBucket: "repository-local",
-      sourceReviewDecision: "migrate",
+      sourceReviewDecision: "import_to_bank",
     },
     CreateBankSchema,
   );

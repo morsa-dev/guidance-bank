@@ -1,7 +1,7 @@
 import type { SourceReviewBucket } from "./sourceReviewBuckets.js";
 
 export const GUIDANCE_SOURCE_STRATEGIES = ["ignore", "copy", "move", "keep_source_fill_gaps", "keep_provider_native"] as const;
-export const SOURCE_REVIEW_DECISIONS = ["migrate", "keep"] as const;
+export const SOURCE_REVIEW_DECISIONS = ["import_to_bank", "keep_external"] as const;
 
 export type GuidanceSourceStrategy = (typeof GUIDANCE_SOURCE_STRATEGIES)[number];
 export type SourceReviewDecision = (typeof SOURCE_REVIEW_DECISIONS)[number];

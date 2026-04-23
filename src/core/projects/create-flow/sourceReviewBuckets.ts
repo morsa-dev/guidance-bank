@@ -1,23 +1,24 @@
-import type { ReviewableGuidanceSource } from "./extractGuidanceCandidates.js";
+import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./guidanceStrategies.js";
 
-export const SOURCE_REVIEW_BUCKETS = ["repository-local", "provider-project", "provider-global"] as const;
+export const SOURCE_REVIEW_BUCKETS = ["provider-global", "provider-project", "repository-local"] as const;
 export type SourceReviewBucket = (typeof SOURCE_REVIEW_BUCKETS)[number];
 
 export type PendingSourceReviewBucket = {
   bucket: SourceReviewBucket;
   title: string;
   promptLabel: string;
-  sources: string[];
-  providers: Array<NonNullable<ReviewableGuidanceSource["provider"]>>;
-  candidateCount: number;
-  recommendedDecision: SourceReviewDecision;
-  candidates: Array<{
+  sources: Array<{
     sourceRef: string;
-    title: string;
-    kind: "rule" | "skill";
-    summary: string;
+    entryType: ExistingGuidanceSource["entryType"];
+    provider: ExistingGuidanceSource["provider"];
+    kind: ExistingGuidanceSource["kind"];
+    path: string;
   }>;
+  providers: Array<NonNullable<ExistingGuidanceSource["provider"]>>;
+  sourceCount: number;
+  fileCount: number;
+  directoryCount: number;
 };
 
 const BUCKET_METADATA: Record<SourceReviewBucket, { title: string; promptLabel: string }> = {
@@ -35,8 +36,8 @@ const BUCKET_METADATA: Record<SourceReviewBucket, { title: string; promptLabel: 
   },
 };
 
-const createStrategyNote = (source: ReviewableGuidanceSource, decision: SourceReviewDecision): string => {
-  if (decision === "keep") {
+const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceReviewDecision): string => {
+  if (decision === "keep_external") {
     return source.scope === "provider-global"
       ? "Keep this provider-global guidance separate from AI Guidance Bank and leave the source in place."
       : "Do not import guidance from this source and leave the legacy source in place.";
@@ -46,20 +47,40 @@ const createStrategyNote = (source: ReviewableGuidanceSource, decision: SourceRe
     return "Import useful provider-independent guidance into shared AI Guidance Bank while keeping the provider-global source in place.";
   }
 
-  return source.fullCoverage
-    ? "Import useful non-duplicate guidance into AI Guidance Bank and allow cleanup of the legacy source after successful migration."
-    : "Import only the extracted non-duplicate guidance into AI Guidance Bank and keep the remaining source content in place.";
+  return "Import useful non-duplicate guidance into AI Guidance Bank and allow cleanup of the legacy source only after the agent verifies it was fully replaced.";
 };
 
-export const sourceReviewBucketFor = (source: ReviewableGuidanceSource): SourceReviewBucket => source.scope;
+export const sourceReviewBucketFor = (source: ExistingGuidanceSource): SourceReviewBucket => source.scope;
 
 export const matchesStoredSourceStrategy = (
-  source: ReviewableGuidanceSource,
+  source: ExistingGuidanceSource,
   strategy: ConfirmedGuidanceSourceStrategy,
 ): boolean =>
   strategy.sourceRef === source.relativePath &&
   strategy.reviewBucket === sourceReviewBucketFor(source) &&
   strategy.fingerprint === source.fingerprint;
+
+const isDescendantOf = (source: ExistingGuidanceSource, parent: ExistingGuidanceSource): boolean =>
+  source.relativePath.startsWith(`${parent.relativePath}/`);
+
+export const selectReviewableGuidanceSources = (
+  discoveredSources: readonly ExistingGuidanceSource[],
+): ExistingGuidanceSource[] => {
+  const directorySources = discoveredSources.filter((source) => source.entryType === "directory");
+
+  return discoveredSources.filter((source) => {
+    if (source.entryType === "directory") {
+      return true;
+    }
+
+    return !directorySources.some(
+      (directorySource) =>
+        directorySource.scope === source.scope &&
+        directorySource.provider === source.provider &&
+        isDescendantOf(source, directorySource),
+    );
+  });
+};
 
 export const applySourceReviewDecision = ({
   existingStrategies,
@@ -68,7 +89,7 @@ export const applySourceReviewDecision = ({
   decision,
 }: {
   existingStrategies: readonly ConfirmedGuidanceSourceStrategy[];
-  discoveredSources: readonly ReviewableGuidanceSource[];
+  discoveredSources: readonly ExistingGuidanceSource[];
   bucket: SourceReviewBucket;
   decision: SourceReviewDecision;
 }): ConfirmedGuidanceSourceStrategy[] => {
@@ -82,15 +103,13 @@ export const applySourceReviewDecision = ({
     }
 
     const strategy =
-      decision === "keep"
+      decision === "keep_external"
         ? source.scope === "provider-global"
           ? "keep_provider_native"
           : "ignore"
         : source.scope === "provider-global"
           ? "copy"
-          : source.fullCoverage
-            ? "move"
-            : "keep_source_fill_gaps";
+          : "keep_source_fill_gaps";
 
     nextStrategies.set(source.relativePath, {
       sourceRef: source.relativePath,
@@ -108,7 +127,7 @@ export const buildPendingSourceReviewBuckets = ({
   discoveredSources,
   confirmedSourceStrategies,
 }: {
-  discoveredSources: readonly ReviewableGuidanceSource[];
+  discoveredSources: readonly ExistingGuidanceSource[];
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
 }): PendingSourceReviewBucket[] => {
   return SOURCE_REVIEW_BUCKETS.flatMap((bucket) => {
@@ -127,25 +146,24 @@ export const buildPendingSourceReviewBuckets = ({
 
     const providers = [...new Set(unresolvedSources.flatMap((source) => (source.provider ? [source.provider] : [])))];
     const metadata = BUCKET_METADATA[bucket];
-    const candidates = unresolvedSources.flatMap((source) =>
-      source.candidates.map((candidate) => ({
-        sourceRef: candidate.sourceRef,
-        title: candidate.title,
-        kind: candidate.kind,
-        summary: candidate.summary,
-      })),
-    );
+    const sources = unresolvedSources.map((source) => ({
+      sourceRef: source.relativePath,
+      entryType: source.entryType,
+      provider: source.provider,
+      kind: source.kind,
+      path: source.path,
+    }));
 
     return [
       {
         bucket,
         title: metadata.title,
         promptLabel: metadata.promptLabel,
-        sources: unresolvedSources.map((source) => source.relativePath),
+        sources,
         providers,
-        candidateCount: candidates.length,
-        recommendedDecision: candidates.length > 0 ? "migrate" : "keep",
-        candidates,
+        sourceCount: unresolvedSources.length,
+        fileCount: unresolvedSources.filter((source) => source.entryType === "file").length,
+        directoryCount: unresolvedSources.filter((source) => source.entryType === "directory").length,
       },
     ];
   });

@@ -6,17 +6,7 @@ import { SOURCE_REVIEW_BUCKETS } from "../../../core/projects/create-flow/source
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "../sharedSchemas.js";
 
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
-const SourceReviewDecisionInputSchema = z.enum(["migrate", "keep", "ok", "not_ok"]).transform((value) => {
-  if (value === "ok") {
-    return "migrate";
-  }
-
-  if (value === "not_ok") {
-    return "keep";
-  }
-
-  return value;
-});
+const SourceReviewDecisionInputSchema = z.enum(["import_to_bank", "keep_external"]);
 const SourceReviewBucketSchema = z.enum(SOURCE_REVIEW_BUCKETS);
 
 const ConfirmedGuidanceSourceStrategySchema = z
@@ -152,7 +142,7 @@ export const CreateBankInputShape = {
     .optional()
     .describe("Optional project ids of existing AI Guidance Banks to use as reference material for the new project bank."),
   sourceReviewDecision: SourceReviewDecisionInputSchema.optional().describe(
-    "Decision for the current external-guidance review bucket. Use `migrate` to import useful non-duplicate guidance into AI Guidance Bank for that bucket, or `keep` to leave those sources in place without importing from them. `ok` and `not_ok` remain accepted as aliases.",
+    "Decision for the current external-guidance review bucket. Use `import_to_bank` to let the agent centralize useful guidance from this bucket into AI Guidance Bank, or `keep_external` to leave those sources provider-native/local and avoid importing them.",
   ),
   sourceReviewBucket: SourceReviewBucketSchema.optional().describe(
     "Which external-guidance review bucket this decision applies to: `repository-local`, `provider-project`, or `provider-global`.",
@@ -232,18 +222,29 @@ export const CreateBankOutputShape = {
       bucket: SourceReviewBucketSchema,
       title: z.string(),
       promptLabel: z.string(),
-      sources: z.array(z.string()),
-      providers: z.array(z.enum(["codex", "cursor", "claude"])),
-      candidateCount: z.number().int().nonnegative(),
-      recommendedDecision: z.enum(["migrate", "keep"]),
-      candidates: z.array(
+      sources: z.array(
         z.object({
           sourceRef: z.string(),
-          title: z.string(),
-          kind: z.enum(["rule", "skill"]),
-          summary: z.string(),
+          entryType: z.enum(["file", "directory"]),
+          provider: z.enum(["codex", "cursor", "claude"]).nullable(),
+          kind: z.enum([
+            "agents",
+            "claude-md",
+            "copilot",
+            "cursor",
+            "claude",
+            "codex",
+            "codex-project",
+            "claude-global",
+            "codex-global",
+          ]),
+          path: z.string(),
         }),
       ),
+      providers: z.array(z.enum(["codex", "cursor", "claude"])),
+      sourceCount: z.number().int().nonnegative(),
+      fileCount: z.number().int().nonnegative(),
+      directoryCount: z.number().int().nonnegative(),
     }),
   ),
   nextSourceReviewBucket: SourceReviewBucketSchema.nullable(),
