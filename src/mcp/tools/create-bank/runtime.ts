@@ -39,6 +39,14 @@ export const shouldWarnAboutIterationMismatch = (
     return false;
   }
 
+  if (requestedIteration <= storedIteration) {
+    return false;
+  }
+
+  if (effectiveIteration > requestedIteration) {
+    return false;
+  }
+
   return true;
 };
 

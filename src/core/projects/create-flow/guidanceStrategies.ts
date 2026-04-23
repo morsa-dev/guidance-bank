@@ -2,9 +2,11 @@ import type { SourceReviewBucket } from "./sourceReviewBuckets.js";
 
 export const GUIDANCE_SOURCE_STRATEGIES = ["ignore", "copy", "move", "keep_source_fill_gaps", "keep_provider_native"] as const;
 export const SOURCE_REVIEW_DECISIONS = ["import_to_bank", "keep_external"] as const;
+export const GUIDANCE_SOURCE_IMPORT_STATUSES = ["pending", "completed"] as const;
 
 export type GuidanceSourceStrategy = (typeof GUIDANCE_SOURCE_STRATEGIES)[number];
 export type SourceReviewDecision = (typeof SOURCE_REVIEW_DECISIONS)[number];
+export type GuidanceSourceImportStatus = (typeof GUIDANCE_SOURCE_IMPORT_STATUSES)[number];
 
 export type ConfirmedGuidanceSourceStrategy = {
   sourceRef: string;
@@ -12,6 +14,7 @@ export type ConfirmedGuidanceSourceStrategy = {
   note: string | null;
   fingerprint?: string | undefined;
   reviewBucket?: SourceReviewBucket | undefined;
+  importStatus?: GuidanceSourceImportStatus | undefined;
 };
 
 export type ExistingGuidanceSourceLike = {

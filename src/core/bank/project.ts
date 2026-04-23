@@ -7,12 +7,17 @@ import {
   type ProjectCreationState,
 } from "./types.js";
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
-import { GUIDANCE_SOURCE_STRATEGIES, type ConfirmedGuidanceSourceStrategy } from "../projects/create-flow/guidanceStrategies.js";
+import {
+  GUIDANCE_SOURCE_IMPORT_STATUSES,
+  GUIDANCE_SOURCE_STRATEGIES,
+  type ConfirmedGuidanceSourceStrategy,
+} from "../projects/create-flow/guidanceStrategies.js";
 import { SOURCE_REVIEW_BUCKETS } from "../projects/create-flow/sourceReviewBuckets.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
 const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
@@ -21,6 +26,7 @@ const ConfirmedGuidanceSourceStrategySchema = z
     note: z.string().trim().min(1).nullable(),
     fingerprint: z.string().trim().min(1).optional(),
     reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
+    importStatus: GuidanceSourceImportStatusSchema.optional(),
   })
   .strict();
 

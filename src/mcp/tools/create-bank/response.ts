@@ -5,6 +5,8 @@ import {
 } from "../../../core/projects/create-flow/createBankIterationPrompt.js";
 import type { CreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
+import type { ConfirmedGuidanceSourceStrategy } from "../../../core/projects/create-flow/guidanceStrategies.js";
+import type { PendingSourceReviewBucket, SourceReviewBucket } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
 import { buildCreateBankResponseText } from "./runtime.js";
 import type { CreateBankApplyResults } from "./apply.js";
 
@@ -16,6 +18,9 @@ type FinalizedCreateBankExecution = {
   mustContinue: boolean;
   nextIteration: number | null;
   completedFlowThisCall: boolean;
+  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
+  pendingSourceReviewBuckets: PendingSourceReviewBucket[];
+  activeImportBucket: SourceReviewBucket | null;
   nextState: {
     creationState: "unknown" | "postponed" | "declined" | "creating" | "ready";
   };
@@ -39,6 +44,17 @@ export const buildCreateBankToolPayload = ({
   };
 }) => {
   const { projectBankPath, rulesDirectory, skillsDirectory } = paths;
+  const importSourceStrategies =
+    finalExecution.activeImportBucket === null
+      ? []
+      : finalExecution.confirmedSourceStrategies.filter(
+          (strategy) =>
+            strategy.reviewBucket === finalExecution.activeImportBucket && strategy.importStatus === "pending",
+        );
+  const promptSourceStrategies =
+    finalExecution.phase === "import_selected_guidance"
+      ? importSourceStrategies
+      : finalExecution.confirmedSourceStrategies;
   const prompt =
     flowContext.syncRequired
       ? "Project AI Guidance Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current AI Guidance Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
@@ -57,8 +73,8 @@ export const buildCreateBankToolPayload = ({
               skillsDirectory,
               detectedStacks: flowContext.projectContext.detectedStacks,
               selectedReferenceProjects: flowContext.selectedReferenceProjects,
-              confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
-              pendingSourceReviewBuckets: flowContext.pendingSourceReviewBuckets,
+              confirmedSourceStrategies: promptSourceStrategies,
+              pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
               discoveredSources: flowContext.extendedContext.discoveredSources,
               currentBankSnapshot,
               hasExistingProjectBank: flowContext.existingManifest !== null,
@@ -91,12 +107,12 @@ export const buildCreateBankToolPayload = ({
     phase: finalExecution.phase,
     iteration: finalExecution.effectiveIteration,
     discoveredSources: flowContext.extendedContext.discoveredSources,
-    pendingSourceReviewBuckets: flowContext.pendingSourceReviewBuckets,
-    nextSourceReviewBucket: flowContext.pendingSourceReviewBuckets[0]?.bucket ?? null,
+    pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
+    nextSourceReviewBucket: finalExecution.pendingSourceReviewBuckets[0]?.bucket ?? null,
     currentBankSnapshot,
     selectedReferenceProjects: flowContext.selectedReferenceProjects,
     creationState: finalExecution.nextState.creationState,
-    confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
+    confirmedSourceStrategies: finalExecution.confirmedSourceStrategies,
     stepCompletionRequired: finalExecution.stepCompletionRequired,
     sourceStrategyRequired: flowContext.sourceStrategyRequired,
     stepOutcomeRequired: finalExecution.stepOutcomeRequired,
@@ -113,7 +129,7 @@ export const buildCreateBankToolPayload = ({
       stepCompletionRequired: finalExecution.stepCompletionRequired,
       sourceStrategyRequired: flowContext.sourceStrategyRequired,
       stepOutcomeRequired: finalExecution.stepOutcomeRequired,
-      pendingSourceReviewBuckets: flowContext.pendingSourceReviewBuckets,
+      pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
       nextIteration: finalExecution.nextIteration,
       improvementEntryPoint: flowContext.improvementEntryPoint,
       mustContinue: finalExecution.mustContinue,

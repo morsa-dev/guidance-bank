@@ -63,6 +63,15 @@ export const matchesStoredSourceStrategy = (
 const isDescendantOf = (source: ExistingGuidanceSource, parent: ExistingGuidanceSource): boolean =>
   source.relativePath.startsWith(`${parent.relativePath}/`);
 
+export const sortSourceReviewStrategies = (
+  items: readonly ConfirmedGuidanceSourceStrategy[],
+): ConfirmedGuidanceSourceStrategy[] =>
+  [...items].sort(
+    (left, right) =>
+      SOURCE_REVIEW_BUCKETS.indexOf(left.reviewBucket ?? "repository-local") -
+      SOURCE_REVIEW_BUCKETS.indexOf(right.reviewBucket ?? "repository-local"),
+  );
+
 export const selectReviewableGuidanceSources = (
   discoveredSources: readonly ExistingGuidanceSource[],
 ): ExistingGuidanceSource[] => {
@@ -117,11 +126,31 @@ export const applySourceReviewDecision = ({
       note: createStrategyNote(source, decision),
       fingerprint: source.fingerprint,
       reviewBucket: bucket,
+      importStatus: decision === "keep_external" ? "completed" : "pending",
     });
   }
 
   return [...nextStrategies.values()];
 };
+
+export const getPendingImportBucket = (
+  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
+): SourceReviewBucket | null =>
+  sortSourceReviewStrategies(confirmedSourceStrategies).find((strategy) => strategy.importStatus === "pending")
+    ?.reviewBucket ?? null;
+
+export const completePendingImportBucket = (
+  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
+  bucket: SourceReviewBucket,
+): ConfirmedGuidanceSourceStrategy[] =>
+  confirmedSourceStrategies.map((strategy) =>
+    strategy.reviewBucket === bucket && strategy.importStatus === "pending"
+      ? {
+          ...strategy,
+          importStatus: "completed",
+        }
+      : strategy,
+  );
 
 export const buildPendingSourceReviewBuckets = ({
   discoveredSources,

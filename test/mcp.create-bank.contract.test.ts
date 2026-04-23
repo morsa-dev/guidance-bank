@@ -29,6 +29,7 @@ const CreateBankSchema = z.object({
       sourceRef: z.string(),
       strategy: z.enum(["ignore", "copy", "move", "keep_source_fill_gaps", "keep_provider_native"]),
       note: z.string().nullable(),
+      importStatus: z.enum(["pending", "completed"]).optional(),
     }),
   ),
   pendingSourceReviewBuckets: z.array(
@@ -500,29 +501,31 @@ test("create_bank reviews repository-local and provider-global buckets separatel
       /specify sourceReviewBucket explicitly/i,
     );
 
-    const afterLocalDecision = await callToolStructured(
+    const afterGlobalDecision = await callToolStructured(
       client,
       "create_bank",
       {
         projectPath: projectRoot,
         iteration: 1,
-        sourceReviewBucket: "repository-local",
-        sourceReviewDecision: "import_to_bank",
+        sourceReviewBucket: "provider-global",
+        sourceReviewDecision: "keep_external",
       },
       CreateBankSchema,
     );
 
-    assert.equal(afterLocalDecision.phase, "review_existing_guidance");
+    assert.equal(afterGlobalDecision.phase, "review_existing_guidance");
     assert.deepEqual(
-      afterLocalDecision.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
-      ["provider-global"],
+      afterGlobalDecision.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
+      ["repository-local"],
     );
-    assert.equal(afterLocalDecision.nextSourceReviewBucket, "provider-global");
+    assert.equal(afterGlobalDecision.nextSourceReviewBucket, "repository-local");
     assert.deepEqual(
-      afterLocalDecision.confirmedSourceStrategies
-        .filter((strategy) => strategy.sourceRef === "AGENTS.md")
-        .map((strategy) => strategy.strategy),
-      ["keep_source_fill_gaps"],
+      afterGlobalDecision.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
+        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+      [
+        ["~/.codex/skills/language-rules", "keep_provider_native", "completed"],
+      ],
     );
 
     const importStructured = await callToolStructured(
@@ -532,8 +535,8 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         projectPath: projectRoot,
         iteration: 2,
         stepCompleted: true,
-        sourceReviewBucket: "provider-global",
-        sourceReviewDecision: "keep_external",
+        sourceReviewBucket: "repository-local",
+        sourceReviewDecision: "import_to_bank",
       },
       CreateBankSchema,
     );
@@ -543,10 +546,92 @@ test("create_bank reviews repository-local and provider-global buckets separatel
     assert.equal(importStructured.nextSourceReviewBucket, null);
     assert.deepEqual(
       importStructured.confirmedSourceStrategies
-        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
-        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+        .filter((strategy) => strategy.sourceRef === "AGENTS.md")
+        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
       [
-        ["~/.codex/skills/language-rules", "keep_provider_native"],
+        ["AGENTS.md", "keep_source_fill_gaps", "pending"],
+      ],
+    );
+  });
+});
+
+test("create_bank returns to source review after importing one bucket when another bucket remains", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexGlobalSkillRoot = path.join(fakeHome, ".codex", "skills", "language-rules");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local guidance\n",
+  });
+  await mkdir(codexGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# Language Rules\n");
+
+  await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+    await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+    const importGlobalStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        stepCompleted: true,
+        sourceReviewBucket: "provider-global",
+        sourceReviewDecision: "import_to_bank",
+      },
+      CreateBankSchema,
+    );
+
+    assert.equal(importGlobalStructured.phase, "import_selected_guidance");
+    assert.deepEqual(
+      importGlobalStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
+      ["repository-local"],
+    );
+    assert.deepEqual(
+      importGlobalStructured.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
+        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+      [
+        ["~/.codex/skills/language-rules", "copy", "pending"],
+      ],
+    );
+
+    const nextReviewStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 3,
+        stepCompleted: true,
+        stepOutcome: "no_changes",
+        stepOutcomeNote: "Provider-global guidance was already covered for this test.",
+      },
+      CreateBankSchema,
+    );
+
+    assert.equal(nextReviewStructured.phase, "review_existing_guidance");
+    assert.equal(nextReviewStructured.iteration, 1);
+    assert.equal(nextReviewStructured.nextSourceReviewBucket, "repository-local");
+    assert.deepEqual(
+      nextReviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket),
+      ["repository-local"],
+    );
+    assert.deepEqual(
+      nextReviewStructured.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
+        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+      [
+        ["~/.codex/skills/language-rules", "copy", "completed"],
       ],
     );
   });
@@ -861,6 +946,48 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
   assert.match(completedStructured.prompt, /Do not continue the create flow automatically/i);
   assert.doesNotMatch(completedStructured.prompt, /iteration: 6/i);
+});
+
+test("create_bank source review decision enters import phase without requiring an iteration jump", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const importStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 1,
+      sourceReviewBucket: "repository-local",
+      sourceReviewDecision: "import_to_bank",
+    },
+    CreateBankSchema,
+  );
+
+  assert.equal(importStructured.iteration, 2);
+  assert.equal(importStructured.phase, "import_selected_guidance");
+  assert.deepEqual(
+    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy, item.importStatus]),
+    [
+      ["AGENTS.md", "keep_source_fill_gaps", "pending"],
+    ],
+  );
 });
 
 test("create_bank can apply batched writes for the current step and refresh the snapshot", async (t) => {
@@ -1874,19 +2001,20 @@ test("ready project banks ask the user whether to run an improvement pass before
     CreateBankSchema,
   );
   assert.equal(improveStructured.creationState, "creating");
-  assert.equal(improveStructured.phase, "review_existing_guidance");
+  assert.equal(improveStructured.phase, "derive_from_project");
   assert.equal(improveStructured.stepCompletionRequired, false);
   assert.equal(improveStructured.mustContinue, true);
-  assert.equal(improveStructured.nextIteration, 2);
+  assert.equal(improveStructured.nextIteration, 4);
   assert.match(improveStructured.prompt, /Current Bank Baseline/i);
   assert.match(improveStructured.prompt, /Treat the current project bank as the canonical baseline/i);
+  assert.match(improveStructured.prompt, /Derive From Project/i);
   assert.equal(improveStructured.creationPrompt, null);
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "creating");
   assert.equal(resolveStructured.requiredAction, "continue_create_bank");
-  assert.equal(resolveStructured.createFlowPhase, "import_selected_guidance");
-  assert.match(resolveStructured.text, /Continue the create flow at phase `import_selected_guidance`/i);
+  assert.equal(resolveStructured.createFlowPhase, "finalize");
+  assert.match(resolveStructured.text, /Continue the create flow at phase `finalize`/i);
 });
 
 test("improve_bank aliases the guided existing-bank flow", async (t) => {
