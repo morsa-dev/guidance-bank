@@ -5,7 +5,7 @@ import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js"
 import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import {
-  formatGuidanceSourceStrategy,
+  formatSourceReviewDecision,
   type ConfirmedGuidanceSourceStrategy,
 } from "./guidanceStrategies.js";
 import type { PendingSourceReviewBucket } from "./sourceReviewBuckets.js";
@@ -33,7 +33,7 @@ ${confirmedSourceStrategies
       ? ` [${source.scope}${source.provider ? `/${source.provider}` : ""}, ${source.entryType}] \`${source.path}\``
       : "";
 
-    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatGuidanceSourceStrategy(strategy.strategy)}${strategy.note ? ` (${strategy.note})` : ""}`;
+    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatSourceReviewDecision(strategy.decision, strategy.cleanupAllowed)}${strategy.note ? ` (${strategy.note})` : ""}`;
   })
   .join("\n")}`;
 };
@@ -101,7 +101,7 @@ ${selectedReferenceProjects
 const LEGACY_CLEANUP_CONTRACT = `## Cleanup Rules
 
 - The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
-- Delete a whole legacy source only when the imported guidance fully replaced it and the approved strategy allows cleanup
+- Delete a whole legacy source only when the imported guidance fully replaced it and the confirmed decision has \`cleanupAllowed: true\`
 - For mixed sources, keep the remaining source content in place unless a precise partial cleanup is available
 - Never delete provider-global sources during this flow
 - In the report, mention any mixed source that still contains non-imported content after import`;
@@ -245,7 +245,7 @@ ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSo
 ${LEGACY_CLEANUP_CONTRACT}
 
 What to do:
-- Read each source confirmed as \`copy\`, \`move\`, or \`keep source, fill gaps in bank\`
+- Read each source confirmed as \`import_to_bank\`
 - Import only useful non-duplicate guidance from approved sources
 - If a source was kept external, treat it as existing external coverage and do not duplicate it during later project derivation
 - Keep the import focused on rules and skills, not raw source-file restatement

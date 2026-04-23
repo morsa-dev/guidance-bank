@@ -3,12 +3,12 @@ import { z } from "zod";
 import { CREATE_FLOW_PHASES } from "../../../core/projects/create-flow/createFlowPhases.js";
 import {
   GUIDANCE_SOURCE_IMPORT_STATUSES,
-  GUIDANCE_SOURCE_STRATEGIES,
+  SOURCE_REVIEW_DECISIONS,
 } from "../../../core/projects/create-flow/guidanceStrategies.js";
 import { SOURCE_REVIEW_BUCKETS } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
 import { AbsoluteProjectPathSchema, SessionRefSchema } from "../sharedSchemas.js";
 
-const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
 const SourceReviewDecisionInputSchema = z.enum(["import_to_bank", "keep_external"]);
 const SourceReviewBucketSchema = z.enum(SOURCE_REVIEW_BUCKETS);
@@ -16,7 +16,8 @@ const SourceReviewBucketSchema = z.enum(SOURCE_REVIEW_BUCKETS);
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
     sourceRef: z.string(),
-    strategy: GuidanceSourceStrategySchema,
+    decision: SourceReviewDecisionSchema,
+    cleanupAllowed: z.boolean(),
     note: z.string().nullable(),
     fingerprint: z.string().optional(),
     reviewBucket: SourceReviewBucketSchema.optional(),

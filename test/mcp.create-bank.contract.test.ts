@@ -27,7 +27,8 @@ const CreateBankSchema = z.object({
   confirmedSourceStrategies: z.array(
     z.object({
       sourceRef: z.string(),
-      strategy: z.enum(["ignore", "copy", "move", "keep_source_fill_gaps", "keep_provider_native"]),
+      decision: z.enum(["import_to_bank", "keep_external"]),
+      cleanupAllowed: z.boolean(),
       note: z.string().nullable(),
       importStatus: z.enum(["pending", "completed"]).optional(),
     }),
@@ -319,11 +320,11 @@ test("create_bank discovers provider-global guidance and remembers review decisi
             strategy.sourceRef.includes("CLAUDE.md") ||
             strategy.sourceRef.includes("rules"),
         )
-        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision]),
       [
-        ["~/.claude/CLAUDE.md", "copy"],
-        ["~/.claude/rules", "copy"],
-        ["~/.codex/skills/language-rules", "copy"],
+        ["~/.claude/CLAUDE.md", "import_to_bank"],
+        ["~/.claude/rules", "import_to_bank"],
+        ["~/.codex/skills/language-rules", "import_to_bank"],
       ],
     );
     assert.match(importStructured.prompt, /The agent, not the server, decides/i);
@@ -431,9 +432,9 @@ test("create_bank remembers provider-global keep_external decisions without impo
     assert.deepEqual(
       importStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("typescript-diagnostics"))
-        .map((strategy) => [strategy.sourceRef, strategy.strategy]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision]),
       [
-        ["~/.codex/skills/typescript-diagnostics", "keep_provider_native"],
+        ["~/.codex/skills/typescript-diagnostics", "keep_external"],
       ],
     );
 
@@ -522,9 +523,9 @@ test("create_bank reviews repository-local and provider-global buckets separatel
     assert.deepEqual(
       afterGlobalDecision.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
-        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
-        ["~/.codex/skills/language-rules", "keep_provider_native", "completed"],
+        ["~/.codex/skills/language-rules", "keep_external", "completed"],
       ],
     );
 
@@ -547,9 +548,9 @@ test("create_bank reviews repository-local and provider-global buckets separatel
     assert.deepEqual(
       importStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef === "AGENTS.md")
-        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
-        ["AGENTS.md", "keep_source_fill_gaps", "pending"],
+        ["AGENTS.md", "import_to_bank", "pending"],
       ],
     );
   });
@@ -600,9 +601,9 @@ test("create_bank returns to source review after importing one bucket when anoth
     assert.deepEqual(
       importGlobalStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
-        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
-        ["~/.codex/skills/language-rules", "copy", "pending"],
+        ["~/.codex/skills/language-rules", "import_to_bank", "pending"],
       ],
     );
 
@@ -629,9 +630,9 @@ test("create_bank returns to source review after importing one bucket when anoth
     assert.deepEqual(
       nextReviewStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
-        .map((strategy) => [strategy.sourceRef, strategy.strategy, strategy.importStatus]),
+        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
-        ["~/.codex/skills/language-rules", "copy", "completed"],
+        ["~/.codex/skills/language-rules", "import_to_bank", "completed"],
       ],
     );
   });
@@ -695,14 +696,14 @@ test("create_bank reviews source buckets without server-side semantic candidate 
   assert.deepEqual(
     importStructured.confirmedSourceStrategies
       .filter((strategy) => strategy.sourceRef === "CLAUDE.md")
-      .map((strategy) => strategy.strategy),
-    ["keep_source_fill_gaps"],
+      .map((strategy) => strategy.decision),
+    ["import_to_bank"],
   );
   assert.deepEqual(
     importStructured.confirmedSourceStrategies
       .filter((strategy) => strategy.sourceRef === ".claude")
-      .map((strategy) => strategy.strategy),
-    ["keep_source_fill_gaps"],
+      .map((strategy) => strategy.decision),
+    ["import_to_bank"],
   );
 });
 
@@ -798,10 +799,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(importStructured.sourceStrategyRequired, false);
   assert.equal(importStructured.stepOutcomeRequired, false);
   assert.deepEqual(
-    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy]),
+    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision]),
     [
-      [".cursor", "keep_source_fill_gaps"],
-      ["AGENTS.md", "keep_source_fill_gaps"],
+      [".cursor", "import_to_bank"],
+      ["AGENTS.md", "import_to_bank"],
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
@@ -983,9 +984,9 @@ test("create_bank source review decision enters import phase without requiring a
   assert.equal(importStructured.iteration, 2);
   assert.equal(importStructured.phase, "import_selected_guidance");
   assert.deepEqual(
-    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy, item.importStatus]),
+    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision, item.importStatus]),
     [
-      ["AGENTS.md", "keep_source_fill_gaps", "pending"],
+      ["AGENTS.md", "import_to_bank", "pending"],
     ],
   );
 });

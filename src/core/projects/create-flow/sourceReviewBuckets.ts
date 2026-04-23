@@ -111,18 +111,10 @@ export const applySourceReviewDecision = ({
       continue;
     }
 
-    const strategy =
-      decision === "keep_external"
-        ? source.scope === "provider-global"
-          ? "keep_provider_native"
-          : "ignore"
-        : source.scope === "provider-global"
-          ? "copy"
-          : "keep_source_fill_gaps";
-
     nextStrategies.set(source.relativePath, {
       sourceRef: source.relativePath,
-      strategy,
+      decision,
+      cleanupAllowed: decision === "import_to_bank" && source.scope !== "provider-global",
       note: createStrategyNote(source, decision),
       fingerprint: source.fingerprint,
       reviewBucket: bucket,

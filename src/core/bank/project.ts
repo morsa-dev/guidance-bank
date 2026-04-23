@@ -9,26 +9,67 @@ import {
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
 import {
   GUIDANCE_SOURCE_IMPORT_STATUSES,
-  GUIDANCE_SOURCE_STRATEGIES,
+  SOURCE_REVIEW_DECISIONS,
   type ConfirmedGuidanceSourceStrategy,
+  type SourceReviewDecision,
 } from "../projects/create-flow/guidanceStrategies.js";
 import { SOURCE_REVIEW_BUCKETS } from "../projects/create-flow/sourceReviewBuckets.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
-const GuidanceSourceStrategySchema = z.enum(GUIDANCE_SOURCE_STRATEGIES);
+const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
     sourceRef: z.string().trim().min(1),
-    strategy: GuidanceSourceStrategySchema,
+    decision: SourceReviewDecisionSchema,
+    cleanupAllowed: z.boolean().default(false),
     note: z.string().trim().min(1).nullable(),
     fingerprint: z.string().trim().min(1).optional(),
     reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
     importStatus: GuidanceSourceImportStatusSchema.optional(),
   })
   .strict();
+const LegacyGuidanceSourceStrategySchema = z.enum([
+  "ignore",
+  "copy",
+  "move",
+  "keep_source_fill_gaps",
+  "keep_provider_native",
+]);
+const legacyStrategyToDecision = (
+  strategy: z.infer<typeof LegacyGuidanceSourceStrategySchema>,
+): { decision: SourceReviewDecision; cleanupAllowed: boolean } => {
+  switch (strategy) {
+    case "copy":
+      return { decision: "import_to_bank", cleanupAllowed: false };
+    case "move":
+    case "keep_source_fill_gaps":
+      return { decision: "import_to_bank", cleanupAllowed: true };
+    case "ignore":
+    case "keep_provider_native":
+      return { decision: "keep_external", cleanupAllowed: false };
+  }
+};
+const LegacyConfirmedGuidanceSourceStrategySchema = z
+  .object({
+    sourceRef: z.string().trim().min(1),
+    strategy: LegacyGuidanceSourceStrategySchema,
+    note: z.string().trim().min(1).nullable(),
+    fingerprint: z.string().trim().min(1).optional(),
+    reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
+    importStatus: GuidanceSourceImportStatusSchema.optional(),
+  })
+  .strict()
+  .transform(({ strategy, ...value }): ConfirmedGuidanceSourceStrategy => ({
+    ...value,
+    ...legacyStrategyToDecision(strategy),
+  }));
+const ProjectBankSourceStrategySchema = z.union([
+  ConfirmedGuidanceSourceStrategySchema,
+  LegacyConfirmedGuidanceSourceStrategySchema,
+]);
 
 export const DEFAULT_PROJECT_BANK_POSTPONE_DAYS = 1;
 
@@ -52,7 +93,7 @@ export const ProjectBankStateSchema = z
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
     createIteration: z.number().int().nonnegative().nullable().default(null),
-    sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
+    sourceStrategies: z.array(ProjectBankSourceStrategySchema).default([]),
     postponedUntil: z.iso.datetime().nullable(),
     lastSyncedAt: z.iso.datetime().nullable(),
     lastSyncedStorageVersion: z.number().int().positive().nullable(),

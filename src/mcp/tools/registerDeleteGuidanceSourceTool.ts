@@ -147,7 +147,7 @@ export const registerDeleteGuidanceSourceTool: ToolRegistrar = (server, options)
     {
       title: "Delete External Guidance Source",
       description:
-        "Delete a discovered repository-local, provider-project, or provider-global guidance source after the user explicitly chose a move-to-Memory-Bank strategy.",
+        "Delete a discovered repository-local, provider-project, or provider-global guidance source after the user explicitly chose import_to_bank and the source was fully replaced by canonical bank entries.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

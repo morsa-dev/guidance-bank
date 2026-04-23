@@ -4,24 +4,13 @@ import {
 } from "../../../core/bank/externalGuidanceDecisions.js";
 import { getCreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
 import type { ExistingGuidanceSource } from "../../../core/projects/discoverExistingGuidance.js";
-import type { ConfirmedGuidanceSourceStrategy, GuidanceSourceStrategy } from "../../../core/projects/create-flow/guidanceStrategies.js";
+import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "../../../core/projects/create-flow/guidanceStrategies.js";
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
 import type { CreateBankArgs } from "./schemas.js";
 
-const toExternalGuidanceDecision = (strategy: GuidanceSourceStrategy): ExternalGuidanceDecision => {
-  switch (strategy) {
-    case "copy":
-    case "keep_source_fill_gaps":
-      return "copy_to_shared_keep_source";
-    case "move":
-      return "move_to_bank_cleanup_allowed";
-    case "keep_provider_native":
-      return "keep_provider_native";
-    case "ignore":
-      return "ignore";
-  }
-};
+const toExternalGuidanceDecision = (decision: SourceReviewDecision): ExternalGuidanceDecision =>
+  decision === "import_to_bank" ? "copy_to_shared_keep_source" : "keep_provider_native";
 
 export const shouldPersistProviderGlobalDecisions = ({
   args,
@@ -84,8 +73,8 @@ export const persistProviderGlobalGuidanceDecisions = async ({
       kind: source.kind,
       entryType: source.entryType,
       fingerprint: source.fingerprint,
-      decision: toExternalGuidanceDecision(strategy.strategy),
-      strategy: strategy.strategy,
+      decision: toExternalGuidanceDecision(strategy.decision),
+      strategy: strategy.decision,
       decidedAt,
       sessionRef,
       note: strategy.note,
