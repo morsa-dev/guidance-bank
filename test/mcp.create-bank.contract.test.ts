@@ -328,7 +328,6 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       ],
     );
     assert.match(importStructured.prompt, /The agent, not the server, decides/i);
-    assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
 
     await callToolStructured(
       client,
@@ -352,7 +351,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       (decision) => decision.sourceRef === "~/.codex/skills/language-rules",
     );
 
-    assert.equal(codexGlobalDecision?.decision, "copy_to_shared_keep_source");
+    assert.equal(codexGlobalDecision?.decision, "move_to_bank_cleanup_allowed");
     assert.equal(typeof codexGlobalDecision?.fingerprint, "string");
 
     const otherProjectStructured = await callToolStructured(
@@ -810,9 +809,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
   assert.match(importStructured.prompt, /Read each source confirmed as/i);
   assert.match(importStructured.prompt, /Use `create_bank\.apply` for batched canonical writes/i);
-  assert.match(importStructured.prompt, /For mixed sources, keep the original source in place/i);
-  assert.match(importStructured.prompt, /Delete a whole legacy source only when the imported guidance fully replaced it/i);
-  assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
+  assert.match(importStructured.prompt, /For mixed sources, keep non-guidance content in place/i);
+  assert.match(importStructured.prompt, /agent may remove that now-empty source directly/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 
@@ -902,9 +900,9 @@ test("create_bank later iterations expose review import derive and finalize prom
   );
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
-  assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
+  assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for final bank-entry fixes only/i);
   assert.match(finalizeStructured.prompt, /Cleanup Rules/i);
-  assert.match(finalizeStructured.prompt, /no imported provider-project or repository-local guidance source still duplicates canonical bank content/i);
+  assert.match(finalizeStructured.prompt, /no imported guidance remains duplicated in its original source/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,

@@ -11,7 +11,6 @@ import {
   GUIDANCE_SOURCE_IMPORT_STATUSES,
   SOURCE_REVIEW_DECISIONS,
   type ConfirmedGuidanceSourceStrategy,
-  type SourceReviewDecision,
 } from "../projects/create-flow/guidanceStrategies.js";
 import { SOURCE_REVIEW_BUCKETS } from "../projects/create-flow/sourceReviewBuckets.js";
 
@@ -31,46 +30,6 @@ const ConfirmedGuidanceSourceStrategySchema = z
     importStatus: GuidanceSourceImportStatusSchema.optional(),
   })
   .strict();
-const LegacyGuidanceSourceStrategySchema = z.enum([
-  "ignore",
-  "copy",
-  "move",
-  "keep_source_fill_gaps",
-  "keep_provider_native",
-]);
-const legacyStrategyToDecision = (
-  strategy: z.infer<typeof LegacyGuidanceSourceStrategySchema>,
-): { decision: SourceReviewDecision; cleanupAllowed: boolean } => {
-  switch (strategy) {
-    case "copy":
-      return { decision: "import_to_bank", cleanupAllowed: false };
-    case "move":
-    case "keep_source_fill_gaps":
-      return { decision: "import_to_bank", cleanupAllowed: true };
-    case "ignore":
-    case "keep_provider_native":
-      return { decision: "keep_external", cleanupAllowed: false };
-  }
-};
-const LegacyConfirmedGuidanceSourceStrategySchema = z
-  .object({
-    sourceRef: z.string().trim().min(1),
-    strategy: LegacyGuidanceSourceStrategySchema,
-    note: z.string().trim().min(1).nullable(),
-    fingerprint: z.string().trim().min(1).optional(),
-    reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
-    importStatus: GuidanceSourceImportStatusSchema.optional(),
-  })
-  .strict()
-  .transform(({ strategy, ...value }): ConfirmedGuidanceSourceStrategy => ({
-    ...value,
-    ...legacyStrategyToDecision(strategy),
-  }));
-const ProjectBankSourceStrategySchema = z.union([
-  ConfirmedGuidanceSourceStrategySchema,
-  LegacyConfirmedGuidanceSourceStrategySchema,
-]);
-
 export const DEFAULT_PROJECT_BANK_POSTPONE_DAYS = 1;
 
 export const computeProjectBankPostponedUntil = (now: Date, postponeDays = DEFAULT_PROJECT_BANK_POSTPONE_DAYS): string =>
@@ -93,7 +52,7 @@ export const ProjectBankStateSchema = z
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
     createIteration: z.number().int().nonnegative().nullable().default(null),
-    sourceStrategies: z.array(ProjectBankSourceStrategySchema).default([]),
+    sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
     postponedUntil: z.iso.datetime().nullable(),
     lastSyncedAt: z.iso.datetime().nullable(),
     lastSyncedStorageVersion: z.number().int().positive().nullable(),

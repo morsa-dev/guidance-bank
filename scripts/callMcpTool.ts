@@ -20,7 +20,6 @@ const TOOLS_REQUIRING_SESSION_REF = new Set([
   "set_project_state",
   "sync_bank",
   "clear_project_bank",
-  "delete_guidance_source",
   "upgrade_bank",
 ]);
 

@@ -44,10 +44,10 @@ const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceRevi
   }
 
   if (source.scope === "provider-global") {
-    return "Import useful provider-independent guidance into shared AI Guidance Bank while keeping the provider-global source in place.";
+    return "Move useful provider-independent guidance into shared AI Guidance Bank and remove the migrated guidance from the provider-global source when fully replaced.";
   }
 
-  return "Import useful non-duplicate guidance into AI Guidance Bank and allow cleanup of the legacy source only after the agent verifies it was fully replaced.";
+  return "Move useful non-duplicate guidance into AI Guidance Bank and remove the migrated guidance from the source only after the agent verifies it was fully replaced.";
 };
 
 export const sourceReviewBucketFor = (source: ExistingGuidanceSource): SourceReviewBucket => source.scope;
@@ -114,7 +114,7 @@ export const applySourceReviewDecision = ({
     nextStrategies.set(source.relativePath, {
       sourceRef: source.relativePath,
       decision,
-      cleanupAllowed: decision === "import_to_bank" && source.scope !== "provider-global",
+      cleanupAllowed: decision === "import_to_bank",
       note: createStrategyNote(source, decision),
       fingerprint: source.fingerprint,
       reviewBucket: bucket,

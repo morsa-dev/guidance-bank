@@ -6,7 +6,6 @@ import type {
   AuditEvent,
   EntryAuditEvent,
   EntryVersionEvent,
-  GuidanceSourceVersionEvent,
   ToolAuditEvent,
 } from "../core/audit/types.js";
 import { appendManagedTextFile } from "./safeFs.js";
@@ -21,10 +20,6 @@ type WriteAuditEventInput =
   | Omit<ToolAuditEvent, "schemaVersion" | "eventId" | "timestamp" | "provider">;
 
 type WriteEntryVersionEventInput = Omit<EntryVersionEvent, "schemaVersion" | "eventId" | "timestamp" | "provider">;
-type WriteGuidanceSourceVersionEventInput = Omit<
-  GuidanceSourceVersionEvent,
-  "schemaVersion" | "eventId" | "timestamp" | "provider"
->;
 
 export class AuditLogger {
   private readonly paths;
@@ -65,26 +60,6 @@ export class AuditLogger {
     await appendManagedTextFile(
       this.options.bankRoot,
       this.paths.entryHistoryEventsFile,
-      `${JSON.stringify(versionEvent)}\n`,
-    );
-
-    return versionEvent;
-  }
-
-  async writeGuidanceSourceVersion(
-    event: WriteGuidanceSourceVersionEventInput,
-  ): Promise<GuidanceSourceVersionEvent> {
-    const versionEvent = {
-      schemaVersion: 1,
-      eventId: randomUUID(),
-      timestamp: new Date().toISOString(),
-      provider: this.options.provider,
-      ...event,
-    } satisfies GuidanceSourceVersionEvent;
-
-    await appendManagedTextFile(
-      this.options.bankRoot,
-      this.paths.guidanceSourceHistoryEventsFile,
       `${JSON.stringify(versionEvent)}\n`,
     );
 

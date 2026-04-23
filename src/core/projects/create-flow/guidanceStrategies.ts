@@ -22,9 +22,5 @@ export type ExistingGuidanceSourceLike = {
   scope?: "repository-local" | "provider-project" | "provider-global";
 };
 
-export const formatSourceReviewDecision = (decision: SourceReviewDecision, cleanupAllowed: boolean): string =>
-  decision === "import_to_bank"
-    ? cleanupAllowed
-      ? "import to bank; cleanup allowed after full replacement"
-      : "import to bank; keep source in place"
-    : "keep external; do not import";
+export const formatSourceReviewDecision = (decision: SourceReviewDecision): string =>
+  decision === "import_to_bank" ? "import to bank" : "keep external; do not import";

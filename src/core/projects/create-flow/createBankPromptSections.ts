@@ -33,7 +33,12 @@ ${confirmedSourceStrategies
       ? ` [${source.scope}${source.provider ? `/${source.provider}` : ""}, ${source.entryType}] \`${source.path}\``
       : "";
 
-    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatSourceReviewDecision(strategy.decision, strategy.cleanupAllowed)}${strategy.note ? ` (${strategy.note})` : ""}`;
+    const cleanupDetails =
+      strategy.decision === "import_to_bank" && strategy.cleanupAllowed
+        ? "; remove each migrated guidance item from the source immediately after verified bank write"
+        : "";
+
+    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatSourceReviewDecision(strategy.decision)}${cleanupDetails}${strategy.note ? ` (${strategy.note})` : ""}`;
   })
   .join("\n")}`;
 };
@@ -101,10 +106,11 @@ ${selectedReferenceProjects
 const LEGACY_CLEANUP_CONTRACT = `## Cleanup Rules
 
 - The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
-- Delete a whole legacy source only when the imported guidance fully replaced it and the confirmed decision has \`cleanupAllowed: true\`
-- For mixed sources, keep the remaining source content in place unless a precise partial cleanup is available
-- Never delete provider-global sources during this flow
-- In the report, mention any mixed source that still contains non-imported content after import`;
+- Process approved sources item by item: import one useful guidance item, verify the canonical bank write, then immediately remove that migrated item from the source before importing the next item
+- If all useful guidance in a source was migrated and no non-guidance content remains, the agent may remove that now-empty source directly
+- For mixed sources, keep non-guidance content in place and remove only the migrated guidance text or file
+- Do not defer source cleanup to the final phase; if an item cannot be safely removed from the source, do not import that item yet
+- In the report, mention any approved source item intentionally left external because cleanup was unsafe`;
 
 const buildContinuationOutcomeInstruction = (iteration: number): string => {
   if (!requiresCreateFlowStepOutcome(iteration)) {
@@ -253,9 +259,7 @@ What to do:
 - Prefer a small number of strong canonical entries over fragmented copies
 - Use \`create_bank.apply\` for batched canonical writes
 - In \`create_bank.apply\`, paths must be relative to the rules/skills root only
-- For mixed sources, keep the original source in place unless you can safely trim only the imported guidance
-- For fully replaced repository-local or provider-project sources, use \`delete_guidance_source\` only after the canonical write is verified
-- Never call \`delete_guidance_source\` for provider-global sources
+- After each verified write, immediately clean up the migrated guidance from the original source before continuing to another guidance item
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry and retry with a fresh \`baseSha256\``;
 
 export const buildDeriveFromProjectPrompt = ({
@@ -309,8 +313,8 @@ What to do:
 - Check ids, titles, topics, and stack metadata for consistency
 - Keep only durable guidance that should survive across sessions; leave conversational context out
 - If confidence is low for any high-impact rule, ask the user before keeping it
-- Use \`create_bank.apply\` for the final cleanup batch when you need to replace or delete multiple entries
-- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry the cleanup batch with fresh \`baseSha256\`
+- Use \`create_bank.apply\` for final bank-entry fixes only; source cleanup for imported guidance should already have happened during import
+- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
 - Run an explicit gap-and-coverage review before declaring the bank done
 
@@ -322,8 +326,8 @@ Final pass checklist:
 - Leave unresolved or low-confidence items out unless the user explicitly approves them
 - Confirm the bank is not materially poorer than the strongest project evidence from this run
 - For each high-value area identified during derive, confirm whether it is covered by a project entry, covered well enough by shared guidance, or intentionally skipped with a short reason
-- Confirm no imported provider-project or repository-local guidance source still duplicates canonical bank content; call \`delete_guidance_source\` only when the source was fully replaced and the user-approved bucket was imported to the bank, or name why it must remain
-- Confirm provider-global sources that affect this project were either imported into shared AI Guidance Bank, intentionally kept provider-native by remembered decision, or skipped with a short reason
+- Confirm no imported guidance remains duplicated in its original source; any source item moved to the bank should already have been removed during import, or explicitly named as unsafe to remove
+- Confirm provider-global sources that affect this project were either moved into shared AI Guidance Bank, intentionally kept provider-native by remembered decision, or skipped with a short reason
 - Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates

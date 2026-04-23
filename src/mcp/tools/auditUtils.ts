@@ -18,8 +18,7 @@ type ToolAuditTool =
   | typeof MCP_TOOL_NAMES.resolveContext
   | typeof MCP_TOOL_NAMES.setProjectState
   | typeof MCP_TOOL_NAMES.syncBank
-  | typeof MCP_TOOL_NAMES.clearProjectBank
-  | typeof MCP_TOOL_NAMES.deleteGuidanceSource;
+  | typeof MCP_TOOL_NAMES.clearProjectBank;
 
 type WriteEntryAuditEventInput = {
   auditLogger: AuditLogger;
@@ -97,7 +96,7 @@ type WriteToolAuditEventInput = {
   auditLogger: AuditLogger;
   sessionRef: string;
   tool: ToolAuditTool;
-  action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
+  action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear";
   projectId: string;
   projectPath: string;
   details: Record<string, unknown>;

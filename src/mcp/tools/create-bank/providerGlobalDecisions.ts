@@ -10,7 +10,7 @@ import type { McpServerRuntimeOptions } from "../../registerTools.js";
 import type { CreateBankArgs } from "./schemas.js";
 
 const toExternalGuidanceDecision = (decision: SourceReviewDecision): ExternalGuidanceDecision =>
-  decision === "import_to_bank" ? "copy_to_shared_keep_source" : "keep_provider_native";
+  decision === "import_to_bank" ? "move_to_bank_cleanup_allowed" : "keep_provider_native";
 
 export const shouldPersistProviderGlobalDecisions = ({
   args,

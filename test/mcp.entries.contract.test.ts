@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import process from "node:process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { z } from "zod";
@@ -31,30 +30,6 @@ const ClearProjectBankSchema = z.object({
   projectId: z.string(),
   projectBankPath: z.string(),
 });
-
-const DeleteGuidanceSourceSchema = z.object({
-  status: z.enum(["deleted", "not_found"]),
-  sourcePath: z.string(),
-  relativePath: z.string(),
-  kind: z.string(),
-  scope: z.enum(["repository-local", "provider-project", "provider-global"]),
-  provider: z.enum(["codex", "cursor", "claude"]).nullable(),
-});
-
-const withTemporaryHome = async <T>(homePath: string, run: () => Promise<T>): Promise<T> => {
-  const previousHome = process.env.HOME;
-  process.env.HOME = homePath;
-
-  try {
-    return await run();
-  } finally {
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-  }
-};
 
 const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
   await callToolStructured(client, "create_bank", { projectPath }, z.object({ projectId: z.string() }));
@@ -341,98 +316,6 @@ test("delete_entry removes previously written entries", async (t) => {
   const resolved = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.doesNotMatch(resolved.text, /### project\/admin-dashboard\.md/);
   assert.doesNotMatch(resolved.text, /### shared\/component-audit\/SKILL\.md/);
-});
-
-test("delete_guidance_source removes discovered provider-project guidance after move confirmation", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
-  const projectRoot = path.join(tempDirectoryPath, "angular-admin");
-  const fakeHome = path.join(tempDirectoryPath, "fake-home");
-  const codexProjectSkillsRoot = path.join(fakeHome, ".codex", "skills", "projects", "angular-admin");
-
-  await writeProjectFiles(projectRoot, {
-    "package.json": JSON.stringify({ name: "angular-admin" }, null, 2),
-    "AGENTS.md": "# Legacy guidance\n",
-  });
-
-  await mkdir(path.join(codexProjectSkillsRoot, "troubleshooting"), { recursive: true });
-  await writeFile(path.join(codexProjectSkillsRoot, "troubleshooting", "SKILL.md"), "---\nname: troubleshooting\n---\n");
-
-  await withTemporaryHome(fakeHome, async () => {
-    const { client, close } = await createConnectedClient(bankRoot, { provider: "codex" });
-    t.after(close);
-
-    const deletedProviderSource = await callToolStructured(
-      client,
-      "delete_guidance_source",
-      {
-        projectPath: projectRoot,
-        sourcePath: codexProjectSkillsRoot,
-      },
-      DeleteGuidanceSourceSchema,
-    );
-
-    assert.equal(deletedProviderSource.status, "deleted");
-    assert.equal(deletedProviderSource.scope, "provider-project");
-    assert.equal(deletedProviderSource.provider, "codex");
-
-    const deletedRepoSource = await callToolStructured(
-      client,
-      "delete_guidance_source",
-      {
-        projectPath: projectRoot,
-        sourcePath: path.join(projectRoot, "AGENTS.md"),
-      },
-      DeleteGuidanceSourceSchema,
-    );
-
-    assert.equal(deletedRepoSource.status, "deleted");
-    assert.equal(deletedRepoSource.scope, "repository-local");
-    assert.equal(deletedRepoSource.provider, null);
-
-    const sourceHistoryEvents = (await readFile(path.join(bankRoot, "history", "guidance-source-events.ndjson"), "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-
-    assert.equal(sourceHistoryEvents.length, 2);
-    assert.equal(sourceHistoryEvents[0]?.tool, "delete_guidance_source");
-    assert.equal(sourceHistoryEvents[0]?.action, "delete_snapshot");
-    assert.equal(sourceHistoryEvents[0]?.scope, "provider-project");
-    assert.equal(sourceHistoryEvents[0]?.sourceProvider, "codex");
-    assert.equal(sourceHistoryEvents[0]?.entryType, "directory");
-    const providerSourceFile = (sourceHistoryEvents[0]?.files as Array<Record<string, unknown>>)[0];
-    assert.equal(providerSourceFile?.relativePath, "troubleshooting/SKILL.md");
-    assert.equal(
-      Buffer.from(providerSourceFile?.contentBase64 as string, "base64").toString("utf8"),
-      "---\nname: troubleshooting\n---\n",
-    );
-    assert.equal(sourceHistoryEvents[1]?.scope, "repository-local");
-    assert.equal(sourceHistoryEvents[1]?.entryType, "file");
-    const repositorySourceFile = (sourceHistoryEvents[1]?.files as Array<Record<string, unknown>>)[0];
-    assert.equal(repositorySourceFile?.relativePath, "AGENTS.md");
-    assert.equal(
-      Buffer.from(repositorySourceFile?.contentBase64 as string, "base64").toString("utf8"),
-      "# Legacy guidance\n",
-    );
-
-    const createStructured = await callToolStructured(
-      client,
-      "create_bank",
-      { projectPath: projectRoot },
-      z.object({
-        discoveredSources: z.array(
-          z.object({
-            relativePath: z.string(),
-          }),
-        ),
-      }),
-    );
-
-    assert.deepEqual(
-      createStructured.discoveredSources.map((source) => source.relativePath),
-      [],
-    );
-  });
 });
 
 test("clear_project_bank removes only the current project bank and allows recreate from scratch", async (t) => {

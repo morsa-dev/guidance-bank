@@ -52,32 +52,6 @@ export type EntryVersionEvent = {
   unifiedDiff: string;
 };
 
-export type GuidanceSourceFileSnapshot = {
-  relativePath: string;
-  sha256: string;
-  byteCount: number;
-  contentBase64: string;
-};
-
-export type GuidanceSourceVersionEvent = {
-  schemaVersion: 1;
-  eventId: string;
-  timestamp: string;
-  provider: ProviderId | null;
-  sessionRef: string | null;
-  tool: "delete_guidance_source";
-  action: "delete_snapshot";
-  projectId: string;
-  projectPath: string;
-  sourcePath: string;
-  relativePath: string;
-  kind: string;
-  scope: "repository-local" | "provider-project" | "provider-global";
-  sourceProvider: "codex" | "cursor" | "claude" | null;
-  entryType: "file" | "directory";
-  files: GuidanceSourceFileSnapshot[];
-};
-
 export type ToolAuditEvent = {
   schemaVersion: 1;
   eventId: string;
@@ -91,9 +65,8 @@ export type ToolAuditEvent = {
     | "resolve_context"
     | "set_project_state"
     | "sync_bank"
-    | "clear_project_bank"
-    | "delete_guidance_source";
-  action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear" | "delete_guidance";
+    | "clear_project_bank";
+  action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear";
   projectId: string;
   projectPath: string;
   details: Record<string, unknown>;
