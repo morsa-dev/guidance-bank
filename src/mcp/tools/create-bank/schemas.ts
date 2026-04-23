@@ -234,6 +234,16 @@ export const CreateBankOutputShape = {
       promptLabel: z.string(),
       sources: z.array(z.string()),
       providers: z.array(z.enum(["codex", "cursor", "claude"])),
+      candidateCount: z.number().int().nonnegative(),
+      recommendedDecision: z.enum(["migrate", "keep"]),
+      candidates: z.array(
+        z.object({
+          sourceRef: z.string(),
+          title: z.string(),
+          kind: z.enum(["rule", "skill"]),
+          summary: z.string(),
+        }),
+      ),
     }),
   ),
   nextSourceReviewBucket: SourceReviewBucketSchema.nullable(),

@@ -57,7 +57,6 @@ export const buildCreateBankToolPayload = ({
               skillsDirectory,
               detectedStacks: flowContext.projectContext.detectedStacks,
               selectedReferenceProjects: flowContext.selectedReferenceProjects,
-              discoveredSources: flowContext.extendedContext.discoveredSources,
               confirmedSourceStrategies: flowContext.confirmedSourceStrategies,
               pendingSourceReviewBuckets: flowContext.pendingSourceReviewBuckets,
               currentBankSnapshot,

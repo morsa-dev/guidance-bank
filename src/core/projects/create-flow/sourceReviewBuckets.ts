@@ -1,4 +1,4 @@
-import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
+import type { ReviewableGuidanceSource } from "./extractGuidanceCandidates.js";
 import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./guidanceStrategies.js";
 
 export const SOURCE_REVIEW_BUCKETS = ["repository-local", "provider-project", "provider-global"] as const;
@@ -9,7 +9,15 @@ export type PendingSourceReviewBucket = {
   title: string;
   promptLabel: string;
   sources: string[];
-  providers: Array<NonNullable<ExistingGuidanceSource["provider"]>>;
+  providers: Array<NonNullable<ReviewableGuidanceSource["provider"]>>;
+  candidateCount: number;
+  recommendedDecision: SourceReviewDecision;
+  candidates: Array<{
+    sourceRef: string;
+    title: string;
+    kind: "rule" | "skill";
+    summary: string;
+  }>;
 };
 
 const BUCKET_METADATA: Record<SourceReviewBucket, { title: string; promptLabel: string }> = {
@@ -27,11 +35,7 @@ const BUCKET_METADATA: Record<SourceReviewBucket, { title: string; promptLabel: 
   },
 };
 
-const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceReviewDecision): string => {
-  if (source.entryType === "directory") {
-    return "Handled as a container while file-level guidance is reviewed.";
-  }
-
+const createStrategyNote = (source: ReviewableGuidanceSource, decision: SourceReviewDecision): string => {
   if (decision === "keep") {
     return source.scope === "provider-global"
       ? "Keep this provider-global guidance separate from AI Guidance Bank and leave the source in place."
@@ -42,13 +46,15 @@ const createStrategyNote = (source: ExistingGuidanceSource, decision: SourceRevi
     return "Import useful provider-independent guidance into shared AI Guidance Bank while keeping the provider-global source in place.";
   }
 
-  return "Import useful non-duplicate guidance into AI Guidance Bank and allow cleanup of the legacy source after successful migration.";
+  return source.fullCoverage
+    ? "Import useful non-duplicate guidance into AI Guidance Bank and allow cleanup of the legacy source after successful migration."
+    : "Import only the extracted non-duplicate guidance into AI Guidance Bank and keep the remaining source content in place.";
 };
 
-export const sourceReviewBucketFor = (source: ExistingGuidanceSource): SourceReviewBucket => source.scope;
+export const sourceReviewBucketFor = (source: ReviewableGuidanceSource): SourceReviewBucket => source.scope;
 
 export const matchesStoredSourceStrategy = (
-  source: ExistingGuidanceSource,
+  source: ReviewableGuidanceSource,
   strategy: ConfirmedGuidanceSourceStrategy,
 ): boolean =>
   strategy.sourceRef === source.relativePath &&
@@ -62,7 +68,7 @@ export const applySourceReviewDecision = ({
   decision,
 }: {
   existingStrategies: readonly ConfirmedGuidanceSourceStrategy[];
-  discoveredSources: readonly ExistingGuidanceSource[];
+  discoveredSources: readonly ReviewableGuidanceSource[];
   bucket: SourceReviewBucket;
   decision: SourceReviewDecision;
 }): ConfirmedGuidanceSourceStrategy[] => {
@@ -76,15 +82,15 @@ export const applySourceReviewDecision = ({
     }
 
     const strategy =
-      source.entryType === "directory"
-        ? "ignore"
-        : decision === "keep"
-          ? source.scope === "provider-global"
-            ? "keep_provider_native"
-            : "ignore"
-          : source.scope === "provider-global"
-            ? "copy"
-            : "move";
+      decision === "keep"
+        ? source.scope === "provider-global"
+          ? "keep_provider_native"
+          : "ignore"
+        : source.scope === "provider-global"
+          ? "copy"
+          : source.fullCoverage
+            ? "move"
+            : "keep_source_fill_gaps";
 
     nextStrategies.set(source.relativePath, {
       sourceRef: source.relativePath,
@@ -102,7 +108,7 @@ export const buildPendingSourceReviewBuckets = ({
   discoveredSources,
   confirmedSourceStrategies,
 }: {
-  discoveredSources: readonly ExistingGuidanceSource[];
+  discoveredSources: readonly ReviewableGuidanceSource[];
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
 }): PendingSourceReviewBucket[] => {
   return SOURCE_REVIEW_BUCKETS.flatMap((bucket) => {
@@ -121,6 +127,14 @@ export const buildPendingSourceReviewBuckets = ({
 
     const providers = [...new Set(unresolvedSources.flatMap((source) => (source.provider ? [source.provider] : [])))];
     const metadata = BUCKET_METADATA[bucket];
+    const candidates = unresolvedSources.flatMap((source) =>
+      source.candidates.map((candidate) => ({
+        sourceRef: candidate.sourceRef,
+        title: candidate.title,
+        kind: candidate.kind,
+        summary: candidate.summary,
+      })),
+    );
 
     return [
       {
@@ -129,6 +143,9 @@ export const buildPendingSourceReviewBuckets = ({
         promptLabel: metadata.promptLabel,
         sources: unresolvedSources.map((source) => source.relativePath),
         providers,
+        candidateCount: candidates.length,
+        recommendedDecision: candidates.length > 0 ? "migrate" : "keep",
+        candidates,
       },
     ];
   });

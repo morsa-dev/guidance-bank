@@ -38,6 +38,16 @@ const CreateBankSchema = z.object({
       promptLabel: z.string(),
       sources: z.array(z.string()),
       providers: z.array(z.enum(["codex", "cursor", "claude"])),
+      candidateCount: z.number().int().nonnegative(),
+      recommendedDecision: z.enum(["migrate", "keep"]),
+      candidates: z.array(
+        z.object({
+          sourceRef: z.string(),
+          title: z.string(),
+          kind: z.enum(["rule", "skill"]),
+          summary: z.string(),
+        }),
+      ),
     }),
   ),
   nextSourceReviewBucket: z.enum(["repository-local", "provider-project", "provider-global"]).nullable(),
@@ -311,11 +321,10 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       [
         ["~/.claude/CLAUDE.md", "copy"],
         ["~/.claude/rules/preferences.md", "copy"],
-        ["~/.codex/skills/language-rules", "ignore"],
         ["~/.codex/skills/language-rules/SKILL.md", "copy"],
       ],
     );
-    assert.match(importStructured.prompt, /provider-global sources confirmed by `migrate`/i);
+    assert.match(importStructured.prompt, /Apply the confirmed source decisions to the extracted guidance candidates only/i);
     assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
 
     await callToolStructured(
@@ -350,10 +359,7 @@ test("create_bank discovers provider-global guidance and remembers review decisi
       CreateBankSchema,
     );
 
-    assert.equal(
-      otherProjectStructured.discoveredSources.some((source) => source.scope === "provider-global"),
-      false,
-    );
+    assert.equal(otherProjectStructured.pendingSourceReviewBuckets.some((bucket) => bucket.bucket === "provider-global"), false);
     assert.equal(
       otherProjectStructured.discoveredSources.some((source) => source.relativePath.includes("projects/other-project")),
       true,
@@ -425,7 +431,6 @@ test("create_bank remembers provider-global keep decisions without importing", a
         .filter((strategy) => strategy.sourceRef.includes("typescript-diagnostics"))
         .map((strategy) => [strategy.sourceRef, strategy.strategy]),
       [
-        ["~/.codex/skills/typescript-diagnostics", "ignore"],
         ["~/.codex/skills/typescript-diagnostics/SKILL.md", "keep_provider_native"],
       ],
     );
@@ -448,10 +453,7 @@ test("create_bank remembers provider-global keep decisions without importing", a
       CreateBankSchema,
     );
 
-    assert.equal(
-      laterStructured.discoveredSources.some((source) => source.scope === "provider-global"),
-      false,
-    );
+    assert.equal(laterStructured.pendingSourceReviewBuckets.some((bucket) => bucket.bucket === "provider-global"), false);
   });
 });
 
@@ -543,11 +545,73 @@ test("create_bank reviews repository-local and provider-global buckets separatel
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
         .map((strategy) => [strategy.sourceRef, strategy.strategy]),
       [
-        ["~/.codex/skills/language-rules", "ignore"],
         ["~/.codex/skills/language-rules/SKILL.md", "keep_provider_native"],
       ],
     );
   });
+});
+
+test("create_bank auto-skips low-signal files and keeps mixed sources as fill-gaps migrations", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "CLAUDE.md": `# CLAUDE.md
+
+## Development Commands
+- \`npm start\` - Start app
+- \`npm test\` - Run tests
+
+## Architecture
+- Prefer feature work under \`src/app/pages/\`
+- Keep cross-cutting services in \`src/app/core/\`
+`,
+    ".claude/settings.local.json": JSON.stringify({ theme: "dark" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  const reviewStructured = await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
+  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.candidateCount, 1);
+  assert.equal(
+    reviewStructured.pendingSourceReviewBuckets[0]?.candidates.some((candidate) => candidate.title === "Architecture"),
+    true,
+  );
+  assert.equal(
+    reviewStructured.pendingSourceReviewBuckets[0]?.sources.includes(".claude/settings.local.json"),
+    false,
+  );
+  assert.equal(reviewStructured.prompt.includes("settings.local.json"), false);
+
+  const importStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewBucket: "repository-local",
+      sourceReviewDecision: "migrate",
+    },
+    CreateBankSchema,
+  );
+
+  assert.deepEqual(
+    importStructured.confirmedSourceStrategies
+      .filter((strategy) => strategy.sourceRef === "CLAUDE.md")
+      .map((strategy) => strategy.strategy),
+    ["keep_source_fill_gaps"],
+  );
 });
 
 test("create_bank later iterations expose review import derive and finalize prompts", async (t) => {
@@ -597,14 +661,15 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.stepOutcomeRequired, false);
   assert.equal(reviewStructured.nextSourceReviewBucket, "repository-local");
   assert.deepEqual(reviewStructured.pendingSourceReviewBuckets.map((bucket) => bucket.bucket), ["repository-local"]);
+  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.candidateCount, 2);
+  assert.equal(reviewStructured.pendingSourceReviewBuckets[0]?.recommendedDecision, "migrate");
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(reviewStructured.prompt, /by default, do not expose internal strategy labels/i);
-  assert.match(reviewStructured.prompt, /short and action-oriented/i);
-  assert.match(reviewStructured.prompt, /one explicit CTA question/i);
-  assert.match(reviewStructured.prompt, /recommend one default action/i);
+  assert.match(reviewStructured.prompt, /low-signal sources that were auto-skipped/i);
+  assert.match(reviewStructured.prompt, /Recommended action: `migrate`/i);
+  assert.match(reviewStructured.prompt, /Candidate guidance:/i);
   assert.match(reviewStructured.prompt, /sourceReviewBucket: "repository-local"/i);
   assert.match(reviewStructured.prompt, /sourceReviewDecision: "migrate" \| "keep"/i);
-  assert.match(reviewStructured.prompt, /Never delete or rewrite any original source during this review step/i);
+  assert.match(reviewStructured.prompt, /do not dump the full protocol or raw source inventory/i);
   assert.equal(reviewStructured.creationPrompt, null);
   assert.match(reviewStructured.text, /phase `review_existing_guidance`/i);
 
@@ -642,20 +707,17 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.deepEqual(
     importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.strategy]),
     [
-      [".cursor", "ignore"],
       [".cursor/rules.md", "move"],
       ["AGENTS.md", "move"],
     ],
   );
   assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(importStructured.prompt, /internal execution plan/i);
+  assert.match(importStructured.prompt, /confirmed source decisions to the extracted guidance candidates only/i);
   assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
-  assert.match(importStructured.prompt, /Use `create_bank` with an `apply` payload/i);
-  assert.match(importStructured.prompt, /For sources confirmed by `migrate`/i);
-  assert.match(importStructured.prompt, /Write reusable cross-project rules or skills to `scope: "shared"`/i);
-  assert.match(importStructured.prompt, /Legacy Source Cleanup Contract/i);
-  assert.match(importStructured.prompt, /call `delete_guidance_source` with the discovered absolute `sourcePath`/i);
-  assert.match(importStructured.prompt, /provider-project sources such as Codex project skills/i);
+  assert.match(importStructured.prompt, /Use `create_bank\.apply` for batched canonical writes/i);
+  assert.match(importStructured.prompt, /For mixed sources, keep the original source in place/i);
+  assert.match(importStructured.prompt, /Delete a whole legacy source only when the migrated guidance fully replaced it/i);
+  assert.match(importStructured.prompt, /Never call `delete_guidance_source` for provider-global sources/i);
   assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
   assert.equal(importStructured.creationPrompt, null);
 
@@ -746,7 +808,7 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for the final cleanup batch/i);
-  assert.match(finalizeStructured.prompt, /Legacy Source Cleanup Contract/i);
+  assert.match(finalizeStructured.prompt, /Cleanup Rules/i);
   assert.match(finalizeStructured.prompt, /no migrated provider-project guidance source still duplicates canonical bank content/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(

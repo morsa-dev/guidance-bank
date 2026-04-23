@@ -3,7 +3,6 @@ import type { DetectableStack, ReferenceProjectCandidate } from "../../context/t
 import { requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
-import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import {
   formatGuidanceSourceStrategy,
   type ConfirmedGuidanceSourceStrategy,
@@ -11,20 +10,6 @@ import {
 import type { PendingSourceReviewBucket } from "./sourceReviewBuckets.js";
 
 const STABLE_CONTRACT_NOTE = `Use \`phase\` as the main guide for the current create step and treat \`iteration\` as diagnostic only. If \`creationPrompt\` is present, use it as the stable create-flow contract; this step prompt contains only the incremental instruction for the current phase.`;
-
-const renderDiscoveredSourcesSection = (discoveredSources: readonly ExistingGuidanceSource[]): string => {
-  if (discoveredSources.length === 0) {
-    return `## Discovered Guidance Sources
-
-No repository-local, provider-project, or provider-global guidance sources were discovered for this project.`;
-  }
-
-  return `## Discovered Guidance Sources
-
-${discoveredSources
-  .map((source) => `- [${source.kind}${source.scope !== "repository-local" && source.provider ? `/${source.provider}` : ""}] ${source.relativePath} (${source.entryType}, ${source.scope})`)
-  .join("\n")}`;
-};
 
 const renderConfirmedSourceStrategiesSection = (
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
@@ -60,9 +45,17 @@ No unresolved external-guidance review bucket remains.`;
 - Bucket: \`${pendingBucket.bucket}\`
 - Title: ${pendingBucket.title}
 - Scope summary: ${pendingBucket.promptLabel}
+- Candidate count: ${pendingBucket.candidateCount}
+- Recommended action: \`${pendingBucket.recommendedDecision}\`
 ${providerLine}
-- Sources:
-${pendingBucket.sources.map((sourceRef) => `  - ${sourceRef}`).join("\n")}`;
+- Candidate guidance:
+${pendingBucket.candidates
+  .slice(0, 8)
+  .map(
+    (candidate) =>
+      `  - [${candidate.kind}] ${candidate.title} (${candidate.sourceRef}): ${candidate.summary}`,
+  )
+  .join("\n")}`;
 };
 
 const renderDetectedStacksSection = (detectedStacks: readonly DetectableStack[]): string =>
@@ -92,16 +85,13 @@ ${selectedReferenceProjects
   .join("\n")}`;
 };
 
-const LEGACY_CLEANUP_CONTRACT = `## Legacy Source Cleanup Contract
+const LEGACY_CLEANUP_CONTRACT = `## Cleanup Rules
 
-AI Guidance Bank is the canonical guidance layer after the user approves \`migrate\` for a review bucket.
-
-- A confirmed \`move\` decision means: migrate the useful source content into AI Guidance Bank, verify the canonical write, then remove the migrated legacy source with \`delete_guidance_source\`
-- Use \`delete_guidance_source\` for both repository-local sources and provider-project sources such as Codex project skills
-- Provider-global sources are different: import useful provider-independent guidance into shared AI Guidance Bank, remember the decision, and keep the provider-global source in place unless the user explicitly approves cleanup for that source
-- Delete only discovered source paths that were fully migrated or made obsolete by stronger canonical bank entries
-- Leave a source in place when it contains unmigrated material, when deletion was not approved, or when it is a container that still holds non-migrated files
-- In the step outcome or final report, name any migrated source that remains in the provider/repository layer and explain why it was intentionally kept`;
+- Prefer extracting only the useful guidance candidates; do not treat the whole source file as canonical by default
+- Delete a whole legacy source only when the migrated guidance fully replaced it
+- For mixed sources, keep the remaining source content in place instead of deleting the file
+- Never delete provider-global sources during this flow
+- In the report, mention any mixed source that still contains non-migrated content after import`;
 
 const buildContinuationOutcomeInstruction = (iteration: number): string => {
   if (!requiresCreateFlowStepOutcome(iteration)) {
@@ -193,11 +183,9 @@ Step output:
 
 export const buildReviewExistingPrompt = ({
   projectPath,
-  discoveredSources,
   pendingSourceReviewBuckets,
 }: {
   projectPath: string;
-  discoveredSources: readonly ExistingGuidanceSource[];
   pendingSourceReviewBuckets: readonly PendingSourceReviewBucket[];
 }): string => {
   const pendingBucket = pendingSourceReviewBuckets[0] ?? null;
@@ -211,82 +199,48 @@ Review available external guidance before importing anything into AI Guidance Ba
 Project path:
 - \`${projectPath}\`
 
-${renderDiscoveredSourcesSection(discoveredSources)}
 ${renderPendingReviewBucketSection(pendingBucket)}
 
 What to do:
-- Treat the listed repository-local, provider-project, and provider-global sources as the guaranteed inputs for this review
-- Review one pending bucket at a time, in this order when available: \`repository-local\`, \`provider-project\`, \`provider-global\`
-- Skip purely empty, obsolete, or trivial sources without bothering the user
-- By default, do not expose internal strategy labels to the user
+- Review one pending bucket at a time
+- The candidate list above already excludes low-signal sources that were auto-skipped
 - Treat AI Guidance Bank as the durable canonical rules-and-skills layer for the project
 - Ask for one explicit decision for the current pending bucket only:
   - \`migrate\`: import useful non-duplicate guidance from this bucket into AI Guidance Bank
   - \`keep\`: do not import guidance from this bucket and leave the legacy sources in place
 - Record the answer with \`sourceReviewBucket: "${pendingBucket?.bucket ?? "repository-local"}"\` and \`sourceReviewDecision: "migrate" | "keep"\`
-- Keep the user-facing review short and action-oriented:
-  - start with a 1-2 sentence summary of the current pending bucket
-  - recommend one default action
-  - end with one explicit CTA question telling the user to answer \`migrate\` or \`keep\`
-  - avoid long protocol dumps, source-strategy labels, or repeating the same source list multiple times
-
-Decision rules:
-- Treat provider-project guidance as legacy project-specific input that usually needs review or migration
-- Treat provider-global guidance as user-level provider-native input that may affect this project and should usually be imported into shared AI Guidance Bank when it is provider-independent
-- Treat Cursor and Claude project guidance in the repository itself as repository-local sources, not provider-project sources
-- Do not inspect, import, or delete provider-project guidance for other projects
-- Do not delete provider-global guidance during this review step; cleanup of provider-global sources requires a separate explicit user decision after migration
-- Never delete or rewrite any original source during this review step`;
+- Keep the user-facing review short:
+  - summarize the bucket in 1-2 sentences
+  - recommend the bucket's \`recommendedDecision\`
+  - end with one CTA asking for \`migrate\` or \`keep\`
+  - do not dump the full protocol or raw source inventory`;
 };
 
 export const buildImportSelectedPrompt = ({
-  discoveredSources,
   confirmedSourceStrategies,
 }: {
-  discoveredSources: readonly ExistingGuidanceSource[];
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
 }): string => `# Import Selected Guidance
 
 ${STABLE_CONTRACT_NOTE}
 
-Apply the source-level strategies the user approved for external guidance.
-
-${renderDiscoveredSourcesSection(discoveredSources)}
+Apply the confirmed source decisions to the extracted guidance candidates only.
 
 ${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies)}
 
 ${LEGACY_CLEANUP_CONTRACT}
 
 What to do:
-- Treat the confirmed source decisions below as the internal execution plan for this import step
-- Convert approved guidance into canonical AI Guidance Bank rules and skills
-- Keep imported content durable, operational, and reusable across future sessions
-- Split entries between project scope and shared scope when appropriate
-- Write reusable cross-project rules or skills to \`scope: "shared"\`; write repository-specific conventions, paths, workflows, and architecture boundaries to \`scope: "project"\`
-- Assign stable ids, titles, topics, and stack metadata
-- Deduplicate against existing AI Guidance Bank content before writing
-- Use \`create_bank\` with an \`apply\` payload for batched canonical writes and deletions during this flow
-- In \`create_bank.apply\`, paths must be relative to the rules/skills root only; use \`example.md\` or \`adding-feature\`, not \`rules/example.md\` or \`skills/adding-feature\`
-- For sources confirmed by \`migrate\`, import useful non-duplicate file-level guidance, ignore empty or container-only sources automatically, and clean up migrated repository-local or provider-project legacy files when it is safe to do so after successful writes and verification
-- For provider-global sources confirmed by \`migrate\`, import useful provider-independent guidance into \`scope: "shared"\`, remember the decision, and keep the provider-global source in place unless the user separately approves cleanup
-- For sources confirmed by \`keep\`, do not migrate those sources in this pass; leave them in place and rely on the persisted decision to avoid repeated prompts until content changes
-- For each confirmed \`move\` source that was successfully migrated, call \`delete_guidance_source\` with the discovered absolute \`sourcePath\` after the canonical write is verified
-- Never call \`delete_guidance_source\` for provider-global sources unless the user explicitly approved cleanup for that specific provider-global source
-- When replacing or deleting an existing AI Guidance Bank entry, read it first and pass its \`sha256\` back as \`baseSha256\`
-- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the full final document, and retry with the fresh \`baseSha256\`
-
-Write rules:
-- Create a \`rule\` when the source describes a stable constraint, convention, or preference
-- Create a \`skill\` when the source describes a reusable workflow or task sequence
-- Prefer a small number of high-value entries over fragmented boilerplate
-- If a source duplicates existing canonical content, update or skip instead of cloning it
-
-Safety rules:
-- Do not delete, rewrite, or trim any original source unless the confirmed review decision allows cleanup and the migration was already written and verified successfully
-- If the user did not clearly approve an action for a source, leave that source untouched
-- If one source mixes project-specific and shared material, split it across scopes instead of forcing one destination
-- Do not count provider-local or provider-global guidance as existing AI Guidance Bank coverage when deciding what still needs to be written
-- Do not import or delete provider-project guidance belonging to other projects`;
+- Import only useful non-duplicate guidance from sources confirmed by \`migrate\`
+- Keep the import focused on rules and skills, not raw source-file restatement
+- Use \`scope: "shared"\` for reusable provider-independent guidance and \`scope: "project"\` for repository-specific guidance
+- Prefer a small number of strong canonical entries over fragmented copies
+- Use \`create_bank.apply\` for batched canonical writes
+- In \`create_bank.apply\`, paths must be relative to the rules/skills root only
+- For mixed sources, keep the original source in place unless you can safely trim only the migrated guidance
+- For fully replaced repository-local or provider-project sources, use \`delete_guidance_source\` only after the canonical write is verified
+- Never call \`delete_guidance_source\` for provider-global sources
+- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry and retry with a fresh \`baseSha256\``;
 
 export const buildDeriveFromProjectPrompt = ({
   projectPath,
