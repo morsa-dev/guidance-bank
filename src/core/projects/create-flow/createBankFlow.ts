@@ -1,48 +1,29 @@
 import type { BankRepository } from "../../../storage/bankRepository.js";
-import type { ProviderId } from "../../bank/types.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../../bank/lifecycle.js";
-import {
-  createProjectBankState,
-  markProjectBankSynced,
-  setProjectBankCreateIteration,
-  setProjectBankSourceStrategies,
-} from "../../bank/project.js";
-import type { ProjectBankState, ProjectCreationState } from "../../bank/types.js";
-import {
-  createExternalGuidanceSourceKey,
-  type ExternalGuidanceDecisionState,
-} from "../../bank/externalGuidanceDecisions.js";
+import type { ProjectCreationState } from "../../bank/types.js";
 import { detectProjectContext } from "../../context/detectProjectContext.js";
 import {
   getCreateFlowPhase,
   getNextCreateFlowIteration,
   isCreateFlowComplete,
-  requiresCreateFlowStepOutcome,
 } from "./createFlowPhases.js";
-import { discoverCurrentProjectBank, type CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
-import { discoverExistingGuidance, type ExistingGuidanceSource } from "../discoverExistingGuidance.js";
 import { findReferenceProjects } from "../findReferenceProjects.js";
 import {
   type ConfirmedGuidanceSourceStrategy,
   type SourceReviewDecision,
 } from "./guidanceStrategies.js";
 import { resolveProjectIdentity } from "../identity.js";
+import { loadExtendedCreateBankContext, type CreateBankExtendedContext } from "./createBankExtendedContext.js";
+import { resolveCreateBankSourceReviewState } from "./createBankSourceReviewState.js";
+import { resolveNextCreateBankState } from "./createBankState.js";
+import { resolveCreateFlowProgress } from "./createFlowProgress.js";
 import {
-  applySourceReviewDecision,
   buildPendingSourceReviewBuckets,
   completePendingImportBucket,
   getPendingImportBucket,
-  matchesStoredSourceStrategy,
-  selectReviewableGuidanceSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
 } from "./sourceReviewBuckets.js";
-
-type CreateBankExtendedContext = {
-  discoveredSources: ExistingGuidanceSource[];
-  reviewSources: ExistingGuidanceSource[];
-  currentBankSnapshot: CurrentProjectBankSnapshot;
-};
 
 type ResolveCreateBankFlowContextOptions = {
   repository: BankRepository;
@@ -88,47 +69,6 @@ export type ResolvedCreateBankFlowContext = {
 type CreateBankApplyOutcome = {
   writes: Array<{ status: "created" | "updated" | "conflict" }>;
   deletions: Array<{ status: "deleted" | "not_found" | "conflict" }>;
-};
-
-export const resolveNextCreateBankState = ({
-  existingManifest,
-  existingState,
-  shouldTrackCreateFlow,
-  nextCreationState,
-  manifestStorageVersion,
-  effectiveIteration,
-  confirmedSourceStrategies,
-}: {
-  existingManifest: ResolvedCreateBankFlowContext["existingManifest"];
-  existingState: ProjectBankState | null;
-  shouldTrackCreateFlow: boolean;
-  nextCreationState: ProjectCreationState;
-  manifestStorageVersion: number;
-  effectiveIteration: number;
-  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
-}): ProjectBankState => {
-  let nextState = existingState;
-
-  if (existingManifest === null) {
-    nextState = markProjectBankSynced(createProjectBankState(nextCreationState), manifestStorageVersion);
-  } else if (nextState === null) {
-    nextState = createProjectBankState(nextCreationState);
-  } else if (shouldTrackCreateFlow) {
-    nextState = {
-      ...nextState,
-      creationState: nextCreationState,
-    };
-  }
-
-  if (shouldTrackCreateFlow) {
-    nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
-    nextState = setProjectBankSourceStrategies(
-      nextState,
-      nextCreationState === "ready" ? [] : confirmedSourceStrategies,
-    );
-  }
-
-  return nextState;
 };
 
 export const finalizeCreateBankExecution = ({
@@ -240,85 +180,6 @@ export const finalizeCreateBankExecution = ({
   };
 };
 
-const EMPTY_EXTENDED_CONTEXT: CreateBankExtendedContext = {
-  discoveredSources: [],
-  reviewSources: [],
-  currentBankSnapshot: {
-    exists: false,
-    entries: [],
-  },
-};
-
-const ACTIVE_PROVIDER_TO_DISCOVERY_PROVIDER: Partial<Record<ProviderId, NonNullable<ExistingGuidanceSource["provider"]>>> = {
-  codex: "codex",
-  cursor: "cursor",
-  "claude-code": "claude",
-};
-
-const filterSourcesForActiveProviders = (
-  sources: readonly ExistingGuidanceSource[],
-  enabledProviders: readonly ProviderId[],
-): ExistingGuidanceSource[] => {
-  const activeProviders = new Set(
-    enabledProviders.flatMap((providerId) => {
-      const mappedProvider = ACTIVE_PROVIDER_TO_DISCOVERY_PROVIDER[providerId];
-      return mappedProvider ? [mappedProvider] : [];
-    }),
-  );
-
-  return sources.filter(
-    (source) => source.scope === "repository-local" || source.provider === null || activeProviders.has(source.provider),
-  );
-};
-
-const isProviderGlobalSourceDecisionCurrent = (
-  source: ExistingGuidanceSource,
-  decisionState: ExternalGuidanceDecisionState,
-): boolean => {
-  if (source.scope !== "provider-global" || source.provider === null) {
-    return false;
-  }
-
-  const sourceKey = createExternalGuidanceSourceKey({
-    scope: source.scope,
-    provider: source.provider,
-    relativePath: source.relativePath,
-  });
-  const decision = decisionState.sources[sourceKey];
-
-  return decision !== undefined && decision.fingerprint === source.fingerprint;
-};
-
-const isDescendantOfSuppressedProviderGlobalDirectory = (
-  source: ExistingGuidanceSource,
-  suppressedProviderGlobalDirectories: readonly ExistingGuidanceSource[],
-): boolean => {
-  if (source.scope !== "provider-global" || source.provider === null) {
-    return false;
-  }
-
-  return suppressedProviderGlobalDirectories.some(
-    (directorySource) =>
-      directorySource.provider === source.provider &&
-      source.relativePath.startsWith(`${directorySource.relativePath}/`),
-  );
-};
-
-const filterSuppressedProviderGlobalSources = (
-  sources: readonly ExistingGuidanceSource[],
-  decisionState: ExternalGuidanceDecisionState,
-): ExistingGuidanceSource[] => {
-  const suppressedProviderGlobalDirectories = sources.filter(
-    (source) => source.entryType === "directory" && isProviderGlobalSourceDecisionCurrent(source, decisionState),
-  );
-
-  return sources.filter(
-    (source) =>
-      !isProviderGlobalSourceDecisionCurrent(source, decisionState) &&
-      !isDescendantOfSuppressedProviderGlobalDirectory(source, suppressedProviderGlobalDirectories),
-  );
-};
-
 const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number | null => {
   if (updatedAt === null) {
     return null;
@@ -331,100 +192,6 @@ const getUpdatedDaysAgo = (updatedAt: string | null, now = new Date()): number |
 
   const diffMs = Math.max(0, now.getTime() - updatedAtTime);
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-};
-
-export const resolveCreateFlowProgress = ({
-  storedIteration,
-  requestedIteration,
-  stepCompleted,
-  stepOutcomeSatisfied,
-}: {
-  storedIteration: number | null;
-  requestedIteration: number;
-  stepCompleted: boolean;
-  stepOutcomeSatisfied: boolean;
-}): {
-  effectiveIteration: number;
-  stepCompletionRequired: boolean;
-  stepOutcomeRequired: boolean;
-} => {
-  if (storedIteration === null) {
-    return {
-      effectiveIteration: requestedIteration,
-      stepCompletionRequired: false,
-      stepOutcomeRequired: false,
-    };
-  }
-
-  if (requestedIteration === 0 || requestedIteration <= storedIteration) {
-    return {
-      effectiveIteration: requestedIteration,
-      stepCompletionRequired: false,
-      stepOutcomeRequired: false,
-    };
-  }
-
-  if (requestedIteration === storedIteration + 1) {
-    if (stepCompleted && requiresCreateFlowStepOutcome(storedIteration) && !stepOutcomeSatisfied) {
-      return {
-        effectiveIteration: storedIteration,
-        stepCompletionRequired: false,
-        stepOutcomeRequired: true,
-      };
-    }
-
-    return stepCompleted
-      ? {
-          effectiveIteration: requestedIteration,
-          stepCompletionRequired: false,
-          stepOutcomeRequired: false,
-        }
-      : {
-          effectiveIteration: storedIteration,
-          stepCompletionRequired: true,
-          stepOutcomeRequired: false,
-        };
-  }
-
-  return {
-    effectiveIteration: storedIteration,
-    stepCompletionRequired: true,
-    stepOutcomeRequired: false,
-  };
-};
-
-const loadExtendedCreateBankContext = async (
-  repository: BankRepository,
-  enabledProviders: readonly ProviderId[],
-  projectId: string,
-  hasExistingProjectBank: boolean,
-  projectPath: string,
-  shouldLoad: boolean,
-): Promise<CreateBankExtendedContext> => {
-  if (!shouldLoad) {
-    return {
-      ...EMPTY_EXTENDED_CONTEXT,
-      currentBankSnapshot: await discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
-    };
-  }
-
-  const [allDiscoveredSources, currentBankSnapshot, externalGuidanceDecisionState] = await Promise.all([
-    discoverExistingGuidance(projectPath),
-    discoverCurrentProjectBank(repository, projectId, hasExistingProjectBank),
-    repository.readExternalGuidanceDecisionState(),
-  ]);
-
-  const discoveredSources = filterSourcesForActiveProviders(
-    filterSuppressedProviderGlobalSources(allDiscoveredSources, externalGuidanceDecisionState),
-    enabledProviders,
-  );
-  const reviewSources = selectReviewableGuidanceSources(discoveredSources);
-
-  return {
-    discoveredSources,
-    reviewSources,
-    currentBankSnapshot,
-  };
 };
 
 export const resolveCreateBankFlowContext = async ({
@@ -489,53 +256,31 @@ export const resolveCreateBankFlowContext = async ({
     (nextCreationState === "creating" ||
       (lifecycleStatus === "ready" && effectiveIteration > 0 && !isFlowComplete));
   const completedFlowThisCall = !mustContinue && existingState?.creationState === "creating" && isFlowComplete;
-  const extendedContext = await loadExtendedCreateBankContext(
+  const extendedContext = await loadExtendedCreateBankContext({
     repository,
-    manifest.enabledProviders,
-    identity.projectId,
-    existingManifest !== null,
-    identity.projectPath,
-    mustContinue || completedFlowThisCall,
-  );
-
-  const storedSourceStrategies =
-    (existingState?.sourceStrategies ?? []).filter((strategy) =>
-      extendedContext.reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
-    );
-  const pendingSourceReviewBucketsBeforeDecision = buildPendingSourceReviewBuckets({
-    discoveredSources: extendedContext.reviewSources,
-    confirmedSourceStrategies: storedSourceStrategies,
+    enabledProviders: manifest.enabledProviders,
+    projectId: identity.projectId,
+    hasExistingProjectBank: existingManifest !== null,
+    projectPath: identity.projectPath,
+    shouldLoad: mustContinue || completedFlowThisCall,
   });
-  const resolvedReviewBucket =
-    sourceReviewBucket ??
-    (sourceReviewDecision && pendingSourceReviewBucketsBeforeDecision.length === 1
-      ? pendingSourceReviewBucketsBeforeDecision[0]?.bucket
-      : undefined);
-  const resolvedSourceStrategies =
-    sourceReviewDecision && resolvedReviewBucket
-      ? applySourceReviewDecision({
-          existingStrategies: storedSourceStrategies,
-          discoveredSources: extendedContext.reviewSources,
-          bucket: resolvedReviewBucket,
-          decision: sourceReviewDecision,
-        })
-      : storedSourceStrategies;
 
-  const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) =>
-    extendedContext.reviewSources.some((source) => matchesStoredSourceStrategy(source, strategy)),
-  );
-  const pendingSourceReviewBuckets = buildPendingSourceReviewBuckets({
-    discoveredSources: extendedContext.reviewSources,
+  const {
     confirmedSourceStrategies,
+    pendingSourceReviewBuckets,
+    activeImportBucket,
+    sourceStrategyRequired,
+  } = resolveCreateBankSourceReviewState({
+    existingState,
+    reviewSources: extendedContext.reviewSources,
+    syncRequired,
+    requestedIteration,
+    stepCompleted,
+    sourceReviewDecision,
+    sourceReviewBucket,
   });
-  const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);
   const sourceReviewAdvanceRequested =
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
-  const sourceStrategyRequired =
-    !syncRequired &&
-    sourceReviewAdvanceRequested &&
-    activeImportBucket === null &&
-    pendingSourceReviewBuckets.length > 0;
 
   const shouldSkipExternalGuidanceReview =
     effectiveIteration === 1 && activeImportBucket === null && pendingSourceReviewBuckets.length === 0;
