@@ -104,7 +104,7 @@ const SOURCE_TRANSFER_CONTRACT = `## Source Transfer Rules
 - Do not copy whole provider files or repository instruction files just because they exist; transfer only durable rules and reusable skills
 - If all useful guidance in a source was migrated and no non-guidance content remains, the agent may remove that now-empty source directly
 - For mixed sources, keep non-guidance content in place and remove only the migrated guidance text or file
-- For repository-local files such as AGENTS.md, CLAUDE.md, or similar project notes, expect only some instructions to be transferable; leave project maps, temporary notes, and low-value noise in place
+- For provider-project files such as AGENTS.md, CLAUDE.md, or similar project notes, expect only some instructions to be transferable; leave project maps, temporary notes, and low-value noise in place
 - If an item cannot be safely removed from the source in the same step, do not import that item yet
 - In the report, mention any approved source item intentionally left external because source cleanup was unsafe`;
 

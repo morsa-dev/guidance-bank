@@ -71,7 +71,6 @@ const CreateBankSchema = z.object({
   }),
   discoveredSources: z.array(
     z.object({
-      kind: z.string(),
       entryType: z.string(),
       scope: z.string(),
       relativePath: z.string(),
@@ -166,7 +165,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   );
 });
 
-test("create_bank discovers codex project guidance and keeps Cursor rules repository-local", async (t) => {
+test("create_bank discovers codex project guidance and keeps Cursor rules provider-project", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
@@ -193,7 +192,7 @@ test("create_bank discovers codex project guidance and keeps Cursor rules reposi
 
   assert.deepEqual(
     structured.discoveredSources
-      .filter((source) => source.kind === "codex-project")
+      .filter((source) => source.relativePath.startsWith("~/.codex/skills/projects/"))
       .map((source) => source.relativePath),
     [
       "~/.codex/skills/projects/demo-project",
@@ -442,7 +441,7 @@ test("create_bank remembers provider-global keep_external decisions without impo
   });
 });
 
-test("create_bank reviews repository-local and provider-global buckets separately", async (t) => {
+test("create_bank reviews provider-project and provider-global buckets separately", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex", "cursor"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const fakeHome = path.join(tempDirectoryPath, "fake-home");
@@ -482,7 +481,7 @@ test("create_bank reviews repository-local and provider-global buckets separatel
     );
 
     assert.equal(afterGlobalDecision.phase, "review_existing_guidance");
-    assert.equal(afterGlobalDecision.sourceReview?.bucket, "repository-local");
+    assert.equal(afterGlobalDecision.sourceReview?.bucket, "provider-project");
     assert.deepEqual(
       afterGlobalDecision.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
@@ -579,7 +578,7 @@ test("create_bank returns to source review after importing one bucket when anoth
 
     assert.equal(nextReviewStructured.phase, "review_existing_guidance");
     assert.equal(nextReviewStructured.iteration, 1);
-    assert.equal(nextReviewStructured.sourceReview?.bucket, "repository-local");
+    assert.equal(nextReviewStructured.sourceReview?.bucket, "provider-project");
     assert.deepEqual(
       nextReviewStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
@@ -592,7 +591,7 @@ test("create_bank returns to source review after importing one bucket when anoth
 });
 
 test("create_bank reviews source buckets without server-side semantic candidate extraction", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["claude-code"] });
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
   await writeProjectFiles(projectRoot, {
@@ -621,7 +620,7 @@ test("create_bank reviews source buckets without server-side semantic candidate 
     CreateBankSchema,
   );
 
-  assert.equal(reviewStructured.sourceReview?.bucket, "repository-local");
+  assert.equal(reviewStructured.sourceReview?.bucket, "provider-project");
   assert.equal(
     reviewStructured.sourceReview?.paths.some((sourcePath) => sourcePath.endsWith("CLAUDE.md")),
     true,
@@ -703,11 +702,11 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(reviewStructured.stepCompletionRequired, false);
   assert.equal(reviewStructured.sourceStrategyRequired, false);
   assert.equal(reviewStructured.stepOutcomeRequired, false);
-  assert.equal(reviewStructured.sourceReview?.bucket, "repository-local");
+  assert.equal(reviewStructured.sourceReview?.bucket, "provider-project");
   assert.equal(reviewStructured.sourceReview?.paths.length, 2);
   assert.match(reviewStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
   assert.match(reviewStructured.prompt, /Source Paths/i);
-  assert.match(reviewStructured.prompt, /Handle only bucket `repository-local`/i);
+  assert.match(reviewStructured.prompt, /Handle only bucket `provider-project`/i);
   assert.match(reviewStructured.prompt, /Inspect the listed paths yourself/i);
   assert.doesNotMatch(reviewStructured.prompt, /sourceReviewBucket/i);
   assert.match(reviewStructured.prompt, /import_to_bank/i);
