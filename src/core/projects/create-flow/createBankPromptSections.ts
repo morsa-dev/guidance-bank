@@ -48,6 +48,18 @@ const renderPendingReviewBucketSection = (pendingBucket: PendingSourceReviewBuck
     return "";
   }
 
+  if (pendingBucket.bucket === "repository-local") {
+    const pathLines =
+      pendingBucket.paths.length > 0
+        ? pendingBucket.paths.map((sourcePath) => `- \`${sourcePath}\``).join("\n")
+        : "- No pre-discovered files. Inspect the repository directly.";
+
+    return `## Repository-Local Discovery
+
+- Bucket: \`repository-local\`
+${pathLines}`;
+  }
+
   return `## Source Paths
 
 - Bucket: \`${pendingBucket.bucket}\`
@@ -204,6 +216,27 @@ export const buildReviewExistingPrompt = ({
   pendingSourceReviewBuckets: readonly PendingSourceReviewBucket[];
 }): string => {
   const pendingBucket = pendingSourceReviewBuckets[0] ?? null;
+
+  if (pendingBucket?.bucket === "repository-local") {
+    return `# Existing Guidance Review
+
+${STABLE_CONTRACT_NOTE}
+
+Review repository-local guidance before completing the source review phase.
+
+Project path:
+- \`${projectPath}\`
+
+${renderPendingReviewBucketSection(pendingBucket)}
+
+What to do:
+- Handle bucket \`repository-local\` in this step.
+- Inspect the repository for any project-internal guidance files not already covered by provider-specific sources: custom conventions docs, runbooks, style guides, or similar.
+- If useful durable guidance exists, ask the user whether to move it into AI Guidance Bank.
+- If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
+- If nothing worth importing exists, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\` to complete this review step.
+- Keep the user-facing message short.`;
+  }
 
   return `# Existing Guidance Review
 

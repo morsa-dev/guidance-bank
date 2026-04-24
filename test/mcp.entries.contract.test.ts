@@ -34,17 +34,10 @@ const ClearProjectBankSchema = z.object({
 const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
   await callToolStructured(client, "create_bank", { projectPath }, z.object({ projectId: z.string() }));
   await callToolStructured(client, "create_bank", { projectPath, iteration: 1, stepCompleted: true }, z.object({ projectId: z.string() }));
-  await callToolStructured(client, "create_bank", { projectPath, iteration: 2, stepCompleted: true }, z.object({ projectId: z.string() }));
   await callToolStructured(
     client,
     "create_bank",
-    {
-      projectPath,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance needed importing in this setup.",
-    },
+    { projectPath, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     z.object({ projectId: z.string() }),
   );
   await callToolStructured(

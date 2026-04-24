@@ -426,10 +426,19 @@ test("create_bank remembers provider-global keep_external decisions without impo
 
     assert.equal(laterStructured.sourceReview, null);
     assert.equal(laterStructured.discoveredSources.some((source) => source.scope === "provider-global"), true);
-    const laterDeriveStructured = await callToolStructured(
+    // Review phase → repository-local discovery
+    await callToolStructured(
       client,
       "create_bank",
       { projectPath: laterProjectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+
+    // Handle repository-local review → skip to derive
+    const laterDeriveStructured = await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: laterProjectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
       CreateBankSchema,
     );
 
@@ -775,7 +784,8 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedDeriveStructured.stepOutcomeRequired, true);
   assert.match(blockedDeriveStructured.text, /Record an explicit outcome for phase `import_selected_guidance`/i);
 
-  const deriveProjectStructured = await callToolStructured(
+  // Complete import — returns to repository-local discovery review
+  await callToolStructured(
     client,
     "create_bank",
     {
@@ -784,6 +794,19 @@ test("create_bank later iterations expose review import derive and finalize prom
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No external guidance needed importing for this test project.",
+    },
+    CreateBankSchema,
+  );
+
+  // Handle repository-local discovery review → skip to derive
+  const deriveProjectStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewDecision: "keep_external",
     },
     CreateBankSchema,
   );
@@ -957,19 +980,7 @@ test("create_bank can apply batched writes for the current step and refresh the 
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1144,19 +1155,7 @@ test("create_bank apply accepts singular rule and skill kinds as aliases", async
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1236,19 +1235,7 @@ test("create_bank apply normalizes rules and skills path prefixes", async (t) =>
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1331,19 +1318,7 @@ test("create_bank apply rejects paths prefixed for the wrong entry root", async 
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1399,19 +1374,7 @@ test("create_bank apply can update and delete existing entries in one batch with
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1553,19 +1516,7 @@ test("create_bank apply reports conflicts and tells the agent how to recover", a
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1663,19 +1614,7 @@ test("create_bank does not advance stored iteration when an apply conflict block
   await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 2, stepCompleted: true },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance sources needed importing in this setup.",
-    },
+    { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" },
     CreateBankSchema,
   );
 
@@ -1792,6 +1731,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
     },
     CreateBankSchema,
   );
+  // Complete import — returns to repository-local discovery review
   await callToolStructured(
     client,
     "create_bank",
@@ -1801,6 +1741,18 @@ test("resolve_context blocks normal runtime context until the create flow is com
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No external guidance needed importing for this test project.",
+    },
+    CreateBankSchema,
+  );
+  // Handle repository-local discovery review → skip to derive
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewDecision: "keep_external",
     },
     CreateBankSchema,
   );
@@ -1878,19 +1830,7 @@ test("ready project banks ask the user whether to run an improvement pass before
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
   await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance needed importing for this ready-bank test.",
-    },
-    CreateBankSchema,
-  );
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" }, CreateBankSchema);
   await callToolStructured(
     client,
     "create_bank",
@@ -1975,19 +1915,7 @@ test("improve_bank aliases the guided existing-bank flow", async (t) => {
 
   await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
   await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance needed importing for this alias test.",
-    },
-    CreateBankSchema,
-  );
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" }, CreateBankSchema);
   await callToolStructured(
     client,
     "create_bank",

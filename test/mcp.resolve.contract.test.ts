@@ -58,14 +58,7 @@ const MissingContextSchema = z.object({
 const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof createConnectedClient>>["client"], projectPath: string) => {
   await callToolResult(client, "create_bank", { projectPath });
   await callToolResult(client, "create_bank", { projectPath, iteration: 1, stepCompleted: true });
-  await callToolResult(client, "create_bank", { projectPath, iteration: 2, stepCompleted: true });
-  await callToolResult(client, "create_bank", {
-    projectPath,
-    iteration: 3,
-    stepCompleted: true,
-    stepOutcome: "no_changes",
-    stepOutcomeNote: "No external guidance needed importing in this setup.",
-  });
+  await callToolResult(client, "create_bank", { projectPath, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" });
   await callToolResult(client, "create_bank", {
     projectPath,
     iteration: 4,

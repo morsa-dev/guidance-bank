@@ -123,6 +123,7 @@ export const finalizeCreateBankExecution = ({
           flowContext.extendedContext.providerGlobalKeptExternal,
         ),
         confirmedSourceStrategies,
+        isImprovementFlow: false,
       })
     : flowContext.pendingSourceReviewBuckets;
   const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);

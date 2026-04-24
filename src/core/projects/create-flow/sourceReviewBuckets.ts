@@ -4,6 +4,11 @@ import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./gu
 export const SOURCE_REVIEW_BUCKETS = ["provider-global", "provider-project", "repository-local"] as const;
 export type SourceReviewBucket = (typeof SOURCE_REVIEW_BUCKETS)[number];
 
+export const REPOSITORY_LOCAL_DISCOVERY_REF = "__repository-local-discovery__";
+
+export const isRepositoryLocalReviewed = (confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[]): boolean =>
+  confirmedSourceStrategies.some((strategy) => strategy.reviewBucket === "repository-local");
+
 export type PendingSourceReviewBucket = {
   bucket: SourceReviewBucket;
   paths: string[];
@@ -89,11 +94,13 @@ export const applySourceReviewDecision = ({
     existingStrategies.map((strategy) => [strategy.sourceRef, strategy]),
   );
 
+  let hadRealSources = false;
   for (const source of discoveredSources) {
     if (sourceReviewBucketFor(source) !== bucket) {
       continue;
     }
 
+    hadRealSources = true;
     nextStrategies.set(source.relativePath, {
       sourceRef: source.relativePath,
       decision,
@@ -102,6 +109,18 @@ export const applySourceReviewDecision = ({
       fingerprint: source.fingerprint,
       reviewBucket: bucket,
       importStatus: decision === "keep_external" ? "completed" : "pending",
+    });
+  }
+
+  if (!hadRealSources && bucket === "repository-local") {
+    nextStrategies.set(REPOSITORY_LOCAL_DISCOVERY_REF, {
+      sourceRef: REPOSITORY_LOCAL_DISCOVERY_REF,
+      decision,
+      cleanupAllowed: false,
+      note: null,
+      fingerprint: undefined,
+      reviewBucket: "repository-local",
+      importStatus: "completed",
     });
   }
 
@@ -130,11 +149,21 @@ export const completePendingImportBucket = (
 export const buildPendingSourceReviewBuckets = ({
   discoveredSources,
   confirmedSourceStrategies,
+  isImprovementFlow = false,
 }: {
   discoveredSources: readonly ExistingGuidanceSource[];
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
+  isImprovementFlow?: boolean;
 }): PendingSourceReviewBucket[] => {
-  return SOURCE_REVIEW_BUCKETS.flatMap((bucket) => {
+  return SOURCE_REVIEW_BUCKETS.flatMap((bucket): PendingSourceReviewBucket[] => {
+    if (bucket === "repository-local") {
+      if (isImprovementFlow || isRepositoryLocalReviewed(confirmedSourceStrategies)) {
+        return [];
+      }
+      const bucketSources = discoveredSources.filter((source) => sourceReviewBucketFor(source) === bucket);
+      return [{ bucket, paths: bucketSources.map((source) => source.path) }];
+    }
+
     const bucketSources = discoveredSources.filter((source) => sourceReviewBucketFor(source) === bucket);
     if (bucketSources.length === 0) {
       return [];

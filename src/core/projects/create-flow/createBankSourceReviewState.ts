@@ -6,6 +6,7 @@ import {
   buildPendingSourceReviewBuckets,
   getPendingImportBucket,
   matchesStoredSourceStrategy,
+  REPOSITORY_LOCAL_DISCOVERY_REF,
   selectSourceReviewSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
@@ -39,11 +40,14 @@ export const resolveCreateBankSourceReviewState = ({
   const sources = selectSourceReviewSources(discoveredSources, providerGlobalKeptExternal);
   const storedSourceStrategies =
     (existingState?.sourceStrategies ?? []).filter((strategy) =>
+      strategy.sourceRef === REPOSITORY_LOCAL_DISCOVERY_REF ||
       sources.some((source) => matchesStoredSourceStrategy(source, strategy)),
     );
+  const isImprovementFlow = existingState?.creationState === "ready";
   const pendingSourceReviewBucketsBeforeDecision = buildPendingSourceReviewBuckets({
     discoveredSources: sources,
     confirmedSourceStrategies: storedSourceStrategies,
+    isImprovementFlow,
   });
   const resolvedReviewBucket =
     sourceReviewDecision ? pendingSourceReviewBucketsBeforeDecision[0]?.bucket : undefined;
@@ -58,11 +62,13 @@ export const resolveCreateBankSourceReviewState = ({
       : storedSourceStrategies;
 
   const confirmedSourceStrategies = resolvedSourceStrategies.filter((strategy) =>
+    strategy.sourceRef === REPOSITORY_LOCAL_DISCOVERY_REF ||
     sources.some((source) => matchesStoredSourceStrategy(source, strategy)),
   );
   const pendingSourceReviewBuckets = buildPendingSourceReviewBuckets({
     discoveredSources: sources,
     confirmedSourceStrategies,
+    isImprovementFlow,
   });
   const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);
   const sourceReviewAdvanceRequested =
