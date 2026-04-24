@@ -850,7 +850,6 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.match(finalizeStructured.prompt, /Leave unresolved or low-confidence items out unless the user explicitly approves them/i);
   assert.match(finalizeStructured.prompt, /Move entries into shared scope when they are provider-independent/i);
   assert.match(finalizeStructured.prompt, /Use `create_bank\.apply` for final bank-entry fixes only/i);
-  assert.match(finalizeStructured.prompt, /Source Transfer Rules/i);
   assert.match(finalizeStructured.prompt, /no imported guidance remains duplicated in its original source/i);
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(

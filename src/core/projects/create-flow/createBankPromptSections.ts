@@ -316,9 +316,7 @@ export const buildFinalizePrompt = (): string => `# Finalize AI Guidance Bank
 
 ${STABLE_CONTRACT_NOTE}
 
-Finish the project AI Guidance Bank creation flow.
-
-${SOURCE_TRANSFER_CONTRACT}
+Finish the project AI Guidance Bank creation flow. Source cleanup for imported guidance should already have happened during the import step — do not re-import.
 
 What to do:
 - Deduplicate overlapping rules and skills
@@ -326,7 +324,7 @@ What to do:
 - Check ids, titles, topics, and stack metadata for consistency
 - Keep only durable guidance that should survive across sessions; leave conversational context out
 - If confidence is low for any high-impact rule, ask the user before keeping it
-- Use \`create_bank.apply\` for final bank-entry fixes only; source cleanup for imported guidance should already have happened during import
+- Use \`create_bank.apply\` for final bank-entry fixes only
 - If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry, rebuild the final canonical document, and retry with fresh \`baseSha256\`
 - Return a concise completion report when the bank is in a good canonical state
 - Run an explicit gap-and-coverage review before declaring the bank done
