@@ -34,6 +34,64 @@ const summarizeBody = (body: string): string => {
 
 const comparePaths = (left: { path: string }, right: { path: string }): number => left.path.localeCompare(right.path);
 
+type ParsedEntryDocument = {
+  id: string;
+  title: string;
+  stack: string | null;
+  topics: string[];
+  description: string | null;
+  body: string;
+};
+
+const parseEntryDocument = (kind: EntryKind, content: string): ParsedEntryDocument => {
+  if (kind === "rules") {
+    const document = parseCanonicalRuleDocument(content);
+
+    return {
+      id: document.frontmatter.id,
+      title: document.frontmatter.title,
+      stack: document.frontmatter.stack ?? null,
+      topics: [...document.frontmatter.topics],
+      description: null,
+      body: document.body,
+    };
+  }
+
+  const document = parseCanonicalSkillDocument(content);
+
+  return {
+    id: document.frontmatter.id,
+    title: document.frontmatter.title,
+    stack: document.frontmatter.stack ?? null,
+    topics: [...document.frontmatter.topics],
+    description: document.frontmatter.description,
+    body: document.body,
+  };
+};
+
+const buildEntrySummary = ({
+  scope,
+  kind,
+  entryPath,
+  document,
+}: {
+  scope: EntryScope;
+  kind: EntryKind;
+  entryPath: string;
+  document: ParsedEntryDocument;
+}): GuidanceBankEntrySummary => ({
+  scope,
+  kind,
+  path: normalizeEntryDisplayPath(kind, entryPath),
+  filePath: entryPath.replaceAll("\\", "/"),
+  id: document.id,
+  title: document.title,
+  stacks: document.stack ? [document.stack] : [],
+  topics: [...document.topics],
+  description: document.description,
+  bodyPreview: summarizeBody(document.body),
+});
+
 export class GuidanceBankQueryService {
   readonly bankRoot: string;
   private readonly repository: BankRepository;
@@ -132,37 +190,14 @@ export class GuidanceBankQueryService {
     return Promise.all(
       normalizedEntries.map(async (entry) => {
         const content = await this.repository.readLayerEntry(args.scope, args.kind, entry.path, projectId);
-        if (args.kind === "rules") {
-          const document = parseCanonicalRuleDocument(content);
+        const document = parseEntryDocument(args.kind, content);
 
-          return {
-            scope: args.scope,
-            kind: args.kind,
-            path: normalizeEntryDisplayPath(args.kind, entry.path),
-            filePath: entry.path.replaceAll("\\", "/"),
-            id: document.frontmatter.id,
-            title: document.frontmatter.title,
-            stacks: document.frontmatter.stack ? [document.frontmatter.stack] : [],
-            topics: [...document.frontmatter.topics],
-            description: null,
-            bodyPreview: summarizeBody(document.body),
-          } satisfies GuidanceBankEntrySummary;
-        }
-
-        const document = parseCanonicalSkillDocument(content);
-
-        return {
+        return buildEntrySummary({
           scope: args.scope,
           kind: args.kind,
-          path: normalizeEntryDisplayPath(args.kind, entry.path),
-          filePath: entry.path.replaceAll("\\", "/"),
-          id: document.frontmatter.id,
-          title: document.frontmatter.title,
-          stacks: document.frontmatter.stack ? [document.frontmatter.stack] : [],
-          topics: [...document.frontmatter.topics],
-          description: document.frontmatter.description,
-          bodyPreview: summarizeBody(document.body),
-        } satisfies GuidanceBankEntrySummary;
+          entryPath: entry.path,
+          document,
+        });
       }),
     );
   }
@@ -174,38 +209,15 @@ export class GuidanceBankQueryService {
     }
 
     const content = await this.repository.readLayerEntry(args.scope, args.kind, args.path, projectId);
-    if (args.kind === "rules") {
-      const document = parseCanonicalRuleDocument(content);
-
-      return {
-        scope: args.scope,
-        kind: args.kind,
-        path: normalizeEntryDisplayPath(args.kind, args.path),
-        filePath: args.path.replaceAll("\\", "/"),
-        id: document.frontmatter.id,
-        title: document.frontmatter.title,
-        stacks: document.frontmatter.stack ? [document.frontmatter.stack] : [],
-        topics: [...document.frontmatter.topics],
-        description: null,
-        bodyPreview: summarizeBody(document.body),
-        content,
-        body: document.body,
-      };
-    }
-
-    const document = parseCanonicalSkillDocument(content);
+    const document = parseEntryDocument(args.kind, content);
 
     return {
-      scope: args.scope,
-      kind: args.kind,
-      path: normalizeEntryDisplayPath(args.kind, args.path),
-      filePath: args.path.replaceAll("\\", "/"),
-      id: document.frontmatter.id,
-      title: document.frontmatter.title,
-      stacks: document.frontmatter.stack ? [document.frontmatter.stack] : [],
-      topics: [...document.frontmatter.topics],
-      description: document.frontmatter.description,
-      bodyPreview: summarizeBody(document.body),
+      ...buildEntrySummary({
+        scope: args.scope,
+        kind: args.kind,
+        entryPath: args.path,
+        document,
+      }),
       content,
       body: document.body,
     };
