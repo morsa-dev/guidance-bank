@@ -3,6 +3,11 @@
   "version": "0.2.1",
   "description": "Persistent rules, skills, and reusable guidance for coding agents.",
   "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./query": "./dist/query/index.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "bin",
     "dist",
