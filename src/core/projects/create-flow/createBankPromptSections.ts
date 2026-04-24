@@ -108,6 +108,23 @@ ${selectedReferenceProjects
   .join("\n")}`;
 };
 
+const getBucketImportMeaning = (bucket: PendingSourceReviewBucket["bucket"]): string => {
+  if (bucket === "provider-global") {
+    return "move useful provider-independent guidance into the shared AI Guidance Bank and remove each migrated item from the original provider-global source";
+  }
+
+  if (bucket === "provider-project") {
+    return "move useful repository-specific guidance into AI Guidance Bank, usually project scope unless the guidance is clearly reusable across repositories, and remove each migrated item from the original provider source";
+  }
+
+  return "move useful repository-local guidance into AI Guidance Bank, usually project scope unless the guidance is clearly reusable across repositories, and remove each migrated item from the original source";
+};
+
+const getBucketKeepMeaning = (bucket: PendingSourceReviewBucket["bucket"]): string =>
+  bucket === "provider-global"
+    ? "leave these provider-global sources in place and treat them as external coverage that must not be duplicated into the bank"
+    : "leave these sources in place and do not import their guidance into the bank";
+
 const SOURCE_TRANSFER_CONTRACT = `## Source Transfer Rules
 
 - The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
@@ -196,16 +213,17 @@ ${renderDetectedStacksSection(detectedStacks)}
 ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 What to do in this step:
-- inspect the repository and selected reference projects
-- form a candidate list for the first high-value rules and skills
-- start writing only when the evidence is already strong
+- inspect the repository and selected reference projects just enough to identify the strongest guidance areas
+- form a lightweight candidate list for the first high-value rules and skills
+- if a later step requires external guidance review, advance to that review before drafting or applying bank writes
+- do not prepare \`create_bank.apply\` payloads yet when unresolved external guidance review is still ahead
 - delay external guidance import or deletion until the dedicated review step
 - treat AI Guidance Bank as durable, reusable rules-and-skills guidance across sessions
 - do not stop at a thin summary if the repository clearly supports a richer bank
 
 Step output:
-- short list of created, updated, or planned files
-- short purpose for each item
+- short list of the strongest planned files only
+- short purpose for each planned item
 - strongest remaining candidates or uncertainties to handle next`;
 
 export const buildReviewExistingPrompt = ({
@@ -232,10 +250,14 @@ ${renderPendingReviewBucketSection(pendingBucket)}
 What to do:
 - Handle bucket \`repository-local\` in this step.
 - Inspect the repository for any project-internal guidance files not already covered by provider-specific sources: custom conventions docs, runbooks, style guides, or similar.
-- If useful durable guidance exists, ask the user whether to move it into AI Guidance Bank.
+- Explain the choice briefly for the user:
+  - \`import_to_bank\` = ${getBucketImportMeaning("repository-local")}
+  - \`keep_external\` = ${getBucketKeepMeaning("repository-local")}
+- If useful durable guidance exists, prefer recommending \`import_to_bank\`.
 - If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
 - If nothing worth importing exists, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\` to complete this review step.
-- Keep the user-facing message short.`;
+- Keep the user-facing message short: one sentence naming the paths, one short explanation of the tradeoff, and one clear question.
+- Do not draft or apply bank writes in this step.`;
   }
 
   return `# Existing Guidance Review
@@ -252,10 +274,14 @@ ${renderPendingReviewBucketSection(pendingBucket)}
 What to do:
 - Handle only bucket \`${pendingBucket?.bucket ?? "provider-global"}\` in this step.
 - Inspect the listed paths yourself.
-- If useful durable guidance exists, ask the user whether to move it into AI Guidance Bank and remove migrated items from the original sources.
+- Explain the choice briefly for the user:
+  - \`import_to_bank\` = ${getBucketImportMeaning(pendingBucket?.bucket ?? "provider-global")}
+  - \`keep_external\` = ${getBucketKeepMeaning(pendingBucket?.bucket ?? "provider-global")}
+- If useful durable guidance exists, prefer recommending \`import_to_bank\`.
 - If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
 - If the user wants to leave these sources external, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\`.
-- Keep the user-facing message short: one sentence naming the paths and one clear question.`;
+- Keep the user-facing message short: one sentence naming the paths, one short explanation of the tradeoff, and one clear question.
+- Do not draft or apply bank writes in this step.`;
 };
 
 export const buildImportSelectedPrompt = ({

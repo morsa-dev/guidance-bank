@@ -112,7 +112,9 @@ During the initial step:
 - inspect the repository and selected reference projects
 - build a broad candidate inventory before the first major write batch
 - consider rules and skills together while building the initial candidate inventory
+- if unresolved external guidance review is still ahead, stop after a light inventory and move to that review before drafting any bank writes
 - for non-trivial projects with clear architectural patterns, plan for 5+ rules and 3+ skills — scale down only when the project evidence genuinely does not support it
 - do not import or delete external guidance yet; that happens in later review/import steps
+- do not prebuild large \`create_bank.apply\` payloads before the external review step is resolved
 - do not stop after the first acceptable batch if the project clearly supports stronger canonical coverage
 `;
