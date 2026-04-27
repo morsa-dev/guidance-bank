@@ -153,7 +153,7 @@ const registerCreateLikeTool = (
 
       if (shouldLogIterationMismatch({ flowContext, requestedIteration })) {
         console.warn(
-          `create_bank iteration mismatch for project ${flowContext.identity.projectId}: stored=${flowContext.existingState?.createIteration}, requested=${requestedIteration}, effective=${flowContext.effectiveIteration}. Overwriting stored iteration.`,
+          `create_bank iteration mismatch for project ${flowContext.identity.projectId}: storedPhase=${flowContext.existingState?.createPhase}, requested=${requestedIteration}, effective=${flowContext.effectiveIteration}. Overwriting stored phase.`,
         );
       }
 

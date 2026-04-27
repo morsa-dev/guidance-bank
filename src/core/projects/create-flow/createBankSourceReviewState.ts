@@ -1,5 +1,6 @@
 import type { ProjectBankState } from "../../bank/types.js";
 import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
+import { getCreateFlowIteration } from "./createFlowPhases.js";
 import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./guidanceStrategies.js";
 import {
   applySourceReviewDecision,
@@ -17,6 +18,9 @@ export type CreateBankSourceReviewState = {
   resolvedReviewBucket: SourceReviewBucket | null;
   sourceStrategyRequired: boolean;
 };
+
+const getStoredCreateIteration = (state: ProjectBankState | null): number | null =>
+  state?.createPhase ? getCreateFlowIteration(state.createPhase) : null;
 
 export const resolveCreateBankSourceReviewState = ({
   existingState,
@@ -69,7 +73,7 @@ export const resolveCreateBankSourceReviewState = ({
     isImprovementFlow,
   });
   const sourceReviewAdvanceRequested =
-    (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
+    getStoredCreateIteration(existingState) === 1 && requestedIteration === 2 && stepCompleted;
   const sourceStrategyRequired =
     !syncRequired &&
     sourceReviewAdvanceRequested &&

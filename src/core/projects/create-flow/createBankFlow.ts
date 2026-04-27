@@ -3,6 +3,7 @@ import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../.
 import type { ProjectCreationState } from "../../bank/types.js";
 import { detectProjectContext } from "../../context/detectProjectContext.js";
 import {
+  getCreateFlowIteration,
   getCreateFlowPhase,
   getNextCreateFlowIteration,
   isCreateFlowComplete,
@@ -70,6 +71,9 @@ type CreateBankApplyOutcome = {
   deletions: Array<{ status: "deleted" | "not_found" | "conflict" }>;
 };
 
+const getStoredCreateIteration = (state: ResolvedCreateBankFlowContext["existingState"]): number | null =>
+  state?.createPhase ? getCreateFlowIteration(state.createPhase) : null;
+
 const hasSuccessfulStepResult = ({
   applyResults,
   stepOutcome,
@@ -106,6 +110,7 @@ export const finalizeCreateBankExecution = ({
   stepOutcomeNote: string | null;
   applyResults: CreateBankApplyOutcome;
 }) => {
+  const storedIteration = getStoredCreateIteration(flowContext.existingState);
   const hasApplyConflicts =
     applyResults.writes.some((item) => item.status === "conflict") ||
     applyResults.deletions.some((item) => item.status === "conflict");
@@ -119,12 +124,12 @@ export const finalizeCreateBankExecution = ({
     stepCompletionRequired,
     stepOutcomeRequired,
   } = resolveCreateFlowProgress({
-    storedIteration: flowContext.existingState?.createIteration ?? null,
+    storedIteration,
     requestedIteration,
     stepCompleted,
     stepOutcomeSatisfied: successfulStepResult,
   });
-  const previousPhase = getCreateFlowPhase(flowContext.existingState?.createIteration ?? flowContext.effectiveIteration);
+  const previousPhase = getCreateFlowPhase(storedIteration ?? flowContext.effectiveIteration);
   const resolvedReviewStrategies =
     flowContext.resolvedReviewBucket === null
       ? []
@@ -171,13 +176,13 @@ export const finalizeCreateBankExecution = ({
       : flowContext.pendingSourceReviewBuckets;
   const baseEffectiveIteration = hasApplyConflicts ? resolvedEffectiveIteration : flowContext.effectiveIteration;
   const effectiveIteration = failedCurrentReviewImport
-    ? (flowContext.existingState?.createIteration ?? resolvedEffectiveIteration)
+    ? (storedIteration ?? resolvedEffectiveIteration)
     : completedReviewBatch
       ? pendingSourceReviewBuckets.length > 0
         ? 1
         : 2
       : flowContext.sourceStrategyRequired
-        ? flowContext.existingState?.createIteration ?? resolvedEffectiveIteration
+        ? storedIteration ?? resolvedEffectiveIteration
         : baseEffectiveIteration;
   const phase = flowContext.syncRequired
     ? "sync_required"
@@ -275,8 +280,9 @@ export const resolveCreateBankFlowContext = async ({
 
   const existingBankUpdatedAt = existingManifest?.updatedAt ?? null;
   const existingBankUpdatedDaysAgo = getUpdatedDaysAgo(existingBankUpdatedAt);
+  const storedIteration = getStoredCreateIteration(existingState);
   const { effectiveIteration, stepCompletionRequired, stepOutcomeRequired } = resolveCreateFlowProgress({
-    storedIteration: existingState?.createIteration ?? null,
+    storedIteration,
     requestedIteration,
     stepCompleted,
     stepOutcomeSatisfied:
@@ -325,7 +331,7 @@ export const resolveCreateBankFlowContext = async ({
     sourceReviewDecision,
   });
   const sourceReviewAdvanceRequested =
-    (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
+    storedIteration === 1 && requestedIteration === 2 && stepCompleted;
 
   const shouldSkipExternalGuidanceReview =
     effectiveIteration === 1 && pendingSourceReviewBuckets.length === 0;
@@ -335,7 +341,7 @@ export const resolveCreateBankFlowContext = async ({
     shouldSkipExternalGuidanceReview || shouldSkipImportAfterReview
       ? 2
       : sourceStrategyRequired
-        ? existingState?.createIteration ?? effectiveIteration
+        ? storedIteration ?? effectiveIteration
         : effectiveIteration;
   const adjustedIsFlowComplete = isCreateFlowComplete(adjustedEffectiveIteration);
   const adjustedMustContinue =

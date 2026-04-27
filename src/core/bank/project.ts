@@ -12,12 +12,17 @@ import {
   SOURCE_REVIEW_DECISIONS,
   type ConfirmedGuidanceSourceStrategy,
 } from "../projects/create-flow/guidanceStrategies.js";
+import {
+  CREATE_ITERATION_PHASES,
+  type CreateIterationPhase,
+} from "../projects/create-flow/createFlowPhases.js";
 import { SOURCE_REVIEW_BUCKETS } from "../projects/create-flow/sourceReviewBuckets.js";
 
 const ProjectCreationStateSchema = z.enum(PROJECT_CREATION_STATES);
 const DetectableStackSchema = z.enum(DETECTABLE_STACKS);
 const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
+const CreateIterationPhaseSchema = z.enum(CREATE_ITERATION_PHASES);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ConfirmedGuidanceSourceStrategySchema = z
   .object({
@@ -51,7 +56,7 @@ export const ProjectBankStateSchema = z
   .object({
     schemaVersion: z.literal(1),
     creationState: ProjectCreationStateSchema,
-    createIteration: z.number().int().nonnegative().nullable().default(null),
+    createPhase: CreateIterationPhaseSchema.nullable().default(null),
     sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
     postponedUntil: z.iso.datetime().nullable(),
     lastSyncedAt: z.iso.datetime().nullable(),
@@ -83,26 +88,28 @@ export const createProjectBankManifest = (
 export const createProjectBankState = (
   creationState: ProjectCreationState,
   options?: {
-    createIteration?: number | null;
+    createPhase?: CreateIterationPhase | null;
     sourceStrategies?: ConfirmedGuidanceSourceStrategy[];
     postponedUntil?: string | null;
     lastSyncedAt?: string | null;
     lastSyncedStorageVersion?: number | null;
   },
   now = new Date(),
-): ProjectBankState => ({
-  schemaVersion: 1,
-  creationState,
-  createIteration: options?.createIteration ?? null,
-  sourceStrategies: options?.sourceStrategies ?? [],
-  postponedUntil:
-    creationState === "postponed"
-      ? (options?.postponedUntil ?? computeProjectBankPostponedUntil(now))
-      : (options?.postponedUntil ?? null),
-  lastSyncedAt: options?.lastSyncedAt ?? null,
-  lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
-  updatedAt: now.toISOString(),
-});
+): ProjectBankState => {
+  return {
+    schemaVersion: 1,
+    creationState,
+    createPhase: options?.createPhase ?? null,
+    sourceStrategies: options?.sourceStrategies ?? [],
+    postponedUntil:
+      creationState === "postponed"
+        ? (options?.postponedUntil ?? computeProjectBankPostponedUntil(now))
+        : (options?.postponedUntil ?? null),
+    lastSyncedAt: options?.lastSyncedAt ?? null,
+    lastSyncedStorageVersion: options?.lastSyncedStorageVersion ?? null,
+    updatedAt: now.toISOString(),
+  };
+};
 
 export const updateProjectBankState = (
   state: ProjectBankState,
@@ -121,13 +128,13 @@ export const updateProjectBankState = (
   updatedAt: now.toISOString(),
 });
 
-export const setProjectBankCreateIteration = (
+export const setProjectBankCreatePhase = (
   state: ProjectBankState,
-  createIteration: number | null,
+  createPhase: CreateIterationPhase | null,
   now = new Date(),
 ): ProjectBankState => ({
   ...state,
-  createIteration,
+  createPhase,
   updatedAt: now.toISOString(),
 });
 

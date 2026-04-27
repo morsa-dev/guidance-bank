@@ -1204,7 +1204,8 @@ topics: [local]
   assert.deepEqual(conflictedImport.confirmedSourceStrategies, []);
 
   const state = await repository.readProjectStateOptional(created.projectId);
-  assert.equal(state?.createIteration, 1);
+  assert.ok(state);
+  assert.equal(state?.createPhase, "review_existing_guidance");
   assert.deepEqual(state?.sourceStrategies, []);
 });
 
@@ -1937,7 +1938,8 @@ topics: [architecture]
   assert.deepEqual(conflictedAdvance.applyResults.writes.map((item) => item.status), ["conflict"]);
 
   const state = await repository.readProjectStateOptional(created.projectId);
-  assert.equal(state?.createIteration, 2);
+  assert.ok(state);
+  assert.equal(state?.createPhase, "derive_from_project");
   assert.equal(state?.creationState, "creating");
 });
 
@@ -2329,7 +2331,8 @@ test("create_bank blocks advancing to a later step without explicit completion c
     assert.equal(warnings.length, 0);
 
     const state = await repository.readProjectStateOptional(advancedStructured.projectId);
-    assert.equal(state?.createIteration, 0);
+    assert.ok(state);
+    assert.equal(state?.createPhase, "kickoff");
   } finally {
     console.warn = originalWarn;
   }

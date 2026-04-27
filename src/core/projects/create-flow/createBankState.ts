@@ -1,10 +1,11 @@
 import {
   createProjectBankState,
   markProjectBankSynced,
-  setProjectBankCreateIteration,
+  setProjectBankCreatePhase,
   setProjectBankSourceStrategies,
 } from "../../bank/project.js";
 import type { ProjectBankManifest, ProjectBankState, ProjectCreationState } from "../../bank/types.js";
+import { getCreateFlowPhase, type CreateIterationPhase } from "./createFlowPhases.js";
 import type { ConfirmedGuidanceSourceStrategy } from "./guidanceStrategies.js";
 
 export const resolveNextCreateBankState = ({
@@ -38,7 +39,7 @@ export const resolveNextCreateBankState = ({
   }
 
   if (shouldTrackCreateFlow) {
-    nextState = setProjectBankCreateIteration(nextState, effectiveIteration);
+    nextState = setProjectBankCreatePhase(nextState, getCreateFlowPhase(effectiveIteration) as CreateIterationPhase);
     nextState = setProjectBankSourceStrategies(
       nextState,
       nextCreationState === "ready" ? [] : confirmedSourceStrategies,

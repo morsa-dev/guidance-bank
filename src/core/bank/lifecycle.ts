@@ -1,4 +1,5 @@
 import type { ProjectBankManifest, ProjectBankState } from "./types.js";
+import { getCreateFlowIteration } from "../projects/create-flow/createFlowPhases.js";
 
 export type ProjectBankLifecycleStatus =
   | "missing"
@@ -29,7 +30,7 @@ export const requiresProjectBankSync = (
 ): boolean => projectState?.lastSyncedStorageVersion !== expectedStorageVersion;
 
 export const getProjectBankContinuationIteration = (projectState: ProjectBankState | null): number =>
-  (projectState?.createIteration ?? 0) + 1;
+  projectState?.createPhase ? getCreateFlowIteration(projectState.createPhase) + 1 : 0;
 
 export const resolveProjectBankLifecycleStatus = ({
   projectManifest,

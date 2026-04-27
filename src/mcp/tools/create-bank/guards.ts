@@ -1,4 +1,7 @@
-import { getCreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
+import {
+  getCreateFlowIteration,
+  getCreateFlowPhase,
+} from "../../../core/projects/create-flow/createFlowPhases.js";
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import {
   getCreateBankApplyBlockedMessage,
@@ -58,13 +61,21 @@ export const shouldLogIterationMismatch = ({
 }: {
   flowContext: ResolvedCreateBankFlowContext;
   requestedIteration: number;
-}): boolean =>
-  flowContext.existingState !== null &&
-  shouldWarnAboutIterationMismatch(
-    flowContext.existingState.createIteration,
+}): boolean => {
+  if (flowContext.existingState === null) {
+    return false;
+  }
+
+  const storedIteration = flowContext.existingState.createPhase
+    ? getCreateFlowIteration(flowContext.existingState.createPhase)
+    : null;
+
+  return shouldWarnAboutIterationMismatch(
+    storedIteration,
     requestedIteration,
     flowContext.effectiveIteration,
     flowContext.stepCompletionRequired,
     flowContext.sourceStrategyRequired,
     flowContext.stepOutcomeRequired,
   );
+};

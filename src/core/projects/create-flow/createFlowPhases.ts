@@ -18,6 +18,8 @@ export const CREATE_ITERATION_PHASES = [
   "completed",
 ] as const satisfies readonly CreateFlowPhase[];
 
+export type CreateIterationPhase = (typeof CREATE_ITERATION_PHASES)[number];
+
 export const CREATE_FLOW_COMPLETED_ITERATION = CREATE_ITERATION_PHASES.length - 1;
 
 const CREATE_FLOW_OUTCOME_REQUIRED_PHASES = [
@@ -27,6 +29,8 @@ const CREATE_FLOW_OUTCOME_REQUIRED_PHASES = [
 
 export const getCreateFlowPhase = (iteration: number): CreateFlowPhase =>
   CREATE_ITERATION_PHASES[Math.min(Math.max(iteration, 0), CREATE_FLOW_COMPLETED_ITERATION)]!;
+
+export const getCreateFlowIteration = (phase: CreateIterationPhase): number => CREATE_ITERATION_PHASES.indexOf(phase);
 
 export const getNextCreateFlowIteration = (iteration: number): number | null =>
   iteration < CREATE_FLOW_COMPLETED_ITERATION ? iteration + 1 : null;
