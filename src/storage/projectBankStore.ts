@@ -24,9 +24,6 @@ export class ProjectBankStore {
     await ensureManagedDirectory(this.rootPath, this.paths.projectDirectory(projectId));
     await ensureManagedDirectory(this.rootPath, this.paths.projectRulesDirectory(projectId));
     await ensureManagedDirectory(this.rootPath, this.paths.projectSkillsDirectory(projectId));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "core"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "stacks"));
-    await ensureManagedDirectory(this.rootPath, path.join(this.paths.projectRulesDirectory(projectId), "topics"));
   }
 
   async writeProjectManifest(projectId: string, manifest: ProjectBankManifest): Promise<void> {
