@@ -13,6 +13,8 @@ import type {
   GuidanceBankListEntriesArgs,
   GuidanceBankReadEntryArgs,
   GuidanceBankSelectedProject,
+  GuidanceBankWriteEntryArgs,
+  GuidanceBankWriteEntryResult,
 } from "./types.js";
 
 const isDocumentationEntry = (entryPath: string): boolean => {
@@ -220,6 +222,31 @@ export class GuidanceBankQueryService {
       }),
       content,
       body: document.body,
+    };
+  }
+
+  async writeEntry(args: GuidanceBankWriteEntryArgs): Promise<GuidanceBankWriteEntryResult> {
+    const projectId = await this.resolveProjectId(args.scope, args.projectPath);
+    if (args.scope === "project" && !projectId) {
+      throw new Error(`No project AI Guidance Bank exists for ${path.resolve(args.projectPath ?? process.cwd())}.`);
+    }
+
+    if (args.kind === "rules") {
+      const result = await this.repository.upsertRule(args.scope, args.path, args.content, projectId);
+      const entry = await this.readEntry({ ...args, path: result.path });
+
+      return {
+        status: result.status,
+        entry,
+      };
+    }
+
+    const result = await this.repository.upsertSkill(args.scope, args.path, args.content, projectId);
+    const entry = await this.readEntry({ ...args, path: result.filePath });
+
+    return {
+      status: result.status,
+      entry,
     };
   }
 }

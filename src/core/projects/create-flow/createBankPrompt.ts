@@ -83,6 +83,9 @@ ${renderReferenceProjectsSection(selectedReferenceProjects)}
 
 - AI Guidance Bank is the canonical user-managed guidance layer for this project
 - AI Guidance Bank stores durable rules, skills, and reusable project guidance across sessions
+- The goal of this flow is to centralize useful durable guidance into one canonical layer so it is available consistently across agents and providers instead of being split across external files or provider-native locations
+- External repository-local, provider-project, and provider-global guidance should be treated as source candidates for centralization; when useful durable guidance is found there, default to recommending migration into AI Guidance Bank
+- Keeping guidance external is allowed, but it is an exception based on the user's preference, not the default outcome
 - Use \`phase\` as the primary guide during the create/improve flow; treat \`iteration\` as diagnostic only
 - Use real project code, shared AI Guidance Bank context, selected reference projects, and explicit user instructions as the main inputs
 - External repository-local, provider-project, and provider-global guidance must be reviewed explicitly in later steps before import

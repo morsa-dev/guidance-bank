@@ -127,12 +127,6 @@ export const applySourceReviewDecision = ({
   return [...nextStrategies.values()];
 };
 
-export const getPendingImportBucket = (
-  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
-): SourceReviewBucket | null =>
-  sortSourceReviewStrategies(confirmedSourceStrategies).find((strategy) => strategy.importStatus === "pending")
-    ?.reviewBucket ?? null;
-
 export const completePendingImportBucket = (
   confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
   bucket: SourceReviewBucket,

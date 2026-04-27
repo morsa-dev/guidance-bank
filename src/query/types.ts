@@ -78,3 +78,12 @@ export type GuidanceBankListEntriesArgs = {
 export type GuidanceBankReadEntryArgs = GuidanceBankListEntriesArgs & {
   path: string;
 };
+
+export type GuidanceBankWriteEntryArgs = GuidanceBankReadEntryArgs & {
+  content: string;
+};
+
+export type GuidanceBankWriteEntryResult = {
+  status: "created" | "updated";
+  entry: GuidanceBankEntryDetail;
+};

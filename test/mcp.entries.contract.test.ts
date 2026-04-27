@@ -45,7 +45,7 @@ const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof create
     "create_bank",
     {
       projectPath,
-      iteration: 4,
+      iteration: 3,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No derived changes were needed in this setup.",
@@ -57,7 +57,7 @@ const advanceCreateFlowToReady = async (client: Awaited<ReturnType<typeof create
     "create_bank",
     {
       projectPath,
-      iteration: 5,
+      iteration: 4,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "Finalize completed without cleanup changes in this setup.",

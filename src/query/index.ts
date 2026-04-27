@@ -9,4 +9,6 @@ export type {
   GuidanceBankProjectSummary,
   GuidanceBankReadEntryArgs,
   GuidanceBankSelectedProject,
+  GuidanceBankWriteEntryArgs,
+  GuidanceBankWriteEntryResult,
 } from "./types.js";

@@ -4,44 +4,9 @@ import { requiresCreateFlowStepOutcome } from "./createFlowPhases.js";
 import { renderCreateDeriveGuidance } from "./createBankDeriveGuidance/index.js";
 import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
-import {
-  formatSourceReviewDecision,
-  type ConfirmedGuidanceSourceStrategy,
-} from "./guidanceStrategies.js";
 import type { PendingSourceReviewBucket } from "./sourceReviewBuckets.js";
 
 const STABLE_CONTRACT_NOTE = `Use \`phase\` as the main guide for the current create step and treat \`iteration\` as diagnostic only. If \`creationPrompt\` is present, use it as the stable create-flow contract; this step prompt contains only the incremental instruction for the current phase.`;
-
-const renderConfirmedSourceStrategiesSection = (
-  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[],
-  discoveredSources: readonly ExistingGuidanceSource[],
-): string => {
-  if (confirmedSourceStrategies.length === 0) {
-    return `## Confirmed Source Decisions
-
-No confirmed source decisions are stored yet for this flow.`;
-  }
-
-  const sourcesByRef = new Map(discoveredSources.map((source) => [source.relativePath, source]));
-
-  return `## Confirmed Source Decisions
-
-${confirmedSourceStrategies
-  .map((strategy) => {
-    const source = sourcesByRef.get(strategy.sourceRef);
-    const sourceDetails = source
-      ? ` [${source.scope}${source.provider ? `/${source.provider}` : ""}, ${source.entryType}] \`${source.path}\``
-      : "";
-
-    const cleanupDetails =
-      strategy.decision === "import_to_bank" && strategy.cleanupAllowed
-        ? "; remove each migrated guidance item from the source immediately after verified bank write"
-        : "";
-
-    return `- ${strategy.sourceRef}${sourceDetails} -> ${formatSourceReviewDecision(strategy.decision)}${cleanupDetails}${strategy.note ? ` (${strategy.note})` : ""}`;
-  })
-  .join("\n")}`;
-};
 
 const renderPendingReviewBucketSection = (pendingBucket: PendingSourceReviewBucket | null): string => {
   if (pendingBucket === null) {
@@ -108,34 +73,11 @@ ${selectedReferenceProjects
   .join("\n")}`;
 };
 
-const getBucketImportMeaning = (bucket: PendingSourceReviewBucket["bucket"]): string => {
-  if (bucket === "provider-global") {
-    return "move useful provider-independent guidance into the shared AI Guidance Bank and remove each migrated item from the original provider-global source";
-  }
-
-  if (bucket === "provider-project") {
-    return "move useful repository-specific guidance into AI Guidance Bank, usually project scope unless the guidance is clearly reusable across repositories, and remove each migrated item from the original provider source";
-  }
-
-  return "move useful repository-local guidance into AI Guidance Bank, usually project scope unless the guidance is clearly reusable across repositories, and remove each migrated item from the original source";
-};
-
-const getBucketKeepMeaning = (bucket: PendingSourceReviewBucket["bucket"]): string =>
-  bucket === "provider-global"
-    ? "leave these provider-global sources in place and treat them as external coverage that must not be duplicated into the bank"
-    : "leave these sources in place and do not import their guidance into the bank";
-
-const SOURCE_TRANSFER_CONTRACT = `## Source Transfer Rules
-
-- The agent must inspect source content and decide what useful guidance exists; the server does not preselect semantic candidates
-- Process approved sources item by item: move one useful guidance item into AI Guidance Bank, verify the canonical bank write, then immediately remove that migrated item from the source before importing the next item
-- Preserve meaning, not source layout. Split, merge, rename, or convert source guidance into the rule/skill structure that best fits AI Guidance Bank
-- Do not copy whole provider files or repository instruction files just because they exist; transfer only durable rules and reusable skills
-- If all useful guidance in a source was migrated and no non-guidance content remains, the agent may remove that now-empty source directly
-- For mixed sources, keep non-guidance content in place and remove only the migrated guidance text or file
-- For provider-project files such as AGENTS.md, CLAUDE.md, or similar project notes, expect only some instructions to be transferable; leave project maps, temporary notes, and low-value noise in place
-- If an item cannot be safely removed from the source in the same step, do not import that item yet
-- In the report, mention any approved source item intentionally left external because source cleanup was unsafe`;
+const renderSourceReviewUserMessageTemplate = (): string =>
+  `Use this exact user-facing message and do not paraphrase it except for replacing <description> with the actual source description for the current bucket:
+"I found guidance sources for <description>. Choose one option:
+1. Move to AI Guidance Bank (recommended)
+2. Keep in current location"`;
 
 const buildContinuationOutcomeInstruction = (iteration: number): string => {
   if (!requiresCreateFlowStepOutcome(iteration)) {
@@ -144,16 +86,7 @@ const buildContinuationOutcomeInstruction = (iteration: number): string => {
 
   const baseInstruction =
     " Also provide an explicit result for this content phase: use `create_bank.apply` for changes or set `stepOutcome` to `applied` or `no_changes`.";
-
-  if (iteration === 3) {
-    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to name the strongest remaining candidates and coverage categories you reviewed and why they were skipped.`;
-  }
-
-  if (iteration === 4) {
-    return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered candidates, the coverage categories they belong to, and why the bank is complete enough.`;
-  }
-
-  return `${baseInstruction} If you use \`no_changes\`, include \`stepOutcomeNote\`.`;
+  return `${baseInstruction} If you use \`no_changes\`, use \`stepOutcomeNote\` to say what you checked, what you did not add, and why.`;
 };
 
 export const appendContinuationInstruction = (prompt: string, iteration: number): string => {
@@ -250,14 +183,13 @@ ${renderPendingReviewBucketSection(pendingBucket)}
 What to do:
 - Handle bucket \`repository-local\` in this step.
 - Inspect the repository for any project-internal guidance files not already covered by provider-specific sources: custom conventions docs, runbooks, style guides, or similar.
-- Explain the choice briefly for the user:
-  - \`import_to_bank\` = ${getBucketImportMeaning("repository-local")}
-  - \`keep_external\` = ${getBucketKeepMeaning("repository-local")}
-- If useful durable guidance exists, prefer recommending \`import_to_bank\`.
-- If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
+- Look for useful durable guidance in this bucket.
+- If you find useful rules or skills here, ask the user whether to move them into AI Guidance Bank or leave them where they are.
+- Default recommendation: \`import_to_bank\`. Use \`keep_external\` only when leaving the source in place is clearly the better choice.
+- A review call that uses \`sourceReviewDecision: "import_to_bank"\` must also finish this bucket in the same review phase: inspect the current sources, transfer useful guidance with \`create_bank.apply\`, clean up the migrated guidance in the source, and mark the step completed in that same call.
 - If nothing worth importing exists, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\` to complete this review step.
-- Keep the user-facing message short: one sentence naming the paths, one short explanation of the tradeoff, and one clear question.
-- Do not draft or apply bank writes in this step.`;
+- ${renderSourceReviewUserMessageTemplate()}
+- Do not prepare speculative writes before the user chooses. After \`import_to_bank\` is approved, perform the transfer immediately in this same phase.`;
   }
 
   return `# Existing Guidance Review
@@ -274,60 +206,13 @@ ${renderPendingReviewBucketSection(pendingBucket)}
 What to do:
 - Handle only bucket \`${pendingBucket?.bucket ?? "provider-global"}\` in this step.
 - Inspect the listed paths yourself.
-- Explain the choice briefly for the user:
-  - \`import_to_bank\` = ${getBucketImportMeaning(pendingBucket?.bucket ?? "provider-global")}
-  - \`keep_external\` = ${getBucketKeepMeaning(pendingBucket?.bucket ?? "provider-global")}
-- If useful durable guidance exists, prefer recommending \`import_to_bank\`.
-- If the user agrees, call \`create_bank\` with \`sourceReviewDecision: "import_to_bank"\`.
+- Look for useful durable guidance in this bucket.
+- If you find useful rules or skills here, ask the user whether to move them into AI Guidance Bank or leave them where they are.
+- Default recommendation: \`import_to_bank\`. Use \`keep_external\` only when leaving the source in place is clearly the better choice.
+- A review call that uses \`sourceReviewDecision: "import_to_bank"\` must also finish this bucket in the same review phase: inspect the current sources, transfer useful guidance with \`create_bank.apply\`, clean up the migrated guidance in the source, and mark the step completed in that same call.
 - If the user wants to leave these sources external, call \`create_bank\` with \`sourceReviewDecision: "keep_external"\`.
-- Keep the user-facing message short: one sentence naming the paths, one short explanation of the tradeoff, and one clear question.
-- Do not draft or apply bank writes in this step.`;
-};
-
-export const buildImportSelectedPrompt = ({
-  confirmedSourceStrategies,
-  discoveredSources,
-  isSubsequentBucket,
-}: {
-  confirmedSourceStrategies: readonly ConfirmedGuidanceSourceStrategy[];
-  discoveredSources: readonly ExistingGuidanceSource[];
-  isSubsequentBucket: boolean;
-}): string => {
-  if (isSubsequentBucket) {
-    return `# Import Next Bucket
-
-Continue applying the Source Transfer Protocol to the next approved bucket. The decisions below show what has already been processed and what remains pending.
-
-${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSources)}
-
-What to do:
-- Read each source confirmed as \`import_to_bank\` that is still pending
-- Apply the same process as the previous bucket: migrate useful non-duplicate guidance into AI Guidance Bank, remove each migrated item from the source immediately after the verified bank write
-- Use \`create_bank.apply\` for batched canonical writes; retry with fresh \`baseSha256\` on conflict`;
-  }
-
-  return `# Import Selected Guidance
-
-${STABLE_CONTRACT_NOTE}
-
-Apply the user-approved transfer plan for the current bucket. The agent, not the server, decides the correct AI Guidance Bank structure.
-
-${renderConfirmedSourceStrategiesSection(confirmedSourceStrategies, discoveredSources)}
-
-${SOURCE_TRANSFER_CONTRACT}
-
-What to do:
-- Use the transfer plan you presented to the user in the preceding review step; if no concrete plan was approved, stop and ask for approval instead of importing
-- Read each source confirmed as \`import_to_bank\`
-- Move only useful non-duplicate guidance from approved sources into AI Guidance Bank
-- If a source was kept external, treat it as existing external coverage and do not duplicate it during later project derivation
-- Keep the transfer focused on rules and skills, not raw source-file restatement
-- Use \`scope: "shared"\` for reusable provider-independent guidance and \`scope: "project"\` for repository-specific guidance
-- Prefer a small number of strong canonical entries over fragmented copies
-- Use \`create_bank.apply\` for batched canonical writes
-- In \`create_bank.apply\`, paths must be relative to the rules/skills root only
-- After each verified write, immediately clean up the migrated guidance from the original source before continuing to another guidance item
-- If \`create_bank.apply\` reports a \`conflict\`, re-read the affected entry and retry with a fresh \`baseSha256\``;
+- ${renderSourceReviewUserMessageTemplate()}
+- Do not prepare speculative writes before the user chooses. After \`import_to_bank\` is approved, perform the transfer immediately in this same phase.`;
 };
 
 export const buildDeriveFromProjectPrompt = ({
@@ -375,7 +260,7 @@ export const buildFinalizePrompt = (): string => `# Finalize AI Guidance Bank
 
 ${STABLE_CONTRACT_NOTE}
 
-Finish the project AI Guidance Bank creation flow. Source cleanup for imported guidance should already have happened during the import step — do not re-import.
+Finish the project AI Guidance Bank creation flow. Source cleanup for imported guidance should already have happened during the review step that imported each bucket — do not re-import.
 
 What to do:
 - Deduplicate overlapping rules and skills
@@ -401,7 +286,7 @@ Final pass checklist:
 - Stop only when additional entries would mostly duplicate existing guidance, restate weak evidence, or split the bank into overly fine-grained fragments
 - Check the strongest applicable topic and skill candidates, then create them, merge them, or record a skip reason
 - In the final report, mention imported sources, newly derived entries, and any important skipped uncertainties or intentionally omitted candidates
-- If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to summarize the strongest skipped or already-covered high-value candidates, their coverage categories, and why no further mutation was needed`;
+- If you finish with \`stepOutcome: "no_changes"\`, use \`stepOutcomeNote\` to say what you checked, what you did not add, and why no further mutation was needed`;
 
 export const buildCompletedPrompt = (): string => `# Create Flow Completed
 

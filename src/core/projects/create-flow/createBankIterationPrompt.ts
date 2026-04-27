@@ -3,14 +3,12 @@ import type { DetectableStack, ReferenceProjectCandidate } from "../../context/t
 import { CREATE_FLOW_COMPLETED_ITERATION } from "./createFlowPhases.js";
 import type { CurrentProjectBankSnapshot } from "../discoverCurrentProjectBank.js";
 import type { ExistingGuidanceSource } from "../discoverExistingGuidance.js";
-import type { ConfirmedGuidanceSourceStrategy } from "./guidanceStrategies.js";
 import type { PendingSourceReviewBucket } from "./sourceReviewBuckets.js";
 import {
   appendContinuationInstruction,
   buildCompletedPrompt,
   buildDeriveFromProjectPrompt,
   buildFinalizePrompt,
-  buildImportSelectedPrompt,
   buildKickoffPrompt,
   buildReadyProjectBankPrompt,
   buildReviewExistingPrompt,
@@ -26,12 +24,10 @@ type BuildCreateBankIterationPromptInput = {
   skillsDirectory: string;
   detectedStacks: DetectableStack[];
   selectedReferenceProjects: ReferenceProjectCandidate[];
-  confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
   discoveredSources: ExistingGuidanceSource[];
   currentBankSnapshot: CurrentProjectBankSnapshot;
   hasExistingProjectBank?: boolean;
-  isSubsequentBucket?: boolean;
 };
 
 type CreateFlowStepBuilder = (input: BuildCreateBankIterationPromptInput) => string;
@@ -51,12 +47,6 @@ const CREATE_FLOW_PROMPT_BUILDERS: readonly CreateFlowStepBuilder[] = [
     buildReviewExistingPrompt({
       projectPath,
       pendingSourceReviewBuckets,
-    }),
-  ({ confirmedSourceStrategies, discoveredSources, isSubsequentBucket }) =>
-    buildImportSelectedPrompt({
-      confirmedSourceStrategies,
-      discoveredSources,
-      isSubsequentBucket: isSubsequentBucket ?? false,
     }),
   ({ projectPath, detectedStacks, discoveredSources }) =>
     buildDeriveFromProjectPrompt({
@@ -79,7 +69,6 @@ export const buildCreateBankIterationPrompt = ({
   skillsDirectory,
   detectedStacks,
   selectedReferenceProjects,
-  confirmedSourceStrategies,
   pendingSourceReviewBuckets,
   discoveredSources,
   currentBankSnapshot,
@@ -96,7 +85,6 @@ export const buildCreateBankIterationPrompt = ({
     skillsDirectory,
     detectedStacks,
     selectedReferenceProjects,
-    confirmedSourceStrategies,
     pendingSourceReviewBuckets,
     discoveredSources,
     currentBankSnapshot,

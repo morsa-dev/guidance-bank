@@ -3,7 +3,6 @@ export const CREATE_FLOW_PHASES = [
   "ready_to_improve",
   "kickoff",
   "review_existing_guidance",
-  "import_selected_guidance",
   "derive_from_project",
   "finalize",
   "completed",
@@ -14,7 +13,6 @@ export type CreateFlowPhase = (typeof CREATE_FLOW_PHASES)[number];
 export const CREATE_ITERATION_PHASES = [
   "kickoff",
   "review_existing_guidance",
-  "import_selected_guidance",
   "derive_from_project",
   "finalize",
   "completed",
@@ -23,7 +21,6 @@ export const CREATE_ITERATION_PHASES = [
 export const CREATE_FLOW_COMPLETED_ITERATION = CREATE_ITERATION_PHASES.length - 1;
 
 const CREATE_FLOW_OUTCOME_REQUIRED_PHASES = [
-  "import_selected_guidance",
   "derive_from_project",
   "finalize",
 ] as const satisfies readonly CreateFlowPhase[];

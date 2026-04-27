@@ -20,7 +20,6 @@ import { resolveCreateFlowProgress } from "./createFlowProgress.js";
 import {
   buildPendingSourceReviewBuckets,
   completePendingImportBucket,
-  getPendingImportBucket,
   selectSourceReviewSources,
   type PendingSourceReviewBucket,
   type SourceReviewBucket,
@@ -63,13 +62,33 @@ export type ResolvedCreateBankFlowContext = {
   extendedContext: CreateBankExtendedContext;
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
-  activeImportBucket: SourceReviewBucket | null;
   resolvedReviewBucket: SourceReviewBucket | null;
 };
 
 type CreateBankApplyOutcome = {
   writes: Array<{ status: "created" | "updated" | "conflict" }>;
   deletions: Array<{ status: "deleted" | "not_found" | "conflict" }>;
+};
+
+const hasSuccessfulStepResult = ({
+  applyResults,
+  stepOutcome,
+  stepOutcomeNote,
+}: {
+  applyResults: CreateBankApplyOutcome;
+  stepOutcome: "applied" | "no_changes" | null;
+  stepOutcomeNote: string | null;
+}): boolean => {
+  const hasAppliedChanges = applyResults.writes.length > 0 || applyResults.deletions.length > 0;
+  const hasApplyConflicts =
+    applyResults.writes.some((item) => item.status === "conflict") ||
+    applyResults.deletions.some((item) => item.status === "conflict");
+
+  return (
+    (hasAppliedChanges && !hasApplyConflicts) ||
+    stepOutcome === "applied" ||
+    (stepOutcome === "no_changes" && stepOutcomeNote !== null)
+  );
 };
 
 export const finalizeCreateBankExecution = ({
@@ -87,10 +106,14 @@ export const finalizeCreateBankExecution = ({
   stepOutcomeNote: string | null;
   applyResults: CreateBankApplyOutcome;
 }) => {
-  const hasAppliedChanges = applyResults.writes.length > 0 || applyResults.deletions.length > 0;
   const hasApplyConflicts =
     applyResults.writes.some((item) => item.status === "conflict") ||
     applyResults.deletions.some((item) => item.status === "conflict");
+  const successfulStepResult = hasSuccessfulStepResult({
+    applyResults,
+    stepOutcome,
+    stepOutcomeNote,
+  });
   const {
     effectiveIteration: resolvedEffectiveIteration,
     stepCompletionRequired,
@@ -99,44 +122,63 @@ export const finalizeCreateBankExecution = ({
     storedIteration: flowContext.existingState?.createIteration ?? null,
     requestedIteration,
     stepCompleted,
-    stepOutcomeSatisfied:
-      (hasAppliedChanges && !hasApplyConflicts) ||
-      stepOutcome === "applied" ||
-      (stepOutcome === "no_changes" && stepOutcomeNote !== null),
+    stepOutcomeSatisfied: successfulStepResult,
   });
-  const completedImportPhase =
-    getCreateFlowPhase(flowContext.existingState?.createIteration ?? flowContext.effectiveIteration) ===
-      "import_selected_guidance" &&
-    flowContext.activeImportBucket !== null &&
+  const previousPhase = getCreateFlowPhase(flowContext.existingState?.createIteration ?? flowContext.effectiveIteration);
+  const resolvedReviewStrategies =
+    flowContext.resolvedReviewBucket === null
+      ? []
+      : flowContext.confirmedSourceStrategies.filter(
+          (strategy) => strategy.reviewBucket === flowContext.resolvedReviewBucket,
+        );
+  const resolvedReviewDecision = resolvedReviewStrategies[0]?.decision ?? null;
+  const isReviewPhaseCompletion =
+    previousPhase === "review_existing_guidance" &&
     stepCompleted &&
-    ((hasAppliedChanges && !hasApplyConflicts) ||
-      stepOutcome === "applied" ||
-      (stepOutcome === "no_changes" && stepOutcomeNote !== null));
-  const completedImportBucket = completedImportPhase ? flowContext.activeImportBucket : null;
-  const confirmedSourceStrategies = completedImportBucket !== null
-    ? completePendingImportBucket(flowContext.confirmedSourceStrategies, completedImportBucket)
+    flowContext.resolvedReviewBucket !== null;
+  const importedCurrentReviewBucket =
+    isReviewPhaseCompletion &&
+    resolvedReviewDecision === "import_to_bank" &&
+    successfulStepResult;
+  const failedCurrentReviewImport =
+    isReviewPhaseCompletion &&
+    resolvedReviewDecision === "import_to_bank" &&
+    !successfulStepResult;
+  const keptCurrentReviewBucketExternal =
+    isReviewPhaseCompletion && resolvedReviewDecision === "keep_external";
+  const completedReviewBucket =
+    importedCurrentReviewBucket || keptCurrentReviewBucketExternal
+      ? flowContext.resolvedReviewBucket
+      : null;
+  const retainedSourceStrategies = failedCurrentReviewImport
+    ? (flowContext.existingState?.sourceStrategies ?? [])
     : flowContext.confirmedSourceStrategies;
-  const pendingSourceReviewBuckets = completedImportPhase
+  const confirmedSourceStrategies =
+    importedCurrentReviewBucket && flowContext.resolvedReviewBucket !== null
+      ? completePendingImportBucket(retainedSourceStrategies, flowContext.resolvedReviewBucket)
+      : retainedSourceStrategies;
+  const completedReviewBatch = completedReviewBucket !== null;
+  const pendingSourceReviewBuckets =
+    completedReviewBatch || failedCurrentReviewImport
       ? buildPendingSourceReviewBuckets({
-        discoveredSources: selectSourceReviewSources(
-          flowContext.extendedContext.discoveredSources,
-          flowContext.extendedContext.providerGlobalKeptExternal,
-        ),
-        confirmedSourceStrategies,
-        isImprovementFlow: false,
-      })
-    : flowContext.pendingSourceReviewBuckets;
-  const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);
+          discoveredSources: selectSourceReviewSources(
+            flowContext.extendedContext.discoveredSources,
+            flowContext.extendedContext.providerGlobalKeptExternal,
+          ),
+          confirmedSourceStrategies,
+          isImprovementFlow: false,
+        })
+      : flowContext.pendingSourceReviewBuckets;
   const baseEffectiveIteration = hasApplyConflicts ? resolvedEffectiveIteration : flowContext.effectiveIteration;
-  const effectiveIteration = completedImportPhase
-    ? activeImportBucket !== null
-      ? 2
-      : pendingSourceReviewBuckets.length > 0
+  const effectiveIteration = failedCurrentReviewImport
+    ? (flowContext.existingState?.createIteration ?? resolvedEffectiveIteration)
+    : completedReviewBatch
+      ? pendingSourceReviewBuckets.length > 0
         ? 1
-        : 3
-    : flowContext.sourceStrategyRequired
-      ? flowContext.existingState?.createIteration ?? resolvedEffectiveIteration
-      : baseEffectiveIteration;
+        : 2
+      : flowContext.sourceStrategyRequired
+        ? flowContext.existingState?.createIteration ?? resolvedEffectiveIteration
+        : baseEffectiveIteration;
   const phase = flowContext.syncRequired
     ? "sync_required"
     : flowContext.improvementEntryPoint
@@ -181,7 +223,6 @@ export const finalizeCreateBankExecution = ({
     nextState,
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
-    activeImportBucket,
   };
 };
 
@@ -272,7 +313,6 @@ export const resolveCreateBankFlowContext = async ({
   const {
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
-    activeImportBucket,
     resolvedReviewBucket,
     sourceStrategyRequired,
   } = resolveCreateBankSourceReviewState({
@@ -288,17 +328,15 @@ export const resolveCreateBankFlowContext = async ({
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
 
   const shouldSkipExternalGuidanceReview =
-    effectiveIteration === 1 && activeImportBucket === null && pendingSourceReviewBuckets.length === 0;
+    effectiveIteration === 1 && pendingSourceReviewBuckets.length === 0;
   const shouldSkipImportAfterReview =
-    sourceReviewAdvanceRequested && activeImportBucket === null && pendingSourceReviewBuckets.length === 0;
+    sourceReviewAdvanceRequested && pendingSourceReviewBuckets.length === 0;
   const adjustedEffectiveIteration =
-    activeImportBucket !== null
+    shouldSkipExternalGuidanceReview || shouldSkipImportAfterReview
       ? 2
-      : shouldSkipExternalGuidanceReview || shouldSkipImportAfterReview
-        ? 3
-        : sourceStrategyRequired
-          ? existingState?.createIteration ?? effectiveIteration
-          : effectiveIteration;
+      : sourceStrategyRequired
+        ? existingState?.createIteration ?? effectiveIteration
+        : effectiveIteration;
   const adjustedIsFlowComplete = isCreateFlowComplete(adjustedEffectiveIteration);
   const adjustedMustContinue =
     !syncRequired &&
@@ -339,7 +377,6 @@ export const resolveCreateBankFlowContext = async ({
     extendedContext,
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
-    activeImportBucket,
     resolvedReviewBucket,
   };
 };

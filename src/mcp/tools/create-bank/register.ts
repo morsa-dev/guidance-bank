@@ -23,6 +23,65 @@ import {
   CreateBankOutputShape,
 } from "./schemas.js";
 
+/*
+Create/improve flow contract
+============================
+
+This tool intentionally treats create_bank as a small state machine rather than
+as a generic "write some entries" mutation helper. The goal is to keep the
+agent focused on one finished action per phase and to avoid duplicating
+provider-local guidance into the canonical bank.
+
+The broader product goal is centralization: useful durable guidance should end
+up in one canonical AI Guidance Bank layer that works across agents and
+providers, instead of staying split across provider-native files or repository
+sidecars. External guidance sources are therefore candidates for migration into
+the bank by default. Keeping them external is allowed, but it is an exception
+driven by the user's choice rather than the default outcome of the flow.
+
+The phases are:
+
+1. kickoff
+   - Light repository inventory only.
+   - No bank writes when unresolved external guidance review is still ahead.
+
+2. review_existing_guidance
+   - The server exposes exactly one current source-review bucket:
+     provider-global, provider-project, or repository-local.
+   - The agent inspects those paths and resolves one bucket decision:
+     import_to_bank or keep_external.
+   - That decision is not a separate planning step. It directly determines what
+     the current review call must do for this bucket.
+   - If the decision is keep_external, the bucket is closed with no bank writes.
+   - If the decision is import_to_bank, the same call must also:
+     a) write the migrated canonical bank entries with create_bank.apply,
+     b) clean up the migrated source content on the agent side,
+     c) mark the step completed.
+   - There is no separate import phase anymore. A review bucket is a complete
+     action: inspect, decide, import if approved, clean up, then move on.
+
+3. derive_from_project
+   - Only after all review buckets are closed.
+   - Derive additional durable rules/skills from the real repository itself.
+
+4. finalize
+   - Deduplicate, check scope split, and close obvious coverage gaps.
+
+5. completed
+   - The guided creation flow is done.
+
+Why the flow is shaped this way:
+- provider/project/local sources often already contain ready-made guidance, so
+  delaying their import to a later phase only increases context load and
+  duplication risk;
+- each phase should correspond to one finished unit of work;
+- iteration is treated as diagnostic, while phase is the real contract the
+  agent should follow.
+
+When changing this feature, keep the UX rule above intact unless you are
+explicitly redesigning the flow: review buckets must not split into "decide now,
+import later" again.
+*/
 const registerCreateLikeTool = (
   server: Parameters<ToolRegistrar>[0],
   options: McpServerRuntimeOptions,
@@ -121,7 +180,6 @@ const registerCreateLikeTool = (
         completedFlowThisCall: finalCompletedFlowThisCall,
         confirmedSourceStrategies: finalConfirmedSourceStrategies,
         pendingSourceReviewBuckets: finalPendingSourceReviewBuckets,
-        activeImportBucket: finalActiveImportBucket,
         nextState,
       } = finalizeCreateBankExecution({
         flowContext,
@@ -157,7 +215,6 @@ const registerCreateLikeTool = (
           completedFlowThisCall: finalCompletedFlowThisCall,
           confirmedSourceStrategies: finalConfirmedSourceStrategies,
           pendingSourceReviewBuckets: finalPendingSourceReviewBuckets,
-          activeImportBucket: finalActiveImportBucket,
           nextState,
         },
         currentBankSnapshot,

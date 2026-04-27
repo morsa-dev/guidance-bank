@@ -118,3 +118,62 @@ test("query service lists and reads normalized entries", async () => {
   assert.equal(projectSkill.description, "Project-specific skill.");
   assert.match(projectSkill.body, /Apply the project skill/);
 });
+
+test("query service writes and rereads updated entries", async () => {
+  const { bankRoot } = await createQueryTestBank();
+  const service = new GuidanceBankQueryService(bankRoot);
+
+  const result = await service.writeEntry({
+    scope: "shared",
+    kind: "rules",
+    path: "shared-rule.md",
+    content: `---
+id: shared-rule
+kind: rule
+title: Shared Rule Updated
+stack: nodejs
+topics: [shared, updated]
+---
+
+# Shared Rule Updated
+
+- Use the updated shared rule.
+`,
+  });
+
+  assert.equal(result.status, "updated");
+  assert.equal(result.entry.title, "Shared Rule Updated");
+  assert.match(result.entry.body, /updated shared rule/);
+  assert.deepEqual(result.entry.topics, ["shared", "updated"]);
+});
+
+test("query service writes and rereads skills through SKILL.md", async () => {
+  const { bankRoot } = await createQueryTestBank();
+  const service = new GuidanceBankQueryService(bankRoot);
+
+  const result = await service.writeEntry({
+    scope: "shared",
+    kind: "skills",
+    path: "new-skill",
+    content: `---
+id: new-skill
+kind: skill
+title: New Skill
+name: new-skill
+description: New shared skill.
+stack: nodejs
+topics: [shared, skills]
+---
+
+# New Skill
+
+1. Apply the new shared skill.
+`,
+  });
+
+  assert.equal(result.status, "created");
+  assert.equal(result.entry.path, "new-skill");
+  assert.equal(result.entry.filePath, "new-skill/SKILL.md");
+  assert.equal(result.entry.description, "New shared skill.");
+  assert.match(result.entry.body, /new shared skill/);
+});

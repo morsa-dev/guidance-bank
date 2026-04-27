@@ -174,7 +174,7 @@ export const buildCreatingContextText = ({
 }: {
   phase: string;
   nextIteration: number;
-}): string => `Continue the create flow at phase \`${phase}\`. Use \`phase\` as the primary guide, treat \`iteration\` as diagnostic only, and prefer \`create_bank.apply\` for batched writes inside the guided flow. Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after the current step is actually complete.`;
+}): string => `Continue with phase \`${phase}\`. Call \`create_bank\` with \`iteration: ${nextIteration}\` and \`stepCompleted: true\` after this step is complete. For content phases, also provide either \`create_bank.apply\` changes or \`stepOutcome\`.`;
 
 export const buildDeclinedContextText = (): string =>
   "Project AI Guidance Bank creation was previously declined for this repository. Do not ask again unless the user explicitly requests AI Guidance Bank creation. If the user later wants to create it, call `create_bank` and then call `resolve_context` again.";

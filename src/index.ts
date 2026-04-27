@@ -10,4 +10,6 @@ export type {
   GuidanceBankProjectSummary,
   GuidanceBankReadEntryArgs,
   GuidanceBankSelectedProject,
+  GuidanceBankWriteEntryArgs,
+  GuidanceBankWriteEntryResult,
 } from "./query/index.js";

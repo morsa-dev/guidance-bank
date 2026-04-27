@@ -4,7 +4,6 @@ import type { ConfirmedGuidanceSourceStrategy, SourceReviewDecision } from "./gu
 import {
   applySourceReviewDecision,
   buildPendingSourceReviewBuckets,
-  getPendingImportBucket,
   matchesStoredSourceStrategy,
   REPOSITORY_LOCAL_DISCOVERY_REF,
   selectSourceReviewSources,
@@ -15,7 +14,6 @@ import {
 export type CreateBankSourceReviewState = {
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
-  activeImportBucket: SourceReviewBucket | null;
   resolvedReviewBucket: SourceReviewBucket | null;
   sourceStrategyRequired: boolean;
 };
@@ -70,19 +68,16 @@ export const resolveCreateBankSourceReviewState = ({
     confirmedSourceStrategies,
     isImprovementFlow,
   });
-  const activeImportBucket = getPendingImportBucket(confirmedSourceStrategies);
   const sourceReviewAdvanceRequested =
     (existingState?.createIteration ?? null) === 1 && requestedIteration === 2 && stepCompleted;
   const sourceStrategyRequired =
     !syncRequired &&
     sourceReviewAdvanceRequested &&
-    activeImportBucket === null &&
     pendingSourceReviewBuckets.length > 0;
 
   return {
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
-    activeImportBucket,
     resolvedReviewBucket: resolvedReviewBucket ?? null,
     sourceStrategyRequired,
   };

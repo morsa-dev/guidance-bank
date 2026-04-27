@@ -142,7 +142,7 @@ test("create_bank iteration 0 scaffolds a project bank and reports discovered in
   assert.equal(structured.nextIteration, 1);
   assert.equal(
     structured.text,
-    "Continue the create flow at phase `kickoff`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for writes inside the guided flow. Call create_bank with iteration: 1 and stepCompleted: true after the current step is complete. For content phases, also provide an explicit step outcome: use `create_bank.apply` for changes or set `stepOutcome` when no new mutations are needed.",
+    "Continue with phase `kickoff`. Call create_bank with iteration: 1 and stepCompleted: true after this step is complete. For content phases, also provide either create_bank.apply changes or stepOutcome.",
   );
   assert.deepEqual(
     structured.discoveredSources.map((source) => source.relativePath),
@@ -289,9 +289,21 @@ test("create_bank discovers provider-global guidance and keeps import decisions 
       "create_bank",
       {
         projectPath: projectRoot,
-        iteration: 2,
+        iteration: 1,
         stepCompleted: true,
         sourceReviewDecision: "import_to_bank",
+        apply: {
+          writes: [
+            {
+              scope: "shared",
+              kind: "rules",
+              path: "provider-global-language.md",
+              content:
+                "---\nid: shared-provider-global-language\nkind: rule\ntitle: Provider Global Language Guidance\nstack: other\ntopics: [language]\n---\n\n# Provider Global Language Guidance\n\n- Centralize provider-global language guidance.\n",
+            },
+          ],
+          deletions: [],
+        },
       },
       CreateBankSchema,
     );
@@ -311,20 +323,8 @@ test("create_bank discovers provider-global guidance and keeps import decisions 
         ["~/.codex/skills/language-rules", "import_to_bank"],
       ],
     );
-    assert.match(importStructured.prompt, /The agent, not the server, decides/i);
-
-    await callToolStructured(
-      client,
-      "create_bank",
-      {
-        projectPath: projectRoot,
-        iteration: 3,
-        stepCompleted: true,
-        stepOutcome: "no_changes",
-        stepOutcomeNote: "Provider-global guidance was reviewed for this test and no additional import was needed.",
-      },
-      CreateBankSchema,
-    );
+    assert.equal(importStructured.phase, "review_existing_guidance");
+    assert.equal(importStructured.sourceReview?.bucket, "repository-local");
 
     const otherProjectStructured = await callToolStructured(
       client,
@@ -505,21 +505,33 @@ test("create_bank reviews provider-project and provider-global buckets separatel
       "create_bank",
       {
         projectPath: projectRoot,
-        iteration: 2,
+        iteration: 1,
         stepCompleted: true,
         sourceReviewDecision: "import_to_bank",
+        apply: {
+          writes: [
+            {
+              scope: "project",
+              kind: "rules",
+              path: "agents-guidance.md",
+              content:
+                "---\nid: demo-agents-guidance\nkind: rule\ntitle: AGENTS Guidance\nstack: other\ntopics: [guidance]\n---\n\n# AGENTS Guidance\n\n- Treat AGENTS guidance as project-specific.\n",
+            },
+          ],
+          deletions: [],
+        },
       },
       CreateBankSchema,
     );
 
-    assert.equal(importStructured.phase, "import_selected_guidance");
-    assert.equal(importStructured.sourceReview, null);
+    assert.equal(importStructured.phase, "review_existing_guidance");
+    assert.equal(importStructured.sourceReview?.bucket, "repository-local");
     assert.deepEqual(
       importStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef === "AGENTS.md")
         .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
-        ["AGENTS.md", "import_to_bank", "pending"],
+        ["AGENTS.md", "import_to_bank", "completed"],
       ],
     );
   });
@@ -554,42 +566,29 @@ test("create_bank returns to source review after importing one bucket when anoth
       "create_bank",
       {
         projectPath: projectRoot,
-        iteration: 2,
+        iteration: 1,
         stepCompleted: true,
         sourceReviewDecision: "import_to_bank",
+        apply: {
+          writes: [
+            {
+              scope: "shared",
+              kind: "rules",
+              path: "language-rules.md",
+              content:
+                "---\nid: shared-language-rules\nkind: rule\ntitle: Shared Language Rules\nstack: other\ntopics: [language]\n---\n\n# Shared Language Rules\n\n- Keep language rules shared.\n",
+            },
+          ],
+          deletions: [],
+        },
       },
       CreateBankSchema,
     );
 
-    assert.equal(importGlobalStructured.phase, "import_selected_guidance");
-    assert.equal(importGlobalStructured.sourceReview, null);
+    assert.equal(importGlobalStructured.phase, "review_existing_guidance");
+    assert.equal(importGlobalStructured.sourceReview?.bucket, "provider-project");
     assert.deepEqual(
       importGlobalStructured.confirmedSourceStrategies
-        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
-        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
-      [
-        ["~/.codex/skills/language-rules", "import_to_bank", "pending"],
-      ],
-    );
-
-    const nextReviewStructured = await callToolStructured(
-      client,
-      "create_bank",
-      {
-        projectPath: projectRoot,
-        iteration: 3,
-        stepCompleted: true,
-        stepOutcome: "no_changes",
-        stepOutcomeNote: "Provider-global guidance was already covered for this test.",
-      },
-      CreateBankSchema,
-    );
-
-    assert.equal(nextReviewStructured.phase, "review_existing_guidance");
-    assert.equal(nextReviewStructured.iteration, 1);
-    assert.equal(nextReviewStructured.sourceReview?.bucket, "provider-project");
-    assert.deepEqual(
-      nextReviewStructured.confirmedSourceStrategies
         .filter((strategy) => strategy.sourceRef.includes("language-rules"))
         .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
       [
@@ -597,6 +596,125 @@ test("create_bank returns to source review after importing one bucket when anoth
       ],
     );
   });
+});
+
+test("create_bank can import the current review batch in the same phase and continue to the next bucket", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank({ selectedProviders: ["codex"] });
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+  const fakeHome = path.join(tempDirectoryPath, "fake-home");
+  const codexGlobalSkillRoot = path.join(fakeHome, ".codex", "skills", "language-rules");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local guidance\n",
+  });
+  await mkdir(codexGlobalSkillRoot, { recursive: true });
+  await writeFile(path.join(codexGlobalSkillRoot, "SKILL.md"), "# Language Rules\n");
+
+  await withTemporaryHome(fakeHome, async () => {
+    const { client, close } = await createConnectedClient(bankRoot);
+    t.after(close);
+
+    await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+    await callToolStructured(
+      client,
+      "create_bank",
+      { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+      CreateBankSchema,
+    );
+
+    const nextReviewStructured = await callToolStructured(
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 1,
+        stepCompleted: true,
+        sourceReviewDecision: "import_to_bank",
+        apply: {
+          writes: [
+            {
+              scope: "shared",
+              kind: "rules",
+              path: "global-language.md",
+              content:
+                "---\nid: shared-global-language\nkind: rule\ntitle: Global Language Guidance\nstack: other\ntopics: [language]\n---\n\n# Global Language Guidance\n\n- Keep language guidance centralized.\n",
+            },
+          ],
+          deletions: [],
+        },
+      },
+      CreateBankSchema,
+    );
+
+    assert.equal(nextReviewStructured.phase, "review_existing_guidance");
+    assert.equal(nextReviewStructured.iteration, 1);
+    assert.equal(nextReviewStructured.sourceReview?.bucket, "provider-project");
+    assert.equal(nextReviewStructured.applyResults.writes.length, 1);
+    assert.match(nextReviewStructured.prompt, /same review phase/i);
+    assert.deepEqual(
+      nextReviewStructured.confirmedSourceStrategies
+        .filter((strategy) => strategy.sourceRef.includes("language-rules"))
+        .map((strategy) => [strategy.sourceRef, strategy.decision, strategy.importStatus]),
+      [["~/.codex/skills/language-rules", "import_to_bank", "completed"]],
+    );
+    assert.match(nextReviewStructured.text, /current review batch/i);
+  });
+});
+
+test("create_bank can import the current review batch in the same phase and then continue into repository-local review", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const followupReviewStructured = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 1,
+      stepCompleted: true,
+      sourceReviewDecision: "import_to_bank",
+      apply: {
+        writes: [
+          {
+            scope: "project",
+            kind: "rules",
+            path: "local-guidance.md",
+            content:
+              "---\nid: demo-local-guidance\nkind: rule\ntitle: Local Guidance\nstack: other\ntopics: [local]\n---\n\n# Local Guidance\n\n- Keep local guidance durable.\n",
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.equal(followupReviewStructured.phase, "review_existing_guidance");
+  assert.equal(followupReviewStructured.iteration, 1);
+  assert.equal(followupReviewStructured.sourceReview?.bucket, "repository-local");
+  assert.equal(followupReviewStructured.applyResults.writes.length, 1);
+  assert.match(followupReviewStructured.prompt, /Repository-Local Discovery/i);
+  assert.deepEqual(
+    followupReviewStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision, item.importStatus]),
+    [["AGENTS.md", "import_to_bank", "completed"]],
+  );
 });
 
 test("create_bank reviews source buckets without server-side semantic candidate extraction", async (t) => {
@@ -640,33 +758,23 @@ test("create_bank reviews source buckets without server-side semantic candidate 
   );
   assert.equal(reviewStructured.prompt.includes("Candidate guidance:"), false);
 
-  const importStructured = await callToolStructured(
+  const importResult = await callToolResult(
     client,
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 2,
+      iteration: 1,
       stepCompleted: true,
       sourceReviewDecision: "import_to_bank",
     },
-    CreateBankSchema,
   );
+  assert.equal(importResult.isError, true);
+  const importErrorText = TextPayloadSchema.parse({ text: importResult.content?.[0]?.type === "text" ? importResult.content[0].text : "" }).text;
+  assert.match(importErrorText, /must complete the current bucket in the same call/i);
 
-  assert.deepEqual(
-    importStructured.confirmedSourceStrategies
-      .filter((strategy) => strategy.sourceRef === "CLAUDE.md")
-      .map((strategy) => strategy.decision),
-    ["import_to_bank"],
-  );
-  assert.deepEqual(
-    importStructured.confirmedSourceStrategies
-      .filter((strategy) => strategy.sourceRef === ".claude")
-      .map((strategy) => strategy.decision),
-    ["import_to_bank"],
-  );
 });
 
-test("create_bank later iterations expose review import derive and finalize prompts", async (t) => {
+test("create_bank later iterations expose review derive finalize and completed prompts", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -693,11 +801,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedReviewStructured.stepOutcomeRequired, false);
   assert.equal(
     blockedReviewStructured.text,
-    "Mark the current create step complete before advancing from phase `kickoff`. Use `phase` as the primary guide and treat `iteration` as diagnostic only. Re-call create_bank with iteration: 1 and stepCompleted: true once the current step is actually done.",
+    "Finish phase `kickoff` before advancing. Call create_bank with iteration: 1 and stepCompleted: true when this step is complete.",
   );
   assert.match(blockedReviewStructured.prompt, /Create Flow Kickoff/i);
   assert.match(blockedReviewStructured.prompt, /Use `phase` as the main guide/i);
-  assert.match(blockedReviewStructured.text, /Use `phase` as the primary guide/i);
   assert.match(blockedReviewStructured.creationPrompt ?? "", /Entry Selector/i);
 
   const reviewStructured = await callToolStructured(
@@ -734,71 +841,63 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(blockedImportStructured.stepCompletionRequired, false);
   assert.equal(blockedImportStructured.sourceStrategyRequired, true);
   assert.equal(blockedImportStructured.stepOutcomeRequired, false);
-  assert.match(blockedImportStructured.text, /Record the pending external guidance review decision/i);
+  assert.match(blockedImportStructured.text, /Finish the current source review before advancing/i);
   assert.match(blockedImportStructured.text, /sourceReviewDecision/i);
 
-  const importStructured = await callToolStructured(
+  const blockedInlineImportStructured = await callToolResult(
     client,
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 2,
+      iteration: 1,
       stepCompleted: true,
       sourceReviewDecision: "import_to_bank",
     },
-    CreateBankSchema,
   );
-  assert.equal(importStructured.iteration, 2);
-  assert.equal(importStructured.phase, "import_selected_guidance");
-  assert.equal(importStructured.stepCompletionRequired, false);
-  assert.equal(importStructured.sourceStrategyRequired, false);
-  assert.equal(importStructured.stepOutcomeRequired, false);
-  assert.deepEqual(
-    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision]),
-    [
-      [".cursor", "import_to_bank"],
-      ["AGENTS.md", "import_to_bank"],
-    ],
-  );
-  assert.match(importStructured.prompt, /If `creationPrompt` is present, use it as the stable create-flow contract/i);
-  assert.match(importStructured.prompt, /The agent, not the server, decides the correct AI Guidance Bank structure/i);
-  assert.match(importStructured.prompt, /Confirmed Source Decisions/i);
-  assert.match(importStructured.prompt, /Use the transfer plan you presented to the user/i);
-  assert.match(importStructured.prompt, /Preserve meaning, not source layout/i);
-  assert.match(importStructured.prompt, /Read each source confirmed as/i);
-  assert.match(importStructured.prompt, /Use `create_bank\.apply` for batched canonical writes/i);
-  assert.match(importStructured.prompt, /For mixed sources, keep non-guidance content in place/i);
-  assert.match(importStructured.prompt, /agent may remove that now-empty source directly/i);
-  assert.match(importStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
-  assert.equal(importStructured.creationPrompt, null);
+  assert.equal(blockedInlineImportStructured.isError, true);
+  const blockedInlineImportText =
+    blockedInlineImportStructured.content?.[0]?.type === "text" ? blockedInlineImportStructured.content[0].text : "";
+  assert.match(blockedInlineImportText, /must complete the current bucket in the same call/i);
 
-  const blockedDeriveStructured = await callToolStructured(
-    client,
-    "create_bank",
-    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
-    CreateBankSchema,
-  );
-  assert.equal(blockedDeriveStructured.iteration, 2);
-  assert.equal(blockedDeriveStructured.phase, "import_selected_guidance");
-  assert.equal(blockedDeriveStructured.stepCompletionRequired, false);
-  assert.equal(blockedDeriveStructured.stepOutcomeRequired, true);
-  assert.match(blockedDeriveStructured.text, /Record an explicit outcome for phase `import_selected_guidance`/i);
-
-  // Complete import — returns to repository-local discovery review
-  await callToolStructured(
+  const afterImportStructured = await callToolStructured(
     client,
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 1,
       stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance needed importing for this test project.",
+      sourceReviewDecision: "import_to_bank",
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "cursor-guidance.md",
+            content:
+              "---\nid: demo-cursor-guidance\nkind: rule\ntitle: Cursor Guidance\nstack: other\ntopics: [guidance]\n---\n\n# Cursor Guidance\n\n- Keep imported provider-project guidance durable.\n",
+          },
+        ],
+        deletions: [],
+      },
     },
     CreateBankSchema,
   );
+  assert.equal(afterImportStructured.iteration, 1);
+  assert.equal(afterImportStructured.phase, "review_existing_guidance");
+  assert.equal(afterImportStructured.stepCompletionRequired, false);
+  assert.equal(afterImportStructured.sourceStrategyRequired, false);
+  assert.equal(afterImportStructured.stepOutcomeRequired, false);
+  assert.deepEqual(
+    afterImportStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision, item.importStatus]),
+    [
+      [".cursor", "import_to_bank", "completed"],
+      ["AGENTS.md", "import_to_bank", "completed"],
+    ],
+  );
+  assert.equal(afterImportStructured.sourceReview?.bucket, "repository-local");
+  assert.match(afterImportStructured.prompt, /Repository-Local Discovery/i);
+  assert.equal(afterImportStructured.creationPrompt, null);
 
-  // Handle repository-local discovery review → skip to derive
   const deriveProjectStructured = await callToolStructured(
     client,
     "create_bank",
@@ -810,7 +909,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     },
     CreateBankSchema,
   );
-  assert.equal(deriveProjectStructured.iteration, 3);
+  assert.equal(deriveProjectStructured.iteration, 2);
   assert.equal(deriveProjectStructured.phase, "derive_from_project");
   assert.equal(deriveProjectStructured.stepOutcomeRequired, false);
   assert.match(deriveProjectStructured.prompt, /Use `phase` as the main guide/i);
@@ -831,10 +930,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   const blockedFinalizeStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 4, stepCompleted: true },
+    { projectPath: projectRoot, iteration: 3, stepCompleted: true },
     CreateBankSchema,
   );
-  assert.equal(blockedFinalizeStructured.iteration, 3);
+  assert.equal(blockedFinalizeStructured.iteration, 2);
   assert.equal(blockedFinalizeStructured.phase, "derive_from_project");
   assert.equal(blockedFinalizeStructured.stepOutcomeRequired, true);
   assert.match(blockedFinalizeStructured.text, /Record an explicit outcome for phase `derive_from_project`/i);
@@ -844,7 +943,7 @@ test("create_bank later iterations expose review import derive and finalize prom
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 4,
+      iteration: 3,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No additional derived rules were needed for this test project.",
@@ -856,10 +955,9 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.stepCompletionRequired, false);
   assert.equal(finalizeStructured.stepOutcomeRequired, false);
   assert.equal(finalizeStructured.mustContinue, true);
-  assert.equal(finalizeStructured.nextIteration, 5);
-  assert.match(finalizeStructured.text, /Continue the create flow at phase `finalize`/i);
-  assert.match(finalizeStructured.text, /strongest skipped or already-covered high-value candidates/i);
-  assert.match(finalizeStructured.text, /coverage categories/i);
+  assert.equal(finalizeStructured.nextIteration, 4);
+  assert.match(finalizeStructured.text, /Continue with phase `finalize`/i);
+  assert.match(finalizeStructured.text, /what you checked, what you did not add, and why/i);
   assert.match(finalizeStructured.prompt, /Use `phase` as the main guide/i);
   assert.match(finalizeStructured.prompt, /Final pass checklist/i);
   assert.match(
@@ -877,29 +975,28 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(finalizeStructured.creationPrompt, null);
   assert.match(
     finalizeStructured.prompt,
-    /After completing this step, call `create_bank` again with `iteration: 5` and `stepCompleted: true`/i,
+    /After completing this step, call `create_bank` again with `iteration: 4` and `stepCompleted: true`/i,
   );
   assert.match(finalizeStructured.prompt, /stepOutcome` to `applied` or `no_changes`/i);
 
   const blockedCompletedStructured = await callToolStructured(
     client,
     "create_bank",
-    { projectPath: projectRoot, iteration: 5, stepCompleted: true },
+    { projectPath: projectRoot, iteration: 4, stepCompleted: true },
     CreateBankSchema,
   );
-  assert.equal(blockedCompletedStructured.iteration, 4);
+  assert.equal(blockedCompletedStructured.iteration, 3);
   assert.equal(blockedCompletedStructured.phase, "finalize");
   assert.equal(blockedCompletedStructured.stepOutcomeRequired, true);
   assert.match(blockedCompletedStructured.text, /Record an explicit outcome for phase `finalize`/i);
-  assert.match(blockedCompletedStructured.text, /strongest remaining or skipped high-value candidates/i);
-  assert.match(blockedCompletedStructured.text, /coverage categories/i);
+  assert.match(blockedCompletedStructured.text, /what you checked, what you did not add, and why the bank is complete enough/i);
 
   const completedStructured = await callToolStructured(
     client,
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 5,
+      iteration: 4,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "Finalize completed without additional cleanup changes.",
@@ -915,10 +1012,10 @@ test("create_bank later iterations expose review import derive and finalize prom
   assert.equal(completedStructured.nextIteration, null);
   assert.match(completedStructured.prompt, /Create Flow Completed/i);
   assert.match(completedStructured.prompt, /Do not continue the create flow automatically/i);
-  assert.doesNotMatch(completedStructured.prompt, /iteration: 6/i);
+  assert.doesNotMatch(completedStructured.prompt, /iteration: 5/i);
 });
 
-test("create_bank source review decision enters import phase without requiring an iteration jump", async (t) => {
+test("create_bank source review import must complete in the same review phase", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -938,7 +1035,7 @@ test("create_bank source review decision enters import phase without requiring a
     CreateBankSchema,
   );
 
-  const importStructured = await callToolStructured(
+  const importResult = await callToolResult(
     client,
     "create_bank",
     {
@@ -946,17 +1043,169 @@ test("create_bank source review decision enters import phase without requiring a
       iteration: 1,
       sourceReviewDecision: "import_to_bank",
     },
+  );
+  assert.equal(importResult.isError, true);
+  const text = importResult.content?.[0]?.type === "text" ? importResult.content[0].text : "";
+  assert.match(text, /must complete the current bucket in the same call/i);
+});
+
+test("create_bank rejects final review import without same-call apply", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
     CreateBankSchema,
   );
 
-  assert.equal(importStructured.iteration, 2);
-  assert.equal(importStructured.phase, "import_selected_guidance");
-  assert.deepEqual(
-    importStructured.confirmedSourceStrategies.map((item) => [item.sourceRef, item.decision, item.importStatus]),
-    [
-      ["AGENTS.md", "import_to_bank", "pending"],
-    ],
+  const importResult = await callToolResult(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewDecision: "import_to_bank",
+    },
   );
+
+  assert.equal(importResult.isError, true);
+  const text = importResult.content?.[0]?.type === "text" ? importResult.content[0].text : "";
+  assert.match(text, /must complete the current bucket in the same call/i);
+});
+
+test("create_bank rejects final review import with empty apply", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const importResult = await callToolResult(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewDecision: "import_to_bank",
+      apply: {
+        writes: [],
+        deletions: [],
+      },
+    },
+  );
+
+  assert.equal(importResult.isError, true);
+  const text = importResult.content?.[0]?.type === "text" ? importResult.content[0].text : "";
+  assert.match(text, /non-empty `create_bank\.apply`/i);
+});
+
+test("create_bank does not advance source review after conflicted review import", async (t) => {
+  const { tempDirectoryPath, bankRoot, repository } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+    "AGENTS.md": "# Local Guidance\n",
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const created = await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
+  await repository.upsertRule(
+    "project",
+    "local-guidance.md",
+    `---
+id: demo-local-guidance
+kind: rule
+title: Local Guidance
+stack: other
+topics: [local]
+---
+
+# Local Guidance
+
+- Existing local guidance.
+`,
+    created.projectId,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    { projectPath: projectRoot, iteration: 1, stepCompleted: true },
+    CreateBankSchema,
+  );
+
+  const conflictedImport = await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 2,
+      stepCompleted: true,
+      sourceReviewDecision: "import_to_bank",
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "local-guidance.md",
+            baseSha256: "stale-sha256",
+            content: `---
+id: demo-local-guidance
+kind: rule
+title: Local Guidance
+stack: other
+topics: [local]
+---
+
+# Local Guidance
+
+- Imported local guidance.
+`,
+          },
+        ],
+        deletions: [],
+      },
+    },
+    CreateBankSchema,
+  );
+
+  assert.equal(conflictedImport.phase, "review_existing_guidance");
+  assert.equal(conflictedImport.iteration, 1);
+  assert.equal(conflictedImport.sourceReview?.bucket, "provider-project");
+  assert.deepEqual(conflictedImport.applyResults.writes.map((item) => item.status), ["conflict"]);
+  assert.deepEqual(conflictedImport.confirmedSourceStrategies, []);
+
+  const state = await repository.readProjectStateOptional(created.projectId);
+  assert.equal(state?.createIteration, 1);
+  assert.deepEqual(state?.sourceStrategies, []);
 });
 
 test("create_bank can apply batched writes for the current step and refresh the snapshot", async (t) => {
@@ -989,7 +1238,7 @@ test("create_bank can apply batched writes for the current step and refresh the 
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1038,7 +1287,7 @@ When adding a feature.
   );
 
   assert.equal(applied.phase, "derive_from_project");
-  assert.equal(applied.iteration, 3);
+  assert.equal(applied.iteration, 2);
   assert.equal(applied.applyResults.writes.length, 2);
   assert.deepEqual(
     applied.applyResults.writes.map((item) => [item.kind, item.scope, item.status]),
@@ -1164,7 +1413,7 @@ test("create_bank apply accepts singular rule and skill kinds as aliases", async
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1244,7 +1493,7 @@ test("create_bank apply normalizes rules and skills path prefixes", async (t) =>
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1324,7 +1573,7 @@ test("create_bank apply rejects paths prefixed for the wrong entry root", async 
 
   const result = await callToolResult(client, "create_bank", {
     projectPath: projectRoot,
-    iteration: 3,
+    iteration: 2,
     apply: {
       writes: [
         {
@@ -1383,7 +1632,7 @@ test("create_bank apply can update and delete existing entries in one batch with
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1444,7 +1693,7 @@ When adding a feature.
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1525,7 +1774,7 @@ test("create_bank apply reports conflicts and tells the agent how to recover", a
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 3,
+      iteration: 2,
       apply: {
         writes: [
           {
@@ -1554,12 +1803,12 @@ topics: [architecture]
   assert.ok(existingRule);
 
   const conflicted = await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      apply: {
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        apply: {
         writes: [
           {
             kind: "rules",
@@ -1619,12 +1868,12 @@ test("create_bank does not advance stored iteration when an apply conflict block
   );
 
   const seeded = await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      apply: {
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 2,
+        apply: {
         writes: [
           {
             kind: "rules",
@@ -1651,13 +1900,13 @@ topics: [architecture]
   assert.ok(existingRule);
 
   const conflictedAdvance = await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 4,
-      stepCompleted: true,
-      apply: {
+      client,
+      "create_bank",
+      {
+        projectPath: projectRoot,
+        iteration: 3,
+        stepCompleted: true,
+        apply: {
         writes: [
           {
             kind: "rules",
@@ -1683,12 +1932,12 @@ topics: [architecture]
   );
 
   assert.equal(conflictedAdvance.phase, "derive_from_project");
-  assert.equal(conflictedAdvance.iteration, 3);
+  assert.equal(conflictedAdvance.iteration, 2);
   assert.equal(conflictedAdvance.creationState, "creating");
   assert.deepEqual(conflictedAdvance.applyResults.writes.map((item) => item.status), ["conflict"]);
 
   const state = await repository.readProjectStateOptional(created.projectId);
-  assert.equal(state?.createIteration, 3);
+  assert.equal(state?.createIteration, 2);
   assert.equal(state?.creationState, "creating");
 });
 
@@ -1714,7 +1963,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
   assert.equal(inProgressStructured.nextIteration, 1);
   assert.equal(
     inProgressStructured.text,
-    "Continue the create flow at phase `review_existing_guidance`. Use `phase` as the primary guide, treat `iteration` as diagnostic only, and prefer `create_bank.apply` for batched writes inside the guided flow. Call `create_bank` with `iteration: 1` and `stepCompleted: true` after the current step is actually complete.",
+    "Continue with phase `review_existing_guidance`. Call `create_bank` with `iteration: 1` and `stepCompleted: true` after this step is complete. For content phases, also provide either `create_bank.apply` changes or `stepOutcome`.",
   );
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
@@ -1728,19 +1977,26 @@ test("resolve_context blocks normal runtime context until the create flow is com
       iteration: 2,
       stepCompleted: true,
       sourceReviewDecision: "import_to_bank",
-    },
-    CreateBankSchema,
-  );
-  // Complete import — returns to repository-local discovery review
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No external guidance needed importing for this test project.",
+      apply: {
+        writes: [
+          {
+            kind: "rules",
+            scope: "project",
+            path: "agents-guidance.md",
+            content: `---
+id: demo-project-agents-guidance
+kind: rule
+title: Demo Project AGENTS Guidance
+stack: other
+topics: [guidance]
+---
+
+- Keep imported AGENTS guidance durable.
+`,
+          },
+        ],
+        deletions: [],
+      },
     },
     CreateBankSchema,
   );
@@ -1761,7 +2017,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 4,
+      iteration: 3,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No additional derived rules were needed for this test project.",
@@ -1773,7 +2029,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 5,
+      iteration: 4,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "Finalize completed without additional cleanup changes.",
@@ -1836,7 +2092,7 @@ test("ready project banks ask the user whether to run an improvement pass before
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 4,
+      iteration: 2,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No derived changes were needed for this ready-bank test.",
@@ -1848,10 +2104,22 @@ test("ready project banks ask the user whether to run an improvement pass before
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 5,
+      iteration: 3,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "Finalize completed without cleanup changes for this ready-bank test.",
+    },
+    CreateBankSchema,
+  );
+  await callToolStructured(
+    client,
+    "create_bank",
+    {
+      projectPath: projectRoot,
+      iteration: 4,
+      stepCompleted: true,
+      stepOutcome: "no_changes",
+      stepOutcomeNote: "Completed step acknowledged after finalize for this ready-bank test.",
     },
     CreateBankSchema,
   );
@@ -1870,7 +2138,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(rerunStructured.nextIteration, 1);
   assert.equal(
     rerunStructured.text,
-    "Project AI Guidance Bank already exists. Ask the user whether to improve it. If they agree, continue with phase `review_existing_guidance` by calling create_bank with iteration: 1. Use `phase` as the primary guide and treat `iteration` as diagnostic only.",
+    "Project AI Guidance Bank already exists. Ask the user whether to improve it. If they agree, call create_bank with iteration: 1 to start the improve flow.",
   );
   assert.match(rerunStructured.prompt, /last updated 0 days ago/i);
   assert.match(rerunStructured.prompt, /Ask whether they want to improve it now/i);
@@ -1889,7 +2157,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(improveStructured.phase, "derive_from_project");
   assert.equal(improveStructured.stepCompletionRequired, false);
   assert.equal(improveStructured.mustContinue, true);
-  assert.equal(improveStructured.nextIteration, 4);
+  assert.equal(improveStructured.nextIteration, 3);
   assert.match(improveStructured.prompt, /Current Bank Baseline/i);
   assert.match(improveStructured.prompt, /Treat the current project bank as the canonical baseline/i);
   assert.match(improveStructured.prompt, /Derive From Project/i);
@@ -1899,7 +2167,7 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.equal(resolveStructured.creationState, "creating");
   assert.equal(resolveStructured.requiredAction, "continue_create_bank");
   assert.equal(resolveStructured.createFlowPhase, "finalize");
-  assert.match(resolveStructured.text, /Continue the create flow at phase `finalize`/i);
+  assert.match(resolveStructured.text, /Continue with phase `finalize`/i);
 });
 
 test("improve_bank aliases the guided existing-bank flow", async (t) => {
@@ -1921,7 +2189,7 @@ test("improve_bank aliases the guided existing-bank flow", async (t) => {
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 4,
+      iteration: 3,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "No derived changes were needed for this alias test.",
@@ -1933,7 +2201,7 @@ test("improve_bank aliases the guided existing-bank flow", async (t) => {
     "create_bank",
     {
       projectPath: projectRoot,
-      iteration: 5,
+      iteration: 4,
       stepCompleted: true,
       stepOutcome: "no_changes",
       stepOutcomeNote: "Finalize completed without cleanup changes for this alias test.",

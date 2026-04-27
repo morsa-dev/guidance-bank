@@ -6,7 +6,7 @@ import {
 import type { CreateFlowPhase } from "../../../core/projects/create-flow/createFlowPhases.js";
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { ConfirmedGuidanceSourceStrategy } from "../../../core/projects/create-flow/guidanceStrategies.js";
-import { REPOSITORY_LOCAL_DISCOVERY_REF, type PendingSourceReviewBucket, type SourceReviewBucket } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
+import { REPOSITORY_LOCAL_DISCOVERY_REF, type PendingSourceReviewBucket } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
 import { buildCreateBankResponseText } from "./runtime.js";
 import type { CreateBankApplyResults } from "./apply.js";
 
@@ -20,7 +20,6 @@ type FinalizedCreateBankExecution = {
   completedFlowThisCall: boolean;
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
-  activeImportBucket: SourceReviewBucket | null;
   nextState: {
     creationState: "unknown" | "postponed" | "declined" | "creating" | "ready";
   };
@@ -74,22 +73,6 @@ export const buildCreateBankToolPayload = ({
     phase: finalExecution.phase,
     pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
   });
-  const isSubsequentImportBucket =
-    finalExecution.phase === "import_selected_guidance" &&
-    finalExecution.confirmedSourceStrategies.some((s) => s.importStatus === "completed");
-  const importSourceStrategies =
-    finalExecution.activeImportBucket === null
-      ? []
-      : publicConfirmedSourceStrategies.filter(
-          (strategy) =>
-            strategy.reviewBucket === finalExecution.activeImportBucket && strategy.importStatus === "pending",
-        );
-  const promptSourceStrategies =
-    finalExecution.phase === "import_selected_guidance"
-      ? isSubsequentImportBucket
-        ? publicConfirmedSourceStrategies
-        : importSourceStrategies
-      : publicConfirmedSourceStrategies;
   const prompt =
     flowContext.syncRequired
       ? "Project AI Guidance Bank already exists for this repository and requires synchronization before reuse. Sync only reconciles the existing bank with the current AI Guidance Bank storage version; it does not create or improve project content. Ask the user whether to synchronize it now or postpone it. After that, call `resolve_context` again."
@@ -108,12 +91,10 @@ export const buildCreateBankToolPayload = ({
               skillsDirectory,
               detectedStacks: flowContext.projectContext.detectedStacks,
               selectedReferenceProjects: flowContext.selectedReferenceProjects,
-              confirmedSourceStrategies: promptSourceStrategies,
               pendingSourceReviewBuckets: finalExecution.pendingSourceReviewBuckets,
               discoveredSources: flowContext.extendedContext.discoveredSources,
               currentBankSnapshot,
               hasExistingProjectBank: flowContext.existingManifest !== null,
-              isSubsequentBucket: isSubsequentImportBucket,
             })
           : "Project AI Guidance Bank already exists for this repository and is ready.";
 
