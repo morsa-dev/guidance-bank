@@ -26,17 +26,15 @@ const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
 const CreateIterationPhaseSchema = z.enum(CREATE_ITERATION_PHASES);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const ConfirmedGuidanceSourceStrategySchema = z
-  .object({
-    sourceRef: z.string().trim().min(1),
-    decision: SourceReviewDecisionSchema,
-    cleanupAllowed: z.boolean().default(false),
-    note: z.string().trim().min(1).nullable(),
-    fingerprint: z.string().trim().min(1).optional(),
-    reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
-    importStatus: GuidanceSourceImportStatusSchema.optional(),
-  })
-  .strict();
+const ConfirmedGuidanceSourceStrategySchema = z.object({
+  sourceRef: z.string().trim().min(1),
+  decision: SourceReviewDecisionSchema,
+  cleanupAllowed: z.boolean().default(false),
+  note: z.string().trim().min(1).nullable(),
+  fingerprint: z.string().trim().min(1).optional(),
+  reviewBucket: z.enum(SOURCE_REVIEW_BUCKETS).optional(),
+  importStatus: GuidanceSourceImportStatusSchema.optional(),
+});
 export const DEFAULT_PROJECT_BANK_POSTPONE_DAYS = 1;
 
 export const computeProjectBankPostponedUntil = (now: Date, postponeDays = DEFAULT_PROJECT_BANK_POSTPONE_DAYS): string =>
@@ -55,18 +53,16 @@ export const ProjectBankManifestSchema = z
   })
   .strict();
 
-export const ProjectBankStateSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    creationState: ProjectCreationStateSchema,
-    createPhase: CreateIterationPhaseSchema.nullable().default(null),
-    sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
-    postponedUntil: z.iso.datetime().nullable(),
-    lastSyncedAt: z.iso.datetime().nullable(),
-    lastSyncedStorageVersion: z.number().int().positive().nullable(),
-    updatedAt: z.iso.datetime(),
-  })
-  .strict();
+export const ProjectBankStateSchema = z.object({
+  schemaVersion: z.literal(1),
+  creationState: ProjectCreationStateSchema,
+  createPhase: CreateIterationPhaseSchema.nullable().default(null),
+  sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
+  postponedUntil: z.iso.datetime().nullable(),
+  lastSyncedAt: z.iso.datetime().nullable(),
+  lastSyncedStorageVersion: z.number().int().positive().nullable(),
+  updatedAt: z.iso.datetime(),
+});
 
 export const createProjectBankManifest = (
   projectId: string,
