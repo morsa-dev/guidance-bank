@@ -6,6 +6,7 @@ import { parseArgs } from "node:util";
 import { runInitCommand } from "./commands/init.js";
 import { runMcpServeCommand } from "./commands/mcpServe.js";
 import { runStatsCommand } from "./commands/stats.js";
+import { runStopCommand } from "./commands/stop.js";
 import { GuidanceBankCliError } from "../shared/errors.js";
 
 type PackageJson = {
@@ -20,6 +21,7 @@ const printUsage = (): void => {
 
 Usage:
   gbank init
+  gbank stop
   gbank stats [--project /absolute/project/path] [--json]
   gbank mcp serve
 
@@ -66,6 +68,11 @@ const main = async (): Promise<void> => {
 
   if (command === "init" && !subcommand) {
     await runInitCommand();
+    return;
+  }
+
+  if (command === "stop" && !subcommand) {
+    await runStopCommand();
     return;
   }
 

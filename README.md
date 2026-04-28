@@ -117,6 +117,16 @@ It currently shows:
 
 This is the first visibility layer; it will keep getting richer.
 
+## Stop
+
+Use `gbank stop` to disconnect the configured MCP integrations while keeping the local bank on disk:
+
+```bash
+gbank stop
+```
+
+This is useful when you want to pause usage cleanly, avoid stale provider-side MCP entries, or reconnect later through a fresh `gbank init`.
+
 ## What We Plan To Improve
 
 Near-term product direction:

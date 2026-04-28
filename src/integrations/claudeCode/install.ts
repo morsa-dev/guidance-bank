@@ -1,4 +1,9 @@
-import type { CommandSpec, ProviderInstallResult, ProviderInstallerContext } from "../../core/providers/types.js";
+import type {
+  CommandSpec,
+  ProviderInstallResult,
+  ProviderInstallerContext,
+  ProviderUninstallResult,
+} from "../../core/providers/types.js";
 import { GuidanceBankCliError } from "../../shared/errors.js";
 import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, LEGACY_GUIDANCEBANK_SERVER_NAMES, USER_SCOPE } from "../shared.js";
 
@@ -112,4 +117,35 @@ export const installClaudeCodeIntegration = async (
     command: addCommand,
     action,
   };
+};
+
+export const uninstallClaudeCodeIntegration = async (
+  context: ProviderInstallerContext,
+): Promise<ProviderUninstallResult> => {
+  await cleanupLegacyServers(context);
+
+  const command = buildRemoveCommand();
+  const result = await context.commandRunner(command);
+
+  if (result.exitCode === 0) {
+    return {
+      provider: "claude-code",
+      displayName: "Claude Code",
+      command,
+      action: "removed",
+    };
+  }
+
+  if (isMissingServerMessage(result)) {
+    return {
+      provider: "claude-code",
+      displayName: "Claude Code",
+      command,
+      action: "already_absent",
+    };
+  }
+
+  throw new GuidanceBankCliError(
+    `Failed to remove Claude Code MCP integration: ${result.stderr || result.stdout || "Unknown error"}`,
+  );
 };

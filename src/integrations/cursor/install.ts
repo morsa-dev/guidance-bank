@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import type { ProviderInstallerContext } from "../../core/providers/types.js";
-import type { ProviderInstallResult } from "../../core/providers/types.js";
+import type { ProviderInstallResult, ProviderUninstallResult } from "../../core/providers/types.js";
 import { GuidanceBankCliError } from "../../shared/errors.js";
 import { atomicWriteFile } from "../../storage/atomicWrite.js";
 import { createProviderDescriptor, GUIDANCEBANK_SERVER_NAME, LEGACY_GUIDANCEBANK_SERVER_NAMES } from "../shared.js";
@@ -111,6 +111,51 @@ const buildInstructions = (cursorConfigPath: string): string[] => [
 
 const removeLegacyServerEntries = (mcpServers: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(mcpServers).filter(([serverName]) => !LEGACY_SERVER_NAME_SET.has(serverName)));
+
+export const uninstallCursorIntegration = async (
+  context: ProviderInstallerContext,
+): Promise<ProviderUninstallResult> => {
+  const cursorConfigRoot = resolveCursorConfigRoot(context);
+  const cursorConfigPath = resolveCursorConfigPath(context);
+  await fs.mkdir(cursorConfigRoot, { recursive: true });
+  await assertSafeCursorConfigPath(cursorConfigRoot, cursorConfigPath);
+
+  const currentConfig = await readCursorConfig(cursorConfigPath);
+  const currentMcpServers =
+    currentConfig.mcpServers && typeof currentConfig.mcpServers === "object" && !Array.isArray(currentConfig.mcpServers)
+      ? currentConfig.mcpServers
+      : {};
+
+  const nextMcpServers = Object.fromEntries(
+    Object.entries(currentMcpServers).filter(
+      ([serverName]) => serverName !== GUIDANCEBANK_SERVER_NAME && !LEGACY_SERVER_NAME_SET.has(serverName),
+    ),
+  );
+  const changed = Object.keys(nextMcpServers).length !== Object.keys(currentMcpServers).length;
+
+  if (!changed) {
+    return {
+      provider: "cursor",
+      displayName: "Cursor",
+      command: null,
+      action: "already_absent",
+    };
+  }
+
+  const nextConfig: CursorMcpConfig = {
+    ...currentConfig,
+    mcpServers: nextMcpServers,
+  };
+
+  await atomicWriteFile(cursorConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`);
+
+  return {
+    provider: "cursor",
+    displayName: "Cursor",
+    command: null,
+    action: "removed",
+  };
+};
 
 export const installCursorIntegration = async (context: ProviderInstallerContext): Promise<ProviderInstallResult> => {
   const cursorConfigRoot = resolveCursorConfigRoot(context);

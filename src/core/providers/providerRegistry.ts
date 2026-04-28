@@ -2,9 +2,9 @@ import { access } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { installClaudeCodeIntegration } from "../../integrations/claudeCode/install.js";
-import { installCodexIntegration } from "../../integrations/codex/install.js";
-import { installCursorIntegration } from "../../integrations/cursor/install.js";
+import { installClaudeCodeIntegration, uninstallClaudeCodeIntegration } from "../../integrations/claudeCode/install.js";
+import { installCodexIntegration, uninstallCodexIntegration } from "../../integrations/codex/install.js";
+import { installCursorIntegration, uninstallCursorIntegration } from "../../integrations/cursor/install.js";
 import { PROVIDER_IDS, type ProviderId } from "../bank/types.js";
 import type { ProviderDefinition } from "./types.js";
 
@@ -28,6 +28,7 @@ export const PROVIDER_DEFINITIONS: readonly ProviderDefinition[] = [
     cliCommand: "codex",
     unavailableMessage: "Codex CLI was not found on PATH.",
     install: installCodexIntegration,
+    uninstall: uninstallCodexIntegration,
   },
   {
     id: "cursor",
@@ -36,6 +37,7 @@ export const PROVIDER_DEFINITIONS: readonly ProviderDefinition[] = [
     unavailableMessage: "Cursor local configuration directories were not found.",
     isAvailable: isCursorEnvironmentAvailable,
     install: installCursorIntegration,
+    uninstall: uninstallCursorIntegration,
   },
   {
     id: "claude-code",
@@ -43,6 +45,7 @@ export const PROVIDER_DEFINITIONS: readonly ProviderDefinition[] = [
     cliCommand: "claude",
     unavailableMessage: "Claude Code CLI was not found on PATH.",
     install: installClaudeCodeIntegration,
+    uninstall: uninstallClaudeCodeIntegration,
   },
 ];
 

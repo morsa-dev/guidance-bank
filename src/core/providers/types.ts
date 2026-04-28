@@ -27,6 +27,13 @@ export type ProviderInstallResult = {
   action: "installed" | "skipped" | "reconfigured";
 };
 
+export type ProviderUninstallResult = {
+  provider: ProviderId;
+  displayName: string;
+  command: CommandSpec | null;
+  action: "removed" | "already_absent";
+};
+
 export type ProviderDefinition = {
   id: ProviderId;
   displayName: string;
@@ -34,4 +41,5 @@ export type ProviderDefinition = {
   unavailableMessage: string;
   isAvailable?: () => Promise<boolean>;
   install: (context: ProviderInstallerContext) => Promise<ProviderInstallResult>;
+  uninstall: (context: ProviderInstallerContext) => Promise<ProviderUninstallResult>;
 };
