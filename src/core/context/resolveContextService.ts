@@ -4,12 +4,14 @@ import {
   isProjectBankPostponedUntilActive,
   resolveProjectBankLifecycleStatus,
 } from "../bank/lifecycle.js";
+import { resolveProjectLocalBankPaths } from "../bank/projectLocalBank.js";
 import { detectBankUpgrade } from "../upgrade/upgradeService.js";
 import { detectProjectContext } from "./detectProjectContext.js";
 import type { DetectableStack, ResolvedGuidanceBankContext } from "./types.js";
 import { findReferenceProjects } from "../projects/findReferenceProjects.js";
 import { getCreateFlowPhase } from "../projects/create-flow/createFlowPhases.js";
 import { resolveProjectIdentity } from "../projects/identity.js";
+import { ProjectLocalEntryStore } from "../../storage/projectLocalEntryStore.js";
 import {
   assertUniqueResolvedEntryIds,
   buildResolvedContextCatalog,
@@ -18,6 +20,7 @@ import {
   mergeResolvedLayerEntries,
   selectAlwaysOnRules,
 } from "./contextEntryResolver.js";
+import { loadProjectLocalContextEntries } from "./projectLocalContextEntryResolver.js";
 import {
   buildCreatingContextText,
   buildDeclinedContextText,
@@ -155,20 +158,20 @@ export const resolveGuidanceBankContext = async ({
 
   const sharedRules = await loadResolvedContextEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
   const sharedSkills = await loadResolvedContextEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
-  const projectRules = await loadResolvedContextEntries(
-    repository,
-    "project",
-    "rules",
-    detectedProjectContext.detectedStacks,
-    identity.projectId,
-  );
-  const projectSkills = await loadResolvedContextEntries(
-    repository,
-    "project",
-    "skills",
-    detectedProjectContext.detectedStacks,
-    identity.projectId,
-  );
+
+  const isProjectLocal = projectManifest?.storageMode === "project-local";
+  const [projectRules, projectSkills] = isProjectLocal
+    ? await (async () => {
+        const localStore = new ProjectLocalEntryStore(resolveProjectLocalBankPaths(identity.projectPath));
+        return Promise.all([
+          loadProjectLocalContextEntries(localStore, "rules", detectedProjectContext.detectedStacks),
+          loadProjectLocalContextEntries(localStore, "skills", detectedProjectContext.detectedStacks),
+        ]);
+      })()
+    : await Promise.all([
+        loadResolvedContextEntries(repository, "project", "rules", detectedProjectContext.detectedStacks, identity.projectId),
+        loadResolvedContextEntries(repository, "project", "skills", detectedProjectContext.detectedStacks, identity.projectId),
+      ]);
 
   assertUniqueResolvedEntryIds(sharedRules, "shared", "rules");
   assertUniqueResolvedEntryIds(sharedSkills, "shared", "skills");

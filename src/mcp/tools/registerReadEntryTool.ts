@@ -5,6 +5,7 @@ import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
+import { resolveProjectLocalStore } from "./entryMutationHelpers.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const ReadEntryArgsSchema = z
@@ -72,9 +73,17 @@ export const registerReadEntryTool: ToolRegistrar = (server, options) => {
           scope === "project" && parsedArgs.data.projectPath
             ? resolveProjectIdentity(parsedArgs.data.projectPath).projectId
             : undefined;
+
+        const projectLocalStore =
+          scope === "project" && parsedArgs.data.projectPath
+            ? await resolveProjectLocalStore(options.repository, parsedArgs.data.projectPath)
+            : null;
+
         const content =
           scope === "project"
-            ? await options.repository.readLayerEntry("project", parsedArgs.data.kind, parsedArgs.data.path, projectId)
+            ? projectLocalStore !== null
+              ? await projectLocalStore.readEntry(parsedArgs.data.kind, parsedArgs.data.path)
+              : await options.repository.readLayerEntry("project", parsedArgs.data.kind, parsedArgs.data.path, projectId)
             : await options.repository.readEntry(parsedArgs.data.kind, parsedArgs.data.path);
         const payload = {
           scope,

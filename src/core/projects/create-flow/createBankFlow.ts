@@ -1,6 +1,7 @@
 import type { BankRepository } from "../../../storage/bankRepository.js";
 import { requiresProjectBankSync, resolveProjectBankLifecycleStatus } from "../../bank/lifecycle.js";
-import type { ProjectCreationState } from "../../bank/types.js";
+import { resolveProjectLocalBankPaths } from "../../bank/projectLocalBank.js";
+import type { ProjectBankStorageMode, ProjectCreationState } from "../../bank/types.js";
 import { detectProjectContext } from "../../context/detectProjectContext.js";
 import {
   getCreateFlowIteration,
@@ -36,6 +37,7 @@ type ResolveCreateBankFlowContextOptions = {
   stepOutcomeNote: string | null;
   referenceProjectIds?: string[];
   sourceReviewDecision?: SourceReviewDecision;
+  projectBankMode?: ProjectBankStorageMode;
 };
 
 export type ResolvedCreateBankFlowContext = {
@@ -64,6 +66,8 @@ export type ResolvedCreateBankFlowContext = {
   confirmedSourceStrategies: ConfirmedGuidanceSourceStrategy[];
   pendingSourceReviewBuckets: PendingSourceReviewBucket[];
   resolvedReviewBucket: SourceReviewBucket | null;
+  storageMode: ProjectBankStorageMode;
+  projectLocalBankRoot: string | null;
 };
 
 type CreateBankApplyOutcome = {
@@ -255,6 +259,7 @@ export const resolveCreateBankFlowContext = async ({
   stepOutcomeNote,
   referenceProjectIds,
   sourceReviewDecision,
+  projectBankMode,
 }: ResolveCreateBankFlowContextOptions): Promise<ResolvedCreateBankFlowContext> => {
   const identity = resolveProjectIdentity(projectPath);
   const [manifest, projectContext, existingManifest, existingState] = await Promise.all([
@@ -358,6 +363,11 @@ export const resolveCreateBankFlowContext = async ({
   const adjustedCompletedFlowThisCall =
     !adjustedMustContinue && existingState?.creationState === "creating" && adjustedIsFlowComplete;
 
+  const storageMode: ProjectBankStorageMode =
+    projectBankMode ?? existingManifest?.storageMode ?? "global";
+  const projectLocalBankRoot =
+    storageMode === "project-local" ? resolveProjectLocalBankPaths(identity.projectPath).root : null;
+
   return {
     identity,
     manifestStorageVersion: manifest.storageVersion,
@@ -384,5 +394,7 @@ export const resolveCreateBankFlowContext = async ({
     confirmedSourceStrategies,
     pendingSourceReviewBuckets,
     resolvedReviewBucket,
+    storageMode,
+    projectLocalBankRoot,
   };
 };

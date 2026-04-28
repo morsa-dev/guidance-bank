@@ -14,6 +14,8 @@ export const ENTRY_SCOPES = ["shared", "project"] as const;
 export type EntryScope = (typeof ENTRY_SCOPES)[number];
 export const PROJECT_CREATION_STATES = ["unknown", "postponed", "declined", "creating", "ready"] as const;
 export type ProjectCreationState = (typeof PROJECT_CREATION_STATES)[number];
+export const PROJECT_BANK_STORAGE_MODES = ["global", "project-local"] as const;
+export type ProjectBankStorageMode = (typeof PROJECT_BANK_STORAGE_MODES)[number];
 
 export type MemoryBankManifest = {
   schemaVersion: 1;
@@ -41,6 +43,7 @@ export type ProjectBankManifest = {
   detectedStacks: string[];
   createdAt: string;
   updatedAt: string;
+  storageMode?: ProjectBankStorageMode | undefined;
 };
 
 export type ProjectBankState = {

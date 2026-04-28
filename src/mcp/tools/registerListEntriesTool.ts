@@ -4,6 +4,7 @@ import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
+import { resolveProjectLocalStore } from "./entryMutationHelpers.js";
 import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 
 const ListEntriesArgsSchema = z
@@ -84,9 +85,17 @@ export const registerListEntriesTool: ToolRegistrar = (server, options) => {
         scope === "project" && parsedArgs.data.projectPath
           ? resolveProjectIdentity(parsedArgs.data.projectPath).projectId
           : undefined;
+
+      const projectLocalStore =
+        scope === "project" && parsedArgs.data.projectPath
+          ? await resolveProjectLocalStore(options.repository, parsedArgs.data.projectPath)
+          : null;
+
       const entries =
         scope === "project"
-          ? await options.repository.listLayerEntries("project", parsedArgs.data.kind, projectId, parsedArgs.data.group)
+          ? projectLocalStore !== null
+            ? await projectLocalStore.listEntries(parsedArgs.data.kind, parsedArgs.data.group)
+            : await options.repository.listLayerEntries("project", parsedArgs.data.kind, projectId, parsedArgs.data.group)
           : await options.repository.listEntries(parsedArgs.data.kind, parsedArgs.data.group);
       const payload = {
         scope,

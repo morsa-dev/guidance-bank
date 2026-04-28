@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 import {
+  PROJECT_BANK_STORAGE_MODES,
   PROJECT_CREATION_STATES,
   type ProjectBankManifest,
   type ProjectBankState,
+  type ProjectBankStorageMode,
   type ProjectCreationState,
 } from "./types.js";
 import { DETECTABLE_STACKS, type DetectableStack } from "../context/types.js";
@@ -49,6 +51,7 @@ export const ProjectBankManifestSchema = z
     detectedStacks: z.array(DetectableStackSchema).default([]),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
+    storageMode: z.enum(PROJECT_BANK_STORAGE_MODES).optional(),
   })
   .strict();
 
@@ -71,10 +74,10 @@ export const createProjectBankManifest = (
   projectPath: string,
   detectedStacks: readonly DetectableStack[],
   now = new Date(),
+  storageMode?: ProjectBankStorageMode,
 ): ProjectBankManifest => {
   const timestamp = now.toISOString();
-
-  return {
+  const base: ProjectBankManifest = {
     schemaVersion: 1,
     projectId,
     projectName,
@@ -83,6 +86,12 @@ export const createProjectBankManifest = (
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+
+  if (storageMode !== undefined && storageMode !== "global") {
+    base.storageMode = storageMode;
+  }
+
+  return base;
 };
 
 export const createProjectBankState = (

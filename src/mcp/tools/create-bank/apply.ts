@@ -2,8 +2,9 @@ import { summarizeEntryContent } from "../../../core/audit/summarizeEntryContent
 import type { EntryKind, EntryScope } from "../../../core/bank/types.js";
 import type { AuditLogger } from "../../../storage/auditLogger.js";
 import type { BankRepository } from "../../../storage/bankRepository.js";
+import type { ProjectLocalEntryStore } from "../../../storage/projectLocalEntryStore.js";
 import { MCP_TOOL_NAMES } from "../../toolNames.js";
-import { writeEntryAuditEvent } from "../auditUtils.js";
+import { toSkillDocumentPath, writeEntryAuditEvent } from "../auditUtils.js";
 import { readEntryBeforeMutation } from "../entryMutationHelpers.js";
 
 export type CreateBankApplyWrite = {
@@ -29,7 +30,12 @@ type ApplyCreateBankChangesOptions = {
   sessionRef: string | null;
   writes: readonly CreateBankApplyWrite[];
   deletions: readonly CreateBankApplyDeletion[];
+  projectLocalEntryStore?: ProjectLocalEntryStore;
 };
+
+const hadSuccessfulProjectLocalMutations = (results: CreateBankApplyResults): boolean =>
+  results.writes.some((w) => w.scope === "project" && w.status !== "conflict") ||
+  results.deletions.some((d) => d.scope === "project" && d.status === "deleted");
 
 type CreateBankApplyResultItemBase = {
   kind: EntryKind;
@@ -63,6 +69,13 @@ export type CreateBankApplyResults = {
 const resolveActualSha256 = (kind: EntryKind, content: string | null): string | null =>
   summarizeEntryContent(kind, content).sha256;
 
+const readBeforeProjectLocalMutation = async (
+  store: ProjectLocalEntryStore,
+  kind: EntryKind,
+  entryPath: string,
+): Promise<string | null> =>
+  store.readEntryOptional(kind, kind === "skills" ? toSkillDocumentPath(entryPath) : entryPath);
+
 export const applyCreateBankChanges = async ({
   repository,
   auditLogger,
@@ -71,18 +84,24 @@ export const applyCreateBankChanges = async ({
   sessionRef,
   writes,
   deletions,
+  projectLocalEntryStore,
 }: ApplyCreateBankChangesOptions): Promise<CreateBankApplyResults> => {
   const writeResults: CreateBankApplyWriteResult[] = [];
   const deletionResults: CreateBankApplyDeletionResult[] = [];
 
   for (const write of writes) {
-    const beforeContent = await readEntryBeforeMutation({
-      repository,
-      scope: write.scope,
-      kind: write.kind,
-      path: write.path,
-      ...(write.scope === "project" ? { projectId } : {}),
-    });
+    const useLocal = write.scope === "project" && projectLocalEntryStore !== undefined;
+
+    const beforeContent = useLocal
+      ? await readBeforeProjectLocalMutation(projectLocalEntryStore, write.kind, write.path)
+      : await readEntryBeforeMutation({
+          repository,
+          scope: write.scope,
+          kind: write.kind,
+          path: write.path,
+          ...(write.scope === "project" ? { projectId } : {}),
+        });
+
     const actualSha256 = resolveActualSha256(write.kind, beforeContent);
     const expectedSha256 = write.baseSha256 ?? null;
 
@@ -98,15 +117,13 @@ export const applyCreateBankChanges = async ({
       continue;
     }
 
-    const result =
-      write.kind === "rules"
+    const result = useLocal
+      ? write.kind === "rules"
+        ? await projectLocalEntryStore.upsertRule(write.path, write.content)
+        : await projectLocalEntryStore.upsertSkill(write.path, write.content)
+      : write.kind === "rules"
         ? await repository.upsertRule(write.scope, write.path, write.content, write.scope === "project" ? projectId : undefined)
-        : await repository.upsertSkill(
-            write.scope,
-            write.path,
-            write.content,
-            write.scope === "project" ? projectId : undefined,
-          );
+        : await repository.upsertSkill(write.scope, write.path, write.content, write.scope === "project" ? projectId : undefined);
 
     await writeEntryAuditEvent({
       auditLogger,
@@ -133,13 +150,18 @@ export const applyCreateBankChanges = async ({
   }
 
   for (const deletion of deletions) {
-    const beforeContent = await readEntryBeforeMutation({
-      repository,
-      scope: deletion.scope,
-      kind: deletion.kind,
-      path: deletion.path,
-      ...(deletion.scope === "project" ? { projectId } : {}),
-    });
+    const useLocal = deletion.scope === "project" && projectLocalEntryStore !== undefined;
+
+    const beforeContent = useLocal
+      ? await readBeforeProjectLocalMutation(projectLocalEntryStore, deletion.kind, deletion.path)
+      : await readEntryBeforeMutation({
+          repository,
+          scope: deletion.scope,
+          kind: deletion.kind,
+          path: deletion.path,
+          ...(deletion.scope === "project" ? { projectId } : {}),
+        });
+
     const actualSha256 = resolveActualSha256(deletion.kind, beforeContent);
     const expectedSha256 = deletion.baseSha256 ?? null;
 
@@ -155,18 +177,13 @@ export const applyCreateBankChanges = async ({
       continue;
     }
 
-    const result =
-      deletion.kind === "rules"
-        ? await repository.deleteRule(
-            deletion.scope,
-            deletion.path,
-            deletion.scope === "project" ? projectId : undefined,
-          )
-        : await repository.deleteSkill(
-            deletion.scope,
-            deletion.path,
-            deletion.scope === "project" ? projectId : undefined,
-          );
+    const result = useLocal
+      ? deletion.kind === "rules"
+        ? await projectLocalEntryStore.deleteRule(deletion.path)
+        : await projectLocalEntryStore.deleteSkill(deletion.path)
+      : deletion.kind === "rules"
+        ? await repository.deleteRule(deletion.scope, deletion.path, deletion.scope === "project" ? projectId : undefined)
+        : await repository.deleteSkill(deletion.scope, deletion.path, deletion.scope === "project" ? projectId : undefined);
 
     if (result.status === "deleted") {
       await writeEntryAuditEvent({
@@ -194,8 +211,11 @@ export const applyCreateBankChanges = async ({
     });
   }
 
-  return {
-    writes: writeResults,
-    deletions: deletionResults,
-  };
+  const results: CreateBankApplyResults = { writes: writeResults, deletions: deletionResults };
+
+  if (projectLocalEntryStore !== undefined && hadSuccessfulProjectLocalMutations(results)) {
+    await repository.touchProjectManifest(projectId);
+  }
+
+  return results;
 };

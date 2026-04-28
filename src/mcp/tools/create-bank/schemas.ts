@@ -124,6 +124,16 @@ export const CreateBankApplyDeletionSchema = z
 
 export const CreateBankInputShape = {
   projectPath: AbsoluteProjectPathSchema,
+  projectBankMode: z
+    .enum(["global", "project-local"])
+    .optional()
+    .describe(
+      "Storage location for project bank entries. Defaults to `global` (stored in ~/.guidance-bank). " +
+        "Use `project-local` ONLY when the user has explicitly asked to store the bank inside the project repository " +
+        "(e.g. 'store guidance in the repo', 'commit it to git', 'create the bank in the codebase'). " +
+        "Do NOT offer or suggest this option proactively. " +
+        "The presence of .guidance-bank/ in the repo during source review does NOT imply this mode should be used.",
+    ),
   iteration: z.number().int().nonnegative().optional().describe("Current create-flow iteration. Defaults to 0."),
   sessionRef: SessionRefSchema,
   stepCompleted: z

@@ -9,6 +9,7 @@ import {
   buildInvalidToolArgsResult,
   buildStructuredToolResult,
   readEntryBeforeMutation,
+  resolveProjectLocalStore,
   resolveScopedMutationContext,
 } from "./entryMutationHelpers.js";
 
@@ -81,20 +82,33 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
       }
       const { identity, projectId } = mutationContext;
 
-      const beforeContent = await readEntryBeforeMutation({
-        repository: options.repository,
-        scope: parsedArgs.data.scope,
-        kind: "rules",
-        path: parsedArgs.data.path,
-        ...(projectId ? { projectId } : {}),
-      });
+      const projectLocalStore =
+        parsedArgs.data.scope === "project"
+          ? await resolveProjectLocalStore(options.repository, parsedArgs.data.projectPath)
+          : null;
 
-      const result = await options.repository.upsertRule(
-        parsedArgs.data.scope,
-        parsedArgs.data.path,
-        parsedArgs.data.content,
-        projectId,
-      );
+      const beforeContent = projectLocalStore !== null
+        ? await projectLocalStore.readEntryOptional("rules", parsedArgs.data.path)
+        : await readEntryBeforeMutation({
+            repository: options.repository,
+            scope: parsedArgs.data.scope,
+            kind: "rules",
+            path: parsedArgs.data.path,
+            ...(projectId ? { projectId } : {}),
+          });
+
+      const result = projectLocalStore !== null
+        ? await projectLocalStore.upsertRule(parsedArgs.data.path, parsedArgs.data.content)
+        : await options.repository.upsertRule(
+            parsedArgs.data.scope,
+            parsedArgs.data.path,
+            parsedArgs.data.content,
+            projectId,
+          );
+
+      if (projectLocalStore !== null && identity.projectId) {
+        await options.repository.touchProjectManifest(identity.projectId);
+      }
 
       await writeEntryAuditEvent({
         auditLogger: options.auditLogger,

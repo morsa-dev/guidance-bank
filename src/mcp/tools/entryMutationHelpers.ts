@@ -1,8 +1,10 @@
 import { z } from "zod";
 
+import { resolveProjectLocalBankPaths } from "../../core/bank/projectLocalBank.js";
 import type { EntryKind, EntryScope } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { BankRepository } from "../../storage/bankRepository.js";
+import { ProjectLocalEntryStore } from "../../storage/projectLocalEntryStore.js";
 import { toSkillDocumentPath } from "./auditUtils.js";
 
 type ScopedMutationContext = {
@@ -63,6 +65,16 @@ export const resolveScopedMutationContext = async ({
     identity,
     projectId,
   };
+};
+
+export const resolveProjectLocalStore = async (
+  repository: BankRepository,
+  projectPath: string,
+): Promise<ProjectLocalEntryStore | null> => {
+  const { projectId } = resolveProjectIdentity(projectPath);
+  const manifest = await repository.readProjectManifestOptional(projectId);
+  if (manifest?.storageMode !== "project-local") return null;
+  return new ProjectLocalEntryStore(resolveProjectLocalBankPaths(projectPath));
 };
 
 export const readEntryBeforeMutation = async ({

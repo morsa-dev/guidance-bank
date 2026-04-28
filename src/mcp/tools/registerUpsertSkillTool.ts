@@ -9,6 +9,7 @@ import {
   buildInvalidToolArgsResult,
   buildStructuredToolResult,
   readEntryBeforeMutation,
+  resolveProjectLocalStore,
   resolveScopedMutationContext,
 } from "./entryMutationHelpers.js";
 
@@ -82,20 +83,33 @@ export const registerUpsertSkillTool: ToolRegistrar = (server, options) => {
       }
       const { identity, projectId } = mutationContext;
 
-      const beforeContent = await readEntryBeforeMutation({
-        repository: options.repository,
-        scope: parsedArgs.data.scope,
-        kind: "skills",
-        path: parsedArgs.data.path,
-        ...(projectId ? { projectId } : {}),
-      });
+      const projectLocalStore =
+        parsedArgs.data.scope === "project"
+          ? await resolveProjectLocalStore(options.repository, parsedArgs.data.projectPath)
+          : null;
 
-      const result = await options.repository.upsertSkill(
-        parsedArgs.data.scope,
-        parsedArgs.data.path,
-        parsedArgs.data.content,
-        projectId,
-      );
+      const beforeContent = projectLocalStore !== null
+        ? await projectLocalStore.readEntryOptional("skills", `${parsedArgs.data.path}/SKILL.md`)
+        : await readEntryBeforeMutation({
+            repository: options.repository,
+            scope: parsedArgs.data.scope,
+            kind: "skills",
+            path: parsedArgs.data.path,
+            ...(projectId ? { projectId } : {}),
+          });
+
+      const result = projectLocalStore !== null
+        ? await projectLocalStore.upsertSkill(parsedArgs.data.path, parsedArgs.data.content)
+        : await options.repository.upsertSkill(
+            parsedArgs.data.scope,
+            parsedArgs.data.path,
+            parsedArgs.data.content,
+            projectId,
+          );
+
+      if (projectLocalStore !== null && identity.projectId) {
+        await options.repository.touchProjectManifest(identity.projectId);
+      }
 
       await writeEntryAuditEvent({
         auditLogger: options.auditLogger,

@@ -9,6 +9,7 @@ import {
   buildInvalidToolArgsResult,
   buildStructuredToolResult,
   readEntryBeforeMutation,
+  resolveProjectLocalStore,
   resolveScopedMutationContext,
 } from "./entryMutationHelpers.js";
 
@@ -75,26 +76,37 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
       }
       const { identity, projectId } = mutationContext;
 
-      const beforeContent = await readEntryBeforeMutation({
-        repository: options.repository,
-        scope: parsedArgs.data.scope,
-        kind: parsedArgs.data.kind,
-        path: parsedArgs.data.path,
-        ...(projectId ? { projectId } : {}),
-      });
+      const projectLocalStore =
+        parsedArgs.data.scope === "project"
+          ? await resolveProjectLocalStore(options.repository, parsedArgs.data.projectPath)
+          : null;
 
-      const result =
-        parsedArgs.data.kind === "rules"
-          ? await options.repository.deleteRule(
-              parsedArgs.data.scope,
-              parsedArgs.data.path,
-              projectId,
-            )
-          : await options.repository.deleteSkill(
-              parsedArgs.data.scope,
-              parsedArgs.data.path,
-              projectId,
-            );
+      const beforeContent = projectLocalStore !== null
+        ? await projectLocalStore.readEntryOptional(
+            parsedArgs.data.kind,
+            parsedArgs.data.kind === "skills"
+              ? `${parsedArgs.data.path}/SKILL.md`
+              : parsedArgs.data.path,
+          )
+        : await readEntryBeforeMutation({
+            repository: options.repository,
+            scope: parsedArgs.data.scope,
+            kind: parsedArgs.data.kind,
+            path: parsedArgs.data.path,
+            ...(projectId ? { projectId } : {}),
+          });
+
+      const result = projectLocalStore !== null
+        ? parsedArgs.data.kind === "rules"
+          ? await projectLocalStore.deleteRule(parsedArgs.data.path)
+          : await projectLocalStore.deleteSkill(parsedArgs.data.path)
+        : parsedArgs.data.kind === "rules"
+          ? await options.repository.deleteRule(parsedArgs.data.scope, parsedArgs.data.path, projectId)
+          : await options.repository.deleteSkill(parsedArgs.data.scope, parsedArgs.data.path, projectId);
+
+      if (result.status === "deleted" && projectLocalStore !== null && identity.projectId) {
+        await options.repository.touchProjectManifest(identity.projectId);
+      }
 
       if (result.status === "deleted") {
         await writeEntryAuditEvent({

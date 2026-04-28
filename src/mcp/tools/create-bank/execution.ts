@@ -1,8 +1,11 @@
 import {
   createProjectBankManifest,
 } from "../../../core/bank/project.js";
+import { ensureProjectLocalBankStructure } from "../../../core/bank/projectLocalBank.js";
 import { discoverCurrentProjectBank } from "../../../core/projects/discoverCurrentProjectBank.js";
+import { discoverProjectLocalBank } from "../../../core/projects/discoverProjectLocalBank.js";
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
+import type { ProjectLocalEntryStore } from "../../../storage/projectLocalEntryStore.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
 import { applyCreateBankChanges, type CreateBankApplyResults } from "./apply.js";
 import { normalizeApplyDeletions, normalizeApplyWrites } from "./runtime.js";
@@ -20,6 +23,11 @@ export const ensureCreateFlowProjectManifest = async ({
   }
 
   await options.repository.ensureProjectStructure(flowContext.identity.projectId);
+
+  if (flowContext.storageMode === "project-local") {
+    await ensureProjectLocalBankStructure(flowContext.identity.projectPath);
+  }
+
   await options.repository.writeProjectManifest(
     flowContext.identity.projectId,
     createProjectBankManifest(
@@ -27,6 +35,8 @@ export const ensureCreateFlowProjectManifest = async ({
       flowContext.identity.projectName,
       flowContext.identity.projectPath,
       flowContext.projectContext.detectedStacks,
+      new Date(),
+      flowContext.storageMode,
     ),
   );
 };
@@ -35,10 +45,12 @@ export const applyCreateBankRequestChanges = async ({
   options,
   flowContext,
   args,
+  projectLocalEntryStore,
 }: {
   options: McpServerRuntimeOptions;
   flowContext: ResolvedCreateBankFlowContext;
   args: CreateBankArgs;
+  projectLocalEntryStore?: ProjectLocalEntryStore;
 }): Promise<{
   currentBankSnapshot: ResolvedCreateBankFlowContext["extendedContext"]["currentBankSnapshot"];
   applyResults: CreateBankApplyResults;
@@ -60,6 +72,7 @@ export const applyCreateBankRequestChanges = async ({
         sessionRef: args.sessionRef ?? null,
         writes: normalizeApplyWrites(args.apply.writes),
         deletions: normalizeApplyDeletions(args.apply.deletions),
+        ...(projectLocalEntryStore !== undefined ? { projectLocalEntryStore } : {}),
       })
     : {
         writes: [],
@@ -67,11 +80,10 @@ export const applyCreateBankRequestChanges = async ({
       };
 
   if (args.apply) {
-    currentBankSnapshot = await discoverCurrentProjectBank(
-      options.repository,
-      flowContext.identity.projectId,
-      true,
-    );
+    currentBankSnapshot =
+      projectLocalEntryStore !== undefined
+        ? await discoverProjectLocalBank(projectLocalEntryStore, true)
+        : await discoverCurrentProjectBank(options.repository, flowContext.identity.projectId, true);
   }
 
   return {

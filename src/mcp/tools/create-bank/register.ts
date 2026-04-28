@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import { resolveProjectLocalBankPaths } from "../../../core/bank/projectLocalBank.js";
+import { discoverProjectLocalBank } from "../../../core/projects/discoverProjectLocalBank.js";
 import { finalizeCreateBankExecution, resolveCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
+import { ProjectLocalEntryStore } from "../../../storage/projectLocalEntryStore.js";
 import type { McpServerRuntimeOptions, ToolRegistrar } from "../../registerTools.js";
 import { MCP_TOOL_NAMES } from "../../toolNames.js";
 import { writeToolAuditEvent } from "../auditUtils.js";
@@ -132,7 +135,20 @@ const registerCreateLikeTool = (
         stepOutcomeNote: parsedArgs.data.stepOutcomeNote ?? null,
         ...(parsedArgs.data.sourceReviewDecision ? { sourceReviewDecision: parsedArgs.data.sourceReviewDecision } : {}),
         ...(parsedArgs.data.referenceProjectIds ? { referenceProjectIds: parsedArgs.data.referenceProjectIds } : {}),
+        ...(parsedArgs.data.projectBankMode ? { projectBankMode: parsedArgs.data.projectBankMode } : {}),
       });
+
+      const projectLocalEntryStore =
+        flowContext.storageMode === "project-local"
+          ? new ProjectLocalEntryStore(resolveProjectLocalBankPaths(flowContext.identity.projectPath))
+          : undefined;
+
+      if (projectLocalEntryStore !== undefined && flowContext.existingManifest !== null) {
+        flowContext.extendedContext.currentBankSnapshot = await discoverProjectLocalBank(
+          projectLocalEntryStore,
+          true,
+        );
+      }
 
       const requestError = getCreateBankRequestError({
         toolName,
@@ -161,13 +177,27 @@ const registerCreateLikeTool = (
         options,
         flowContext,
       });
-      const projectBankPath = options.repository.paths.projectDirectory(flowContext.identity.projectId);
-      const rulesDirectory = options.repository.paths.projectRulesDirectory(flowContext.identity.projectId);
-      const skillsDirectory = options.repository.paths.projectSkillsDirectory(flowContext.identity.projectId);
+
+      const localPaths =
+        flowContext.projectLocalBankRoot !== null
+          ? resolveProjectLocalBankPaths(flowContext.identity.projectPath)
+          : null;
+      const projectBankPath =
+        localPaths !== null ? localPaths.root : options.repository.paths.projectDirectory(flowContext.identity.projectId);
+      const rulesDirectory =
+        localPaths !== null
+          ? localPaths.rulesDirectory
+          : options.repository.paths.projectRulesDirectory(flowContext.identity.projectId);
+      const skillsDirectory =
+        localPaths !== null
+          ? localPaths.skillsDirectory
+          : options.repository.paths.projectSkillsDirectory(flowContext.identity.projectId);
+
       const { currentBankSnapshot, applyResults } = await applyCreateBankRequestChanges({
         options,
         flowContext,
         args: parsedArgs.data,
+        ...(projectLocalEntryStore !== undefined ? { projectLocalEntryStore } : {}),
       });
 
       const {

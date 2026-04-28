@@ -183,7 +183,7 @@ export class BankRepository {
     });
   }
 
-  private async touchProjectManifest(projectId: string): Promise<void> {
+  async touchProjectManifest(projectId: string): Promise<void> {
     const manifest = await this.readProjectManifestOptional(projectId);
     if (manifest === null) {
       return;
