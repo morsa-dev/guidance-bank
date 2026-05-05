@@ -73,6 +73,9 @@ ${renderCatalogSummary("Rules", rulesCatalog)}
 ${renderCatalogSummary("Skills", skillsCatalog)}`;
 };
 
+export const buildProjectLocalBankDisabledContextText = (): string =>
+  "AI Guidance Bank is temporarily disabled for this project. To re-enable it, call set_project_state with projectLocalBankDisabled: false.";
+
 export const buildUpgradeRequiredContextText = ({
   bankRoot,
   sourceRoot,

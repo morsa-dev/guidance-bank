@@ -18,6 +18,7 @@ import {
 const MissingContextSchema = z.object({
   text: z.string(),
   creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
+  projectLocalBankDisabled: z.boolean().optional(),
   postponedUntil: z.string().nullable().optional(),
   detectedStacks: z.array(z.string()).optional(),
   rulesCatalog: z
@@ -243,10 +244,12 @@ test("set_project_state persists postponed creation and resolve_context stops pr
     { projectPath: projectRoot, creationState: "postponed" },
     z.object({
       creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
+      projectLocalBankDisabled: z.boolean(),
       postponedUntil: z.string().nullable(),
     }),
   );
   assert.equal(stateStructured.creationState, "postponed");
+  assert.equal(stateStructured.projectLocalBankDisabled, false);
   assert.ok(stateStructured.postponedUntil);
   const postponedForMs = new Date(stateStructured.postponedUntil).getTime() - beforePostpone;
   assert.ok(postponedForMs >= 23 * 60 * 60 * 1000);
@@ -265,6 +268,70 @@ test("set_project_state persists postponed creation and resolve_context stops pr
   assert.ok((resolveStructured.rulesCatalog?.length ?? 0) > 0);
   assert.ok((resolveStructured.skillsCatalog?.length ?? 0) > 0);
   assert.doesNotMatch(resolveStructured.text, /ask the user a short direct question/i);
+});
+
+test("resolve_context returns a stub when a project-local bank is disabled", async (t) => {
+  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    projectBankMode: "project-local",
+  });
+  await callToolResult(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true });
+  await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    iteration: 2,
+    stepCompleted: true,
+    sourceReviewDecision: "keep_external",
+  });
+  await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    iteration: 3,
+    stepCompleted: true,
+    stepOutcome: "no_changes",
+    stepOutcomeNote: "No derived changes were needed in this setup.",
+  });
+  await callToolResult(client, "create_bank", {
+    projectPath: projectRoot,
+    iteration: 4,
+    stepCompleted: true,
+    stepOutcome: "no_changes",
+    stepOutcomeNote: "Finalize completed without cleanup changes in this setup.",
+  });
+  await callToolStructured(
+    client,
+    "set_project_state",
+    {
+      projectPath: projectRoot,
+      creationState: "ready",
+      projectLocalBankDisabled: true,
+    },
+    z.object({
+      creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]),
+      projectLocalBankDisabled: z.boolean(),
+      postponedUntil: z.string().nullable(),
+    }),
+  );
+
+  const structured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
+
+  assert.equal(structured.creationState, "ready");
+  assert.equal(structured.projectLocalBankDisabled, true);
+  assert.equal(
+    structured.text,
+    "AI Guidance Bank is temporarily disabled for this project. To re-enable it, call set_project_state with projectLocalBankDisabled: false.",
+  );
+  assert.equal(structured.rulesCatalog, undefined);
+  assert.equal(structured.skillsCatalog, undefined);
+  assert.equal(structured.detectedStacks, undefined);
 });
 
 test("expired project creation postpone resumes the missing-bank reminder flow", async (t) => {

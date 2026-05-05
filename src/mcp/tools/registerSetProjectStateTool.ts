@@ -19,6 +19,7 @@ const BaseSetProjectStateArgsSchema = z
     creationState: z
       .enum(PROJECT_CREATION_STATES)
       .describe("Project AI Guidance Bank creation state to persist for this repository."),
+    projectLocalBankDisabled: z.boolean().optional(),
     postponeDays: z.number().int().positive().optional(),
     postponedUntil: z.iso.datetime().optional(),
   })
@@ -71,6 +72,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         creationState: z
           .enum(PROJECT_CREATION_STATES)
           .describe("Project AI Guidance Bank creation state to persist for this repository."),
+        projectLocalBankDisabled: z.boolean().optional(),
         postponeDays: z.number().int().positive().optional(),
         postponedUntil: z.iso.datetime().optional(),
       },
@@ -79,6 +81,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         projectName: z.string(),
         projectPath: z.string(),
         creationState: z.enum(PROJECT_CREATION_STATES),
+        projectLocalBankDisabled: z.boolean(),
         postponedUntil: z.string().nullable(),
       },
     },
@@ -108,8 +111,16 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         existingState === null
           ? createProjectBankState(parsedArgs.data.creationState, { postponedUntil }, now)
           : updateProjectBankState(existingState, parsedArgs.data.creationState, { postponedUntil }, now);
+      const finalState =
+        parsedArgs.data.projectLocalBankDisabled === undefined
+          ? nextState
+          : {
+              ...nextState,
+              projectLocalBankDisabled: parsedArgs.data.projectLocalBankDisabled,
+              updatedAt: now.toISOString(),
+            };
 
-      await options.repository.writeProjectState(identity.projectId, nextState);
+      await options.repository.writeProjectState(identity.projectId, finalState);
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
         sessionRef: parsedArgs.data.sessionRef,
@@ -118,8 +129,9 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         projectId: identity.projectId,
         projectPath: identity.projectPath,
         details: {
-          creationState: nextState.creationState,
-          postponedUntil: nextState.postponedUntil,
+          creationState: finalState.creationState,
+          projectLocalBankDisabled: finalState.projectLocalBankDisabled,
+          postponedUntil: finalState.postponedUntil,
         },
       });
 
@@ -127,8 +139,9 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
         projectId: identity.projectId,
         projectName: identity.projectName,
         projectPath: identity.projectPath,
-        creationState: nextState.creationState,
-        postponedUntil: nextState.postponedUntil,
+        creationState: finalState.creationState,
+        projectLocalBankDisabled: finalState.projectLocalBankDisabled,
+        postponedUntil: finalState.postponedUntil,
       } as const;
 
       return {

@@ -61,6 +61,7 @@ export type ReferenceProjectCandidate = {
 export type ResolvedGuidanceBankContext = {
   text: string;
   creationState?: ProjectCreationState;
+  projectLocalBankDisabled?: boolean;
   postponedUntil?: string | null;
   requiredAction?: "upgrade_bank" | "create_bank" | "continue_create_bank" | "sync_bank";
   recommendedAction?: "create_bank";

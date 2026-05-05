@@ -22,6 +22,7 @@ import {
 } from "./contextEntryResolver.js";
 import { loadProjectLocalContextEntries } from "./projectLocalContextEntryResolver.js";
 import {
+  buildProjectLocalBankDisabledContextText,
   buildCreatingContextText,
   buildDeclinedContextText,
   buildMissingContextText,
@@ -160,6 +161,14 @@ export const resolveGuidanceBankContext = async ({
   const sharedSkills = await loadResolvedContextEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
 
   const isProjectLocal = projectManifest?.storageMode === "project-local";
+  if (isProjectLocal && projectState?.projectLocalBankDisabled) {
+    return {
+      text: buildProjectLocalBankDisabledContextText(),
+      creationState: "ready",
+      projectLocalBankDisabled: true,
+    };
+  }
+
   const [projectRules, projectSkills] = isProjectLocal
     ? await (async () => {
         const localStore = new ProjectLocalEntryStore(resolveProjectLocalBankPaths(identity.projectPath));

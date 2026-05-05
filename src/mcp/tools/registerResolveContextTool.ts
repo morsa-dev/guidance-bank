@@ -34,6 +34,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       outputSchema: {
         text: z.string(),
         creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
+        projectLocalBankDisabled: z.boolean().optional(),
         postponedUntil: z.string().nullable().optional(),
         requiredAction: z
           .enum([MCP_TOOL_NAMES.upgradeBank, MCP_TOOL_NAMES.createBank, "continue_create_bank", MCP_TOOL_NAMES.syncBank])
@@ -113,6 +114,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
           projectPath: identity.projectPath,
           details: {
             creationState: resolvedContext.creationState ?? null,
+            projectLocalBankDisabled: resolvedContext.projectLocalBankDisabled ?? null,
             requiredAction: resolvedContext.requiredAction ?? null,
             recommendedAction: resolvedContext.recommendedAction ?? null,
             createFlowPhase: resolvedContext.createFlowPhase ?? null,

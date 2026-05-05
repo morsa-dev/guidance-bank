@@ -56,6 +56,7 @@ export const ProjectBankManifestSchema = z
 export const ProjectBankStateSchema = z.object({
   schemaVersion: z.literal(1),
   creationState: ProjectCreationStateSchema,
+  projectLocalBankDisabled: z.boolean().default(false),
   createPhase: CreateIterationPhaseSchema.nullable().default(null),
   sourceStrategies: z.array(ConfirmedGuidanceSourceStrategySchema).default([]),
   postponedUntil: z.iso.datetime().nullable(),
@@ -104,6 +105,7 @@ export const createProjectBankState = (
   return {
     schemaVersion: 1,
     creationState,
+    projectLocalBankDisabled: false,
     createPhase: options?.createPhase ?? null,
     sourceStrategies: options?.sourceStrategies ?? [],
     postponedUntil:

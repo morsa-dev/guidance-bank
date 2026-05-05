@@ -49,6 +49,7 @@ export type ProjectBankManifest = {
 export type ProjectBankState = {
   schemaVersion: 1;
   creationState: ProjectCreationState;
+  projectLocalBankDisabled: boolean;
   createPhase: CreateIterationPhase | null;
   sourceStrategies: ConfirmedGuidanceSourceStrategy[];
   postponedUntil: string | null;
