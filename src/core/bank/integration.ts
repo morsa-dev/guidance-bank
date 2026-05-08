@@ -12,9 +12,19 @@ export const ProviderIntegrationDescriptorSchema = z
     installationMethod: z.enum(["provider-cli", "config-file"]),
     scope: z.literal("user"),
     mcpServer: McpServerConfigSchema,
-    instructions: z.array(z.string()),
   })
-  .strict();
+  .catchall(z.unknown());
 
-export const parseProviderIntegrationDescriptor = (value: unknown): ProviderIntegrationDescriptor =>
-  ProviderIntegrationDescriptorSchema.parse(value);
+export const parseProviderIntegrationDescriptor = (value: unknown): ProviderIntegrationDescriptor => {
+  const parsed = ProviderIntegrationDescriptorSchema.parse(value);
+
+  return {
+    schemaVersion: parsed.schemaVersion,
+    provider: parsed.provider,
+    displayName: parsed.displayName,
+    serverName: parsed.serverName,
+    installationMethod: parsed.installationMethod,
+    scope: parsed.scope,
+    mcpServer: parsed.mcpServer,
+  };
+};

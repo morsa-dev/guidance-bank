@@ -124,6 +124,9 @@ const registerCreateLikeTool = (
         };
       }
 
+      const providerSession = await options.providerSessionResolver.resolve({
+        projectPath: parsedArgs.data.projectPath,
+      });
       const requestedIteration = parsedArgs.data.iteration ?? 0;
       const flowContext = await resolveCreateBankFlowContext({
         repository: options.repository,
@@ -197,6 +200,7 @@ const registerCreateLikeTool = (
         options,
         flowContext,
         args: parsedArgs.data,
+        providerSession,
         ...(projectLocalEntryStore !== undefined ? { projectLocalEntryStore } : {}),
       });
 
@@ -228,7 +232,7 @@ const registerCreateLikeTool = (
       ) {
         await persistProviderGlobalGuidanceDecisions({
           options,
-          sessionRef: parsedArgs.data.sessionRef ?? null,
+          providerSession,
         });
       }
 
@@ -258,7 +262,7 @@ const registerCreateLikeTool = (
 
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
-        sessionRef: parsedArgs.data.sessionRef,
+        providerSession,
         tool: toolName,
         action: "create_flow",
         projectId: flowContext.identity.projectId,

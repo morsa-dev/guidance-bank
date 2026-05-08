@@ -4,7 +4,6 @@ import { UpgradeService, type UpgradeBankResult } from "../../core/upgrade/upgra
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { SessionRefSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
 type CompactAutoMigrationSummary = {
@@ -23,11 +22,7 @@ type CompactResolutionGroup = {
   collisions?: Array<{ path: string; collidingPaths: string[] }>;
 };
 
-const UpgradeBankArgsSchema = z
-  .object({
-    sessionRef: SessionRefSchema,
-  })
-  .strict();
+const UpgradeBankArgsSchema = z.object({}).strict();
 
 const summarizeAutoMigrations = (result: UpgradeBankResult): CompactAutoMigrationSummary[] => {
   const counts = new Map<string, CompactAutoMigrationSummary>();
@@ -136,9 +131,7 @@ export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
         readOnlyHint: false,
         destructiveHint: false,
       },
-      inputSchema: {
-        sessionRef: SessionRefSchema,
-      },
+      inputSchema: {},
       outputSchema: {
         status: z.enum(["upgraded", "already_current", "needs_resolution"]),
         bankRoot: z.string(),
@@ -197,6 +190,7 @@ export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
       }
 
       try {
+        const providerSession = await options.providerSessionResolver.resolve();
         const upgradeService = new UpgradeService();
         const result = await upgradeService.run({
           bankRoot: options.repository.rootPath,
@@ -204,7 +198,7 @@ export const registerUpgradeBankTool: ToolRegistrar = (server, options) => {
 
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
-          sessionRef: parsedArgs.data.sessionRef,
+          providerSession,
           tool: MCP_TOOL_NAMES.upgradeBank,
           action: "upgrade",
           projectId: "bank",

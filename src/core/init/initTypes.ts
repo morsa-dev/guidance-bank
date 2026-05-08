@@ -5,6 +5,7 @@ export type InitOptions = {
   bankRoot?: string;
   commandRunner?: CommandRunner;
   cursorConfigRoot?: string;
+  claudeConfigRoot?: string;
   selectedProviders: ProviderId[];
 };
 

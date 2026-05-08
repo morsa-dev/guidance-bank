@@ -9,13 +9,12 @@ import { PROJECT_CREATION_STATES } from "../../core/bank/types.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
 const BaseSetProjectStateArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: SessionRefSchema,
     creationState: z
       .enum(PROJECT_CREATION_STATES)
       .describe("Project AI Guidance Bank creation state to persist for this repository."),
@@ -68,7 +67,6 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: SessionRefSchema,
         creationState: z
           .enum(PROJECT_CREATION_STATES)
           .describe("Project AI Guidance Bank creation state to persist for this repository."),
@@ -100,6 +98,9 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
       }
 
       const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
+      const providerSession = await options.providerSessionResolver.resolve({
+        projectPath: parsedArgs.data.projectPath,
+      });
       const existingState = await options.repository.readProjectStateOptional(identity.projectId);
       const now = new Date();
       const postponedUntil =
@@ -123,7 +124,7 @@ export const registerSetProjectStateTool: ToolRegistrar = (server, options) => {
       await options.repository.writeProjectState(identity.projectId, finalState);
       await writeToolAuditEvent({
         auditLogger: options.auditLogger,
-        sessionRef: parsedArgs.data.sessionRef,
+        providerSession,
         tool: MCP_TOOL_NAMES.setProjectState,
         action: "set_state",
         projectId: identity.projectId,

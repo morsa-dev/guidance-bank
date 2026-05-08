@@ -23,7 +23,8 @@ type EventSummary = {
   action: AuditEvent["action"];
   projectId: string;
   projectPath: string;
-  sessionRef: string | null;
+  providerSessionId: string | null;
+  providerSessionSource: AuditEvent["providerSessionSource"];
 };
 
 type ProjectStats = {
@@ -79,7 +80,8 @@ const summarizeEvents = (events: readonly AuditEvent[], limit: number): EventSum
       action: event.action,
       projectId: event.projectId,
       projectPath: event.projectPath,
-      sessionRef: event.sessionRef,
+      providerSessionId: event.providerSessionId,
+      providerSessionSource: event.providerSessionSource,
     }));
 
 const summarizeEventsByKey = <T extends string>(

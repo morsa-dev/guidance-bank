@@ -4,6 +4,7 @@ import path from "node:path";
 import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
+import { createDefaultMcpServerConfig } from "../src/mcp/config.js";
 import { AuditLogger } from "../src/storage/auditLogger.js";
 import { BankRepository } from "../src/storage/bankRepository.js";
 
@@ -77,7 +78,8 @@ test("audit logger rejects writing through a symbolic link", async () => {
 
   await assert.rejects(() =>
     auditLogger.writeEvent({
-      sessionRef: null,
+      providerSessionId: null,
+      providerSessionSource: "unresolved",
       tool: "upsert_rule",
       action: "upsert",
       scope: "shared",
@@ -111,4 +113,53 @@ test("audit logger rejects writing through a symbolic link", async () => {
       deltaLines: 1,
     }),
   );
+});
+
+test("repository tolerates legacy provider integration descriptor fields while returning the canonical shape", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-storage-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+  const repository = new BankRepository(bankRoot);
+  const mcpServerConfig = createDefaultMcpServerConfig(bankRoot);
+
+  await repository.ensureStructure();
+  await writeFile(
+    path.join(bankRoot, "integrations", "codex.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        provider: "codex",
+        displayName: "Codex",
+        serverName: "guidance-bank",
+        installationMethod: "provider-cli",
+        scope: "user",
+        mcpServer: {
+          ...mcpServerConfig,
+          env: {
+            ...mcpServerConfig.env,
+            GUIDANCEBANK_PROVIDER_ID: "codex",
+          },
+        },
+        instructions: ["legacy field"],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  assert.deepEqual(await repository.readProviderIntegrationOptional("codex"), {
+    schemaVersion: 1,
+    provider: "codex",
+    displayName: "Codex",
+    serverName: "guidance-bank",
+    installationMethod: "provider-cli",
+    scope: "user",
+    mcpServer: {
+      ...mcpServerConfig,
+      env: {
+        ...mcpServerConfig.env,
+        GUIDANCEBANK_PROVIDER_ID: "codex",
+      },
+    },
+  });
 });

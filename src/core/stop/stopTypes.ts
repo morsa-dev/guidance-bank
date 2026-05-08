@@ -5,6 +5,7 @@ export type StopOptions = {
   bankRoot?: string;
   commandRunner?: CommandRunner;
   cursorConfigRoot?: string;
+  claudeConfigRoot?: string;
 };
 
 export type StopResult = {

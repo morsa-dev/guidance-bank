@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
   buildInvalidToolArgsResult,
@@ -17,7 +17,6 @@ const UpsertRuleArgsSchema = z
   .object({
     scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: SessionRefSchema,
     path: z
       .string()
       .trim()
@@ -44,7 +43,6 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         scope: z.enum(ENTRY_SCOPES).describe("Write target: shared user-level rules or project-specific rules."),
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: SessionRefSchema,
         path: z
           .string()
           .trim()
@@ -81,6 +79,9 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
         return mutationContext;
       }
       const { identity, projectId } = mutationContext;
+      const providerSession = await options.providerSessionResolver.resolve({
+        projectPath: parsedArgs.data.projectPath,
+      });
 
       const projectLocalStore =
         parsedArgs.data.scope === "project"
@@ -112,7 +113,7 @@ export const registerUpsertRuleTool: ToolRegistrar = (server, options) => {
 
       await writeEntryAuditEvent({
         auditLogger: options.auditLogger,
-        sessionRef: parsedArgs.data.sessionRef,
+        providerSession,
         tool: MCP_TOOL_NAMES.upsertRule,
         action: "upsert",
         scope: parsedArgs.data.scope,

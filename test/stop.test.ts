@@ -20,10 +20,12 @@ test("stop removes active MCP integrations without deleting the bank", async () 
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stop-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
 
   await new InitService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: createInitCommandRunner(),
     selectedProviders: ["codex", "cursor", "claude-code"],
   });
@@ -43,6 +45,7 @@ test("stop removes active MCP integrations without deleting the bank", async () 
   const result = await new StopService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: stopRunner,
   });
 
@@ -76,16 +79,25 @@ test("stop removes active MCP integrations without deleting the bank", async () 
     mcpServers: Record<string, unknown>;
   };
   assert.deepEqual(cursorConfig.mcpServers, {});
+  const claudeSettings = JSON.parse(await readFile(path.join(claudeConfigRoot, "settings.json"), "utf8")) as {
+    hooks?: { PreToolUse?: Array<{ matcher?: string }> };
+  };
+  assert.equal(
+    claudeSettings.hooks?.PreToolUse?.some((group) => group.matcher === "mcp__guidance-bank__.*") ?? false,
+    false,
+  );
 });
 
 test("stop is idempotent when MCP integrations are already absent", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-stop-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
 
   await new InitService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: createInitCommandRunner(),
     selectedProviders: ["codex", "cursor", "claude-code"],
   });
@@ -113,12 +125,14 @@ test("stop is idempotent when MCP integrations are already absent", async () => 
   await new StopService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: stopRunner,
   });
 
   const result = await new StopService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: stopRunner,
   });
 

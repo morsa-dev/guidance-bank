@@ -17,6 +17,7 @@ const createLegacyBankFixture = async (
   const legacyBankRoot = path.join(tempDirectoryPath, ".memory-bank");
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const repository = new BankRepository(legacyBankRoot);
 
@@ -47,6 +48,7 @@ const createLegacyBankFixture = async (
   return {
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     legacyBankRoot,
     projectRoot,
     tempDirectoryPath,
@@ -92,7 +94,7 @@ test("resolve_context requires a bank upgrade before any missing project-bank pr
   const resolved = await callToolStructured(
     client,
     "resolve_context",
-    { projectPath: projectRoot, sessionRef: "resolve:upgrade-required" },
+    { projectPath: projectRoot },
     TextPayloadSchema,
   );
 
@@ -108,7 +110,7 @@ test("resolve_context requires a bank upgrade before any missing project-bank pr
 });
 
 test("upgrade service migrates a legacy v1 bank, removes legacy MCP registrations, reapplies current integrations, and unblocks normal resolve_context", async (t) => {
-  const { bankRoot, cursorConfigRoot, legacyBankRoot, projectRoot } = await createLegacyBankFixture([
+  const { bankRoot, cursorConfigRoot, claudeConfigRoot, legacyBankRoot, projectRoot } = await createLegacyBankFixture([
     "codex",
     "cursor",
     "claude-code",
@@ -151,6 +153,7 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
   const result = await new UpgradeService().run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner,
   });
 
@@ -200,7 +203,7 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
   const resolved = await callToolStructured(
     client,
     "resolve_context",
-    { projectPath: projectRoot, sessionRef: "resolve:after-upgrade" },
+    { projectPath: projectRoot },
     TextPayloadSchema,
   );
 

@@ -19,6 +19,7 @@ export type ProviderInstallerContext = {
   existingDescriptor: ProviderIntegrationDescriptor | null;
   mcpServerConfig: McpServerConfig;
   cursorConfigRoot?: string;
+  claudeConfigRoot?: string;
 };
 
 export type ProviderInstallResult = {

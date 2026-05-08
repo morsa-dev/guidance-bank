@@ -33,6 +33,7 @@ export class StopService {
         existingDescriptor: descriptor,
         mcpServerConfig,
         ...(options.cursorConfigRoot ? { cursorConfigRoot: options.cursorConfigRoot } : {}),
+        ...(options.claudeConfigRoot ? { claudeConfigRoot: options.claudeConfigRoot } : {}),
       });
       stoppedProviders.push(result);
     }

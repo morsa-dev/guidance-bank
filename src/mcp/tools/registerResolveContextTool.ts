@@ -6,13 +6,12 @@ import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
 const ResolveContextArgsSchema = z
   .object({
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: SessionRefSchema,
   })
   .strict();
 
@@ -29,7 +28,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       },
       inputSchema: {
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: SessionRefSchema,
       },
       outputSchema: {
         text: z.string(),
@@ -100,6 +98,9 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
       }
 
       try {
+        const providerSession = await options.providerSessionResolver.resolve({
+          projectPath: parsedArgs.data.projectPath,
+        });
         const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
         const resolvedContext = await resolveGuidanceBankContext({
           repository: options.repository,
@@ -107,7 +108,7 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         });
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
-          sessionRef: parsedArgs.data.sessionRef,
+          providerSession,
           tool: MCP_TOOL_NAMES.resolveContext,
           action: "resolve",
           projectId: identity.projectId,

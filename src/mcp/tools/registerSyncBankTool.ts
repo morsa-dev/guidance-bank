@@ -5,14 +5,13 @@ import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeToolAuditEvent } from "./auditUtils.js";
 
 const SyncBankArgsSchema = z
   .object({
     action: z.enum(["run", "postpone"]).describe("Run an explicit sync now or postpone the sync reminder."),
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: SessionRefSchema,
   })
   .strict();
 
@@ -30,7 +29,6 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
       inputSchema: {
         action: z.enum(["run", "postpone"]).describe("Run an explicit sync now or postpone the sync reminder."),
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: SessionRefSchema,
       },
       outputSchema: {
         action: z.enum(["run", "postpone"]),
@@ -74,6 +72,9 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
 
       try {
         const identity = resolveProjectIdentity(parsedArgs.data.projectPath);
+        const providerSession = await options.providerSessionResolver.resolve({
+          projectPath: parsedArgs.data.projectPath,
+        });
         const syncService = new SyncService();
         const result =
           parsedArgs.data.action === "run"
@@ -87,7 +88,7 @@ export const registerSyncBankTool: ToolRegistrar = (server, options) => {
               });
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
-          sessionRef: parsedArgs.data.sessionRef,
+          providerSession,
           tool: MCP_TOOL_NAMES.syncBank,
           action: "sync",
           projectId: identity.projectId,

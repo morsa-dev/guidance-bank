@@ -431,7 +431,7 @@ test("project entries override shared entries by canonical id instead of path", 
   assert.doesNotMatch(resolved.text, /Shared baseline architecture rule\./);
 });
 
-test("entry mutations append audit events with provider and sessionRef metadata", async (t) => {
+test("entry mutations append audit events with provider session metadata", async (t) => {
   const { projectRoot, bankRoot, client, close } = await setupAngularProject();
   t.after(close);
 
@@ -441,7 +441,6 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     {
       scope: "shared",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-123",
       path: "angular-architecture.md",
       content:
         "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n",
@@ -454,7 +453,6 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     {
       scope: "shared",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-123",
       path: "angular-architecture.md",
       content:
         "---\nid: shared-angular-architecture\nkind: rule\ntitle: Angular Architecture\nstack: angular\ntopics: [architecture]\n---\n\n# Angular Architecture\n\n- Keep route containers thin.\n- Keep reusable layout rules centralized.\n",
@@ -468,7 +466,6 @@ test("entry mutations append audit events with provider and sessionRef metadata"
       scope: "shared",
       kind: "rules",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-123",
       path: "angular-architecture.md",
     },
     DeleteEntrySchema,
@@ -479,7 +476,12 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line) as Record<string, unknown>)
-    .filter((event) => event.sessionRef === "cursor:thread-123");
+    .filter(
+      (event) =>
+        event.provider === "cursor" &&
+        (event.tool === "upsert_rule" || event.tool === "delete_entry") &&
+        event.path === "angular-architecture.md",
+    );
 
   assert.equal(events.length, 3);
   assert.deepEqual(
@@ -491,8 +493,12 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     ["cursor", "cursor", "cursor"],
   );
   assert.deepEqual(
-    events.map((event) => event.sessionRef),
-    ["cursor:thread-123", "cursor:thread-123", "cursor:thread-123"],
+    events.map((event) => event.providerSessionId),
+    [null, null, null],
+  );
+  assert.deepEqual(
+    events.map((event) => event.providerSessionSource),
+    ["unresolved", "unresolved", "unresolved"],
   );
   assert.equal(events[0]?.path, "angular-architecture.md");
   assert.ok(typeof events[0]?.deltaChars === "number" && (events[0].deltaChars as number) > 0);
@@ -507,7 +513,12 @@ test("entry mutations append audit events with provider and sessionRef metadata"
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line) as Record<string, unknown>)
-    .filter((event) => event.sessionRef === "cursor:thread-123");
+    .filter(
+      (event) =>
+        event.provider === "cursor" &&
+        (event.tool === "upsert_rule" || event.tool === "delete_entry") &&
+        event.path === "angular-architecture.md",
+    );
 
   assert.equal(historyEvents.length, 3);
   assert.deepEqual(
@@ -534,7 +545,6 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
     {
       scope: "shared",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-skill-audit",
       path: "component-audit/skill.md",
       content:
         "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n",
@@ -547,7 +557,6 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
     {
       scope: "shared",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-skill-audit",
       path: "component-audit/Skill.md",
       content:
         "---\nid: shared-component-audit\nkind: skill\ntitle: Component Audit\nname: component-audit\ndescription: Review Angular components before editing.\nstack: angular\ntopics: [components]\n---\n\n# Component Audit\n\n1. Check inputs and outputs.\n2. Check template dependencies.\n",
@@ -561,7 +570,6 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
       scope: "shared",
       kind: "skills",
       projectPath: projectRoot,
-      sessionRef: "cursor:thread-skill-audit",
       path: "component-audit/skill.md",
     },
     DeleteEntrySchema,
@@ -571,7 +579,12 @@ test("skill audit snapshots resolve existing entries when the tool path ends wit
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line) as Record<string, unknown>)
-    .filter((event) => event.sessionRef === "cursor:thread-skill-audit");
+    .filter(
+      (event) =>
+        event.provider === "cursor" &&
+        (event.tool === "upsert_skill" || event.tool === "delete_entry") &&
+        event.path === "component-audit",
+    );
 
   assert.equal(events.length, 3);
   assert.equal((events[0]?.before as { exists?: boolean })?.exists, false);

@@ -1,5 +1,6 @@
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
+import type { ResolvedProviderSession } from "../../providerSessionResolver.js";
 import type { CreateBankArgs } from "./schemas.js";
 
 export const shouldPersistProviderGlobalDecisions = ({
@@ -12,10 +13,10 @@ export const shouldPersistProviderGlobalDecisions = ({
 
 export const persistProviderGlobalGuidanceDecisions = async ({
   options,
-  sessionRef,
+  providerSession,
 }: {
   options: McpServerRuntimeOptions;
-  sessionRef: string | null;
+  providerSession: ResolvedProviderSession;
 }): Promise<void> => {
   const state = await options.repository.readExternalGuidanceDecisionState();
   const decidedAt = new Date().toISOString();
@@ -24,7 +25,8 @@ export const persistProviderGlobalGuidanceDecisions = async ({
   state.providerGlobal = {
     keepExternal: true,
     decidedAt,
-    sessionRef,
+    providerSessionId: providerSession.providerSessionId,
+    providerSessionSource: providerSession.providerSessionSource,
     note: "User chose to keep provider-global guidance outside AI Guidance Bank.",
   };
 

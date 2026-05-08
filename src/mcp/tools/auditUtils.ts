@@ -2,8 +2,8 @@ import type { EntryKind, EntryScope } from "../../core/bank/types.js";
 import { createUnifiedDiff } from "../../core/audit/createUnifiedDiff.js";
 import { summarizeEntryContent } from "../../core/audit/summarizeEntryContent.js";
 import type { AuditLogger } from "../../storage/auditLogger.js";
+import type { ResolvedProviderSession } from "../providerSessionResolver.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { resolveAuditSessionRef } from "./sessionRefResolver.js";
 
 type EntryMutationAuditTool =
   | typeof MCP_TOOL_NAMES.upsertRule
@@ -22,7 +22,7 @@ type ToolAuditTool =
 
 type WriteEntryAuditEventInput = {
   auditLogger: AuditLogger;
-  sessionRef: string | null;
+  providerSession: ResolvedProviderSession;
   tool: EntryMutationAuditTool;
   action: "upsert" | "delete";
   scope: EntryScope;
@@ -36,7 +36,7 @@ type WriteEntryAuditEventInput = {
 
 export const writeEntryAuditEvent = async ({
   auditLogger,
-  sessionRef,
+  providerSession,
   tool,
   action,
   scope,
@@ -49,11 +49,11 @@ export const writeEntryAuditEvent = async ({
 }: WriteEntryAuditEventInput): Promise<void> => {
   const before = summarizeEntryContent(kind, beforeContent);
   const after = summarizeEntryContent(kind, afterContent);
-  const effectiveSessionRef = resolveAuditSessionRef(sessionRef);
 
   try {
     const auditEvent = await auditLogger.writeEvent({
-      sessionRef: effectiveSessionRef,
+      providerSessionId: providerSession.providerSessionId,
+      providerSessionSource: providerSession.providerSessionSource,
       tool,
       action,
       scope,
@@ -68,7 +68,8 @@ export const writeEntryAuditEvent = async ({
     });
     await auditLogger.writeEntryVersion({
       auditEventId: auditEvent.eventId,
-      sessionRef: effectiveSessionRef,
+      providerSessionId: providerSession.providerSessionId,
+      providerSessionSource: providerSession.providerSessionSource,
       tool,
       action,
       scope,
@@ -94,7 +95,7 @@ export const writeEntryAuditEvent = async ({
 
 type WriteToolAuditEventInput = {
   auditLogger: AuditLogger;
-  sessionRef: string;
+  providerSession: ResolvedProviderSession;
   tool: ToolAuditTool;
   action: "create_flow" | "upgrade" | "resolve" | "set_state" | "sync" | "clear";
   projectId: string;
@@ -104,18 +105,17 @@ type WriteToolAuditEventInput = {
 
 export const writeToolAuditEvent = async ({
   auditLogger,
-  sessionRef,
+  providerSession,
   tool,
   action,
   projectId,
   projectPath,
   details,
 }: WriteToolAuditEventInput): Promise<void> => {
-  const effectiveSessionRef = resolveAuditSessionRef(sessionRef);
-
   try {
     await auditLogger.writeEvent({
-      sessionRef: effectiveSessionRef,
+      providerSessionId: providerSession.providerSessionId,
+      providerSessionSource: providerSession.providerSessionSource,
       tool,
       action,
       projectId,

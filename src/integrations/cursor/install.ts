@@ -104,11 +104,6 @@ const isExpectedCursorServerConfig = (value: unknown, context: ProviderInstaller
   );
 };
 
-const buildInstructions = (cursorConfigPath: string): string[] => [
-  `Configured by writing the user-level Cursor MCP config at ${cursorConfigPath}.`,
-  "If Cursor is already running, reload the window or restart Cursor if the new MCP server does not appear immediately.",
-];
-
 const removeLegacyServerEntries = (mcpServers: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(mcpServers).filter(([serverName]) => !LEGACY_SERVER_NAME_SET.has(serverName)));
 
@@ -178,7 +173,6 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
         "cursor",
         "Cursor",
         context.mcpServerConfig,
-        buildInstructions(cursorConfigPath),
         "config-file",
       ),
       command: null,
@@ -201,7 +195,6 @@ export const installCursorIntegration = async (context: ProviderInstallerContext
       "cursor",
       "Cursor",
       context.mcpServerConfig,
-      buildInstructions(cursorConfigPath),
       "config-file",
     ),
     command: null,

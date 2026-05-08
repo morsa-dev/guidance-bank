@@ -7,6 +7,7 @@ import { discoverProjectLocalBank } from "../../../core/projects/discoverProject
 import type { ResolvedCreateBankFlowContext } from "../../../core/projects/create-flow/createBankFlow.js";
 import type { ProjectLocalEntryStore } from "../../../storage/projectLocalEntryStore.js";
 import type { McpServerRuntimeOptions } from "../../registerTools.js";
+import type { ResolvedProviderSession } from "../../providerSessionResolver.js";
 import { applyCreateBankChanges, type CreateBankApplyResults } from "./apply.js";
 import { normalizeApplyDeletions, normalizeApplyWrites } from "./runtime.js";
 import type { CreateBankArgs } from "./schemas.js";
@@ -45,11 +46,13 @@ export const applyCreateBankRequestChanges = async ({
   options,
   flowContext,
   args,
+  providerSession,
   projectLocalEntryStore,
 }: {
   options: McpServerRuntimeOptions;
   flowContext: ResolvedCreateBankFlowContext;
   args: CreateBankArgs;
+  providerSession: ResolvedProviderSession;
   projectLocalEntryStore?: ProjectLocalEntryStore;
 }): Promise<{
   currentBankSnapshot: ResolvedCreateBankFlowContext["extendedContext"]["currentBankSnapshot"];
@@ -69,7 +72,7 @@ export const applyCreateBankRequestChanges = async ({
         auditLogger: options.auditLogger,
         projectId: flowContext.identity.projectId,
         projectPath: flowContext.identity.projectPath,
-        sessionRef: args.sessionRef ?? null,
+        providerSession,
         writes: normalizeApplyWrites(args.apply.writes),
         deletions: normalizeApplyDeletions(args.apply.deletions),
         ...(projectLocalEntryStore !== undefined ? { projectLocalEntryStore } : {}),

@@ -3,6 +3,7 @@ import type { EntryKind, EntryScope } from "../../../core/bank/types.js";
 import type { AuditLogger } from "../../../storage/auditLogger.js";
 import type { BankRepository } from "../../../storage/bankRepository.js";
 import type { ProjectLocalEntryStore } from "../../../storage/projectLocalEntryStore.js";
+import type { ResolvedProviderSession } from "../../providerSessionResolver.js";
 import { MCP_TOOL_NAMES } from "../../toolNames.js";
 import { toSkillDocumentPath, writeEntryAuditEvent } from "../auditUtils.js";
 import { readEntryBeforeMutation } from "../entryMutationHelpers.js";
@@ -27,7 +28,7 @@ type ApplyCreateBankChangesOptions = {
   auditLogger: AuditLogger;
   projectId: string;
   projectPath: string;
-  sessionRef: string | null;
+  providerSession: ResolvedProviderSession;
   writes: readonly CreateBankApplyWrite[];
   deletions: readonly CreateBankApplyDeletion[];
   projectLocalEntryStore?: ProjectLocalEntryStore;
@@ -81,7 +82,7 @@ export const applyCreateBankChanges = async ({
   auditLogger,
   projectId,
   projectPath,
-  sessionRef,
+  providerSession,
   writes,
   deletions,
   projectLocalEntryStore,
@@ -127,7 +128,7 @@ export const applyCreateBankChanges = async ({
 
     await writeEntryAuditEvent({
       auditLogger,
-      sessionRef,
+      providerSession,
       tool: MCP_TOOL_NAMES.createBank,
       action: "upsert",
       scope: write.scope,
@@ -188,7 +189,7 @@ export const applyCreateBankChanges = async ({
     if (result.status === "deleted") {
       await writeEntryAuditEvent({
         auditLogger,
-        sessionRef,
+        providerSession,
         tool: MCP_TOOL_NAMES.createBank,
         action: "delete",
         scope: deletion.scope,

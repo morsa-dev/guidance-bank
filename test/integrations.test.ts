@@ -6,7 +6,13 @@ import test from "node:test";
 
 import { InitService } from "../src/core/init/initService.js";
 import { createDefaultMcpServerConfig } from "../src/mcp/config.js";
-import { createDefaultMcpLaunchConfig, createMcpLauncherContent, resolveMcpLauncherPath } from "../src/mcp/launcher.js";
+import {
+  createClaudeCodeSessionHookLauncherContent,
+  createDefaultMcpLaunchConfig,
+  createMcpLauncherContent,
+  resolveClaudeCodeSessionHookLauncherPath,
+  resolveMcpLauncherPath,
+} from "../src/mcp/launcher.js";
 import type { CommandRunner } from "../src/core/providers/types.js";
 
 const createExpectedProviderMcpServer = (
@@ -165,12 +171,14 @@ test("init writes provider integration descriptors", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
   const { calls, commandRunner } = createRecordingCommandRunner();
 
   await initService.run({
     bankRoot,
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner,
     selectedProviders: ["codex", "claude-code"],
   });
@@ -197,11 +205,46 @@ test("init writes provider integration descriptors", async () => {
   assert.equal(codexDescriptor.mcpServer.env.GUIDANCEBANK_ROOT, bankRoot);
   assert.equal(codexDescriptor.mcpServer.env.GUIDANCEBANK_PROVIDER_ID, "codex");
   assert.equal(claudeDescriptor.mcpServer.env.GUIDANCEBANK_PROVIDER_ID, "claude-code");
+  const claudeSettings = JSON.parse(await readFile(path.join(claudeConfigRoot, "settings.json"), "utf8")) as {
+    hooks?: { PreToolUse?: Array<{ matcher?: string; hooks?: Array<{ type?: string; command?: string }> }> };
+  };
+  assert.equal(
+    claudeSettings.hooks?.PreToolUse?.some(
+      (group) =>
+        group.matcher === "mcp__guidance-bank__.*" &&
+        group.hooks?.some((hook) => hook.type === "command" && hook.command?.includes("guidancebank-claude-code-hook")),
+    ),
+    true,
+  );
   assert.ok(calls.some((call) => call.command === "codex"));
   assert.ok(calls.some((call) => call.command === "claude"));
 });
 
-test("init writes the MCP launcher into the bank root", async () => {
+test("init writes runtime launchers into the bank root", async () => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-launcher-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+  const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
+  const initService = new InitService();
+
+  await initService.run({
+    bankRoot,
+    cursorConfigRoot,
+    claudeConfigRoot,
+    commandRunner: createRecordingCommandRunner().commandRunner,
+    selectedProviders: ["cursor", "claude-code"],
+  });
+
+  const launcherPath = resolveMcpLauncherPath(bankRoot);
+  const claudeHookLauncherPath = resolveClaudeCodeSessionHookLauncherPath(bankRoot);
+  const launcherContents = await readFile(launcherPath, "utf8");
+  const claudeHookLauncherContents = await readFile(claudeHookLauncherPath, "utf8");
+
+  assert.equal(launcherContents, createMcpLauncherContent());
+  assert.equal(claudeHookLauncherContents, createClaudeCodeSessionHookLauncherContent(bankRoot));
+});
+
+test("init skips the Claude hook launcher when claude-code is not enabled", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-launcher-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
@@ -214,10 +257,9 @@ test("init writes the MCP launcher into the bank root", async () => {
     selectedProviders: ["cursor"],
   });
 
-  const launcherPath = resolveMcpLauncherPath(bankRoot);
-  const launcherContents = await readFile(launcherPath, "utf8");
+  const claudeHookLauncherPath = resolveClaudeCodeSessionHookLauncherPath(bankRoot);
 
-  assert.equal(launcherContents, createMcpLauncherContent());
+  await assert.rejects(readFile(claudeHookLauncherPath, "utf8"), { code: "ENOENT" });
 });
 
 test("claude integration removes and re-adds the server when it already exists", async () => {
@@ -225,13 +267,14 @@ test("claude integration removes and re-adds the server when it already exists",
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeReconfigureRunner();
 
   const result = await initService.run({
     bankRoot,
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner,
     selectedProviders: ["claude-code"],
   });
@@ -255,13 +298,14 @@ test("init tolerates scoped missing-server messages when cleaning up legacy Clau
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
   const { calls, commandRunner } = createClaudeScopedMissingRunner();
 
   const result = await initService.run({
     bankRoot,
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner,
     selectedProviders: ["claude-code"],
   });
@@ -279,9 +323,8 @@ test("init tolerates scoped missing-server messages when cleaning up legacy Clau
 test("init skips re-adding global integrations that are already configured", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
-
-
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
 
   const firstRunner: CommandRunner = async ({ command, args }) => {
@@ -306,9 +349,8 @@ test("init skips re-adding global integrations that are already configured", asy
 
   await initService.run({
     bankRoot,
-
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: firstRunner,
     selectedProviders: ["codex", "claude-code"],
   });
@@ -368,9 +410,8 @@ test("init skips re-adding global integrations that are already configured", asy
 
   const result = await initService.run({
     bankRoot,
-
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: secondRunner,
     selectedProviders: ["codex", "claude-code"],
   });
@@ -395,16 +436,14 @@ test("init skips re-adding global integrations that are already configured", asy
 test("repeat init re-applies missing codex and claude MCP registrations", async () => {
   const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-integrations-"));
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
-
-
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
 
   await initService.run({
     bankRoot,
-
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: createRecordingCommandRunner().commandRunner,
     selectedProviders: ["codex", "claude-code"],
   });
@@ -444,9 +483,8 @@ test("repeat init re-applies missing codex and claude MCP registrations", async 
 
   const result = await initService.run({
     bankRoot,
-
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: secondRunner,
     selectedProviders: ["codex"],
   });
@@ -603,7 +641,6 @@ test("repeat init reconfigures cursor even if a stale descriptor exists but the 
           transport: "stdio",
           ...createExpectedProviderMcpServer(bankRoot, "cursor"),
         },
-        instructions: [],
       },
       null,
       2,

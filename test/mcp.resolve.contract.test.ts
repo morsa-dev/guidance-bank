@@ -99,7 +99,7 @@ test("resolve_context returns missing status when no project bank exists", async
   const structured = await callToolStructured(
     client,
     "resolve_context",
-    { projectPath: projectRoot, sessionRef: "resolve:missing-status" },
+    { projectPath: projectRoot },
     MissingContextSchema,
   );
 
@@ -131,7 +131,8 @@ test("resolve_context returns missing status when no project bank exists", async
     .map((line) => JSON.parse(line) as Record<string, unknown>);
   const resolveEvent = events.find((event) => event.tool === "resolve_context");
   assert.ok(resolveEvent);
-  assert.equal(resolveEvent?.sessionRef, "resolve:missing-status");
+  assert.equal(resolveEvent?.providerSessionId, null);
+  assert.equal(resolveEvent?.providerSessionSource, "unresolved");
   assert.equal(resolveEvent?.action, "resolve");
 });
 
@@ -366,7 +367,7 @@ test("expired project creation postpone resumes the missing-bank reminder flow",
   assert.match(resolveStructured.text, /append one short explicit closing question/i);
 });
 
-test("resolve_context writes the provided sessionRef to audit without provider-specific recovery", async (t) => {
+test("resolve_context writes server-resolved provider session metadata to audit", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -380,7 +381,7 @@ test("resolve_context writes the provided sessionRef to audit without provider-s
   await callToolStructured(
     client,
     "resolve_context",
-    { projectPath: projectRoot, sessionRef: "cursor:thread-123 https://cursor.example/chat/123" },
+    { projectPath: projectRoot },
     MissingContextSchema,
   );
 
@@ -391,7 +392,8 @@ test("resolve_context writes the provided sessionRef to audit without provider-s
   const resolveEvent = events.find((event) => event.tool === "resolve_context");
   assert.ok(resolveEvent);
   assert.equal(resolveEvent?.provider, "cursor");
-  assert.equal(resolveEvent?.sessionRef, "cursor:thread-123 https://cursor.example/chat/123");
+  assert.equal(resolveEvent?.providerSessionId, null);
+  assert.equal(resolveEvent?.providerSessionSource, "unresolved");
 });
 
 test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {

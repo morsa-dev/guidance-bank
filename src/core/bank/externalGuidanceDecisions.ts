@@ -1,9 +1,11 @@
 import { z } from "zod";
+import type { ProviderSessionSource } from "../../mcp/providerSessionResolver.js";
 
 export type ProviderGlobalGuidanceDecision = {
   keepExternal: boolean;
   decidedAt: string | null;
-  sessionRef: string | null;
+  providerSessionId: string | null;
+  providerSessionSource: ProviderSessionSource;
   note: string | null;
 };
 
@@ -16,7 +18,8 @@ export type ExternalGuidanceDecisionState = {
 const defaultProviderGlobalGuidanceDecision = (): ProviderGlobalGuidanceDecision => ({
   keepExternal: false,
   decidedAt: null,
-  sessionRef: null,
+  providerSessionId: null,
+  providerSessionSource: "unresolved",
   note: null,
 });
 
@@ -24,7 +27,10 @@ const ProviderGlobalGuidanceDecisionSchema = z
   .object({
     keepExternal: z.boolean().default(false),
     decidedAt: z.iso.datetime().nullable().default(null),
-    sessionRef: z.string().min(1).nullable().default(null),
+    providerSessionId: z.string().min(1).nullable().default(null),
+    providerSessionSource: z
+      .enum(["codex_parent_process", "cursor_state", "claude_code_hook", "unresolved"])
+      .default("unresolved"),
     note: z.string().min(1).nullable().default(null),
   })
   .strict();
@@ -61,7 +67,8 @@ const LegacyExternalGuidanceDecisionStateSchema = z
       providerGlobal: {
         keepExternal,
         decidedAt: keepExternal ? value.updatedAt : null,
-        sessionRef: null,
+        providerSessionId: null,
+        providerSessionSource: "unresolved",
         note: keepExternal
           ? "Migrated from legacy provider-global source-level decision state."
           : null,

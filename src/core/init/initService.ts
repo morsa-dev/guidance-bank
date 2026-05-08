@@ -7,7 +7,7 @@ import { getProviderDefinition } from "../providers/providerRegistry.js";
 import { BankRepository } from "../../storage/bankRepository.js";
 import { BANK_DIRECTORY_NAME, LEGACY_BANK_DIRECTORY_NAMES, resolveBankRoot } from "../../shared/paths.js";
 import { createDefaultMcpServerConfig } from "../../mcp/config.js";
-import { ensureMcpLauncher } from "../../mcp/launcher.js";
+import { ensureGuidanceBankLaunchers } from "../../mcp/launcher.js";
 import { runCommand } from "../../integrations/commandRunner.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { InitOptions, InitResult } from "./initTypes.js";
@@ -104,7 +104,9 @@ export class InitService {
 
     const mcpServerConfig = createDefaultMcpServerConfig(bankRoot);
 
-    await ensureMcpLauncher(bankRoot);
+    await ensureGuidanceBankLaunchers(bankRoot, {
+      includeClaudeCodeHook: enabledProviders.includes("claude-code"),
+    });
     await repository.writeManifest(manifest);
     await repository.writeMcpServerConfig(mcpServerConfig);
 
@@ -117,6 +119,7 @@ export class InitService {
         existingDescriptor,
         mcpServerConfig,
         ...(options.cursorConfigRoot ? { cursorConfigRoot: options.cursorConfigRoot } : {}),
+        ...(options.claudeConfigRoot ? { claudeConfigRoot: options.claudeConfigRoot } : {}),
       });
       integrations.push(integration);
     }

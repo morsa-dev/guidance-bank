@@ -27,7 +27,7 @@ const renderLatestEvents = (label: string, events: MemoryBankStats["audit"]["lat
 
   return [
     `${label}:`,
-    ...events.map((event) => `  - ${event.timestamp}  ${event.tool}  provider=${event.provider ?? "unknown"}  project=${event.projectId}  session=${event.sessionRef ?? "none"}`),
+    ...events.map((event) => `  - ${event.timestamp}  ${event.tool}  provider=${event.provider ?? "unknown"}  project=${event.projectId}  session=${event.providerSessionId ?? "none"}  source=${event.providerSessionSource}`),
   ];
 };
 

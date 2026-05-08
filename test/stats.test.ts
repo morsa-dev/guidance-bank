@@ -52,7 +52,8 @@ topics: [demo]
   );
 
   await auditLogger.writeEvent({
-    sessionRef: "session-1",
+    providerSessionId: "session-1",
+    providerSessionSource: "codex_parent_process",
     tool: "resolve_context",
     action: "resolve",
     projectId: "project-1",
@@ -60,7 +61,8 @@ topics: [demo]
     details: { creationState: "ready" },
   });
   await auditLogger.writeEvent({
-    sessionRef: "session-1",
+    providerSessionId: "session-1",
+    providerSessionSource: "codex_parent_process",
     tool: "set_project_state",
     action: "set_state",
     projectId: "project-1",
@@ -127,7 +129,8 @@ topics: [focus]
   );
 
   await auditLogger.writeEvent({
-    sessionRef: "session-2",
+    providerSessionId: "session-2",
+    providerSessionSource: "claude_code_hook",
     tool: "create_bank",
     action: "create_flow",
     projectId: "project-2",

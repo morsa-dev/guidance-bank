@@ -158,6 +158,7 @@ export class UpgradeService {
   async run(options?: {
     bankRoot?: string;
     cursorConfigRoot?: string;
+    claudeConfigRoot?: string;
     commandRunner?: CommandRunner;
   }): Promise<UpgradeBankResult> {
     const detection = await detectBankUpgrade(options?.bankRoot);
@@ -251,6 +252,7 @@ export class UpgradeService {
       bankRoot: detection.bankRoot,
       selectedProviders: manifestBeforeUpgrade.enabledProviders,
       ...(options?.cursorConfigRoot ? { cursorConfigRoot: options.cursorConfigRoot } : {}),
+      ...(options?.claudeConfigRoot ? { claudeConfigRoot: options.claudeConfigRoot } : {}),
       ...(options?.commandRunner ? { commandRunner: options.commandRunner } : {}),
     });
 

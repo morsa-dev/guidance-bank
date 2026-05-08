@@ -1,7 +1,8 @@
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { ensureMcpLauncher } from "../mcp/launcher.js";
+import { parseManifest } from "../core/bank/manifest.js";
+import { ensureGuidanceBankLaunchers } from "../mcp/launcher.js";
 import { resolveDefaultBankRoot } from "../shared/paths.js";
 
 type RefreshLauncherOptions = {
@@ -21,12 +22,16 @@ export const refreshDefaultMcpLauncherIfInitialized = async (
   options: RefreshLauncherOptions = {},
 ): Promise<"updated" | "skipped"> => {
   const bankRoot = options.bankRoot ?? resolveDefaultBankRoot();
+  const manifestPath = path.join(bankRoot, "manifest.json");
 
   if (!(await hasInitializedBank(bankRoot))) {
     return "skipped";
   }
 
-  await ensureMcpLauncher(bankRoot);
+  const manifest = parseManifest(JSON.parse(await readFile(manifestPath, "utf8")) as unknown);
+  await ensureGuidanceBankLaunchers(bankRoot, {
+    includeClaudeCodeHook: manifest.enabledProviders.includes("claude-code"),
+  });
   return "updated";
 };
 

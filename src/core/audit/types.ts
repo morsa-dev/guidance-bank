@@ -1,4 +1,5 @@
 import type { EntryKind, EntryScope, ProviderId } from "../bank/types.js";
+import type { ProviderSessionSource } from "../../mcp/providerSessionResolver.js";
 
 export type AuditEntrySnapshot = {
   exists: boolean;
@@ -17,7 +18,8 @@ export type EntryAuditEvent = {
   eventId: string;
   timestamp: string;
   provider: ProviderId | null;
-  sessionRef: string | null;
+  providerSessionId: string | null;
+  providerSessionSource: ProviderSessionSource;
   tool: "upsert_rule" | "upsert_skill" | "delete_entry" | "create_bank";
   action: "upsert" | "delete";
   scope: EntryScope;
@@ -37,7 +39,8 @@ export type EntryVersionEvent = {
   auditEventId: string;
   timestamp: string;
   provider: ProviderId | null;
-  sessionRef: string | null;
+  providerSessionId: string | null;
+  providerSessionSource: ProviderSessionSource;
   tool: EntryAuditEvent["tool"];
   action: EntryAuditEvent["action"];
   scope: EntryScope;
@@ -57,7 +60,8 @@ export type ToolAuditEvent = {
   eventId: string;
   timestamp: string;
   provider: ProviderId | null;
-  sessionRef: string | null;
+  providerSessionId: string | null;
+  providerSessionSource: ProviderSessionSource;
   tool:
     | "create_bank"
     | "improve_bank"

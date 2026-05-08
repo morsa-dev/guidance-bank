@@ -34,10 +34,6 @@ const isExpectedCodexServer = (rawOutput: string, context: ProviderInstallerCont
 const isMissingServerMessage = (result: { stdout: string; stderr: string }): boolean =>
   /No .*MCP server found with name:/u.test(`${result.stdout}\n${result.stderr}`);
 
-const buildInstructions = (): string[] => [
-  "Configured globally through `codex mcp add` as a user-scoped stdio MCP server.",
-];
-
 const cleanupLegacyServers = async (context: ProviderInstallerContext): Promise<void> => {
   for (const legacyServerName of LEGACY_GUIDANCEBANK_SERVER_NAMES) {
     const removeResult = await context.commandRunner({
@@ -98,7 +94,7 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
 
   if (currentServer.exitCode === 0 && isExpectedCodexServer(currentServer.stdout, context)) {
     return {
-      descriptor: createProviderDescriptor("codex", "Codex", context.mcpServerConfig, buildInstructions()),
+      descriptor: createProviderDescriptor("codex", "Codex", context.mcpServerConfig),
       command: getCommand,
       action: "skipped",
     };
@@ -126,7 +122,7 @@ export const installCodexIntegration = async (context: ProviderInstallerContext)
   }
 
   return {
-    descriptor: createProviderDescriptor("codex", "Codex", context.mcpServerConfig, buildInstructions()),
+    descriptor: createProviderDescriptor("codex", "Codex", context.mcpServerConfig),
     command,
     action: "installed",
   };

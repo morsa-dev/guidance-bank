@@ -411,11 +411,18 @@ test("create_bank remembers provider-global keep_external decisions without impo
     const decisions = JSON.parse(
       await readFile(path.join(bankRoot, "external-guidance-decisions.json"), "utf8"),
     ) as {
-      providerGlobal: { keepExternal: boolean; decidedAt: string | null; sessionRef: string | null };
+      providerGlobal: {
+        keepExternal: boolean;
+        decidedAt: string | null;
+        providerSessionId: string | null;
+        providerSessionSource: string;
+      };
     };
 
     assert.equal(decisions.providerGlobal.keepExternal, true);
     assert.equal(typeof decisions.providerGlobal.decidedAt, "string");
+    assert.equal(decisions.providerGlobal.providerSessionId, null);
+    assert.equal(decisions.providerGlobal.providerSessionSource, "unresolved");
 
     const laterStructured = await callToolStructured(
       client,

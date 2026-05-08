@@ -6,7 +6,7 @@ import {
   SOURCE_REVIEW_DECISIONS,
 } from "../../../core/projects/create-flow/guidanceStrategies.js";
 import { SOURCE_REVIEW_BUCKETS } from "../../../core/projects/create-flow/sourceReviewBuckets.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "../sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "../sharedSchemas.js";
 
 const SourceReviewDecisionSchema = z.enum(SOURCE_REVIEW_DECISIONS);
 const GuidanceSourceImportStatusSchema = z.enum(GUIDANCE_SOURCE_IMPORT_STATUSES);
@@ -135,7 +135,6 @@ export const CreateBankInputShape = {
         "The presence of .guidance-bank/ in the repo during source review does NOT imply this mode should be used.",
     ),
   iteration: z.number().int().nonnegative().optional().describe("Current create-flow iteration. Defaults to 0."),
-  sessionRef: SessionRefSchema,
   stepCompleted: z
     .boolean()
     .optional()

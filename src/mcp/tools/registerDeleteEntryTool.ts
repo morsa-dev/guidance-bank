@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ENTRY_KINDS, ENTRY_SCOPES } from "../../core/bank/types.js";
 import type { ToolRegistrar } from "../registerTools.js";
 import { MCP_TOOL_NAMES } from "../toolNames.js";
-import { AbsoluteProjectPathSchema, SessionRefSchema } from "./sharedSchemas.js";
+import { AbsoluteProjectPathSchema } from "./sharedSchemas.js";
 import { writeEntryAuditEvent } from "./auditUtils.js";
 import {
   buildInvalidToolArgsResult,
@@ -18,7 +18,6 @@ const DeleteEntryArgsSchema = z
     scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
     kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
     projectPath: AbsoluteProjectPathSchema,
-    sessionRef: SessionRefSchema,
     path: z
       .string()
       .trim()
@@ -42,7 +41,6 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         scope: z.enum(ENTRY_SCOPES).describe("Delete target: shared user-level entries or project-specific entries."),
         kind: z.enum(ENTRY_KINDS).describe("Whether to delete a thematic rule file or a skill folder."),
         projectPath: AbsoluteProjectPathSchema,
-        sessionRef: SessionRefSchema,
         path: z
           .string()
           .trim()
@@ -75,6 +73,9 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
         return mutationContext;
       }
       const { identity, projectId } = mutationContext;
+      const providerSession = await options.providerSessionResolver.resolve({
+        projectPath: parsedArgs.data.projectPath,
+      });
 
       const projectLocalStore =
         parsedArgs.data.scope === "project"
@@ -111,7 +112,7 @@ export const registerDeleteEntryTool: ToolRegistrar = (server, options) => {
       if (result.status === "deleted") {
         await writeEntryAuditEvent({
           auditLogger: options.auditLogger,
-          sessionRef: parsedArgs.data.sessionRef,
+          providerSession,
           tool: MCP_TOOL_NAMES.deleteEntry,
           action: "delete",
           scope: parsedArgs.data.scope,

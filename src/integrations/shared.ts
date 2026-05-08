@@ -16,7 +16,6 @@ export const createProviderDescriptor = (
   provider: ProviderId,
   displayName: string,
   mcpServer: McpServerConfig,
-  instructions: string[],
   installationMethod: ProviderIntegrationDescriptor["installationMethod"] = "provider-cli",
 ): ProviderIntegrationDescriptor => ({
   schemaVersion: 1,
@@ -26,5 +25,4 @@ export const createProviderDescriptor = (
   installationMethod,
   scope: USER_SCOPE,
   mcpServer: withProviderEnv(provider, mcpServer),
-  instructions,
 });

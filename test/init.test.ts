@@ -22,6 +22,7 @@ test("init creates the bank structure and writes the manifest", async () => {
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
 
   const result = await initService.run({
@@ -73,6 +74,7 @@ test("init migrates a legacy .memory-bank root to .guidance-bank without marking
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
   const legacyRepository = new BankRepository(legacyBankRoot);
 
@@ -118,6 +120,7 @@ test("init migrates a legacy .guidancebank root to .guidance-bank without markin
   const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
 
   const cursorConfigRoot = path.join(tempDirectoryPath, ".cursor");
+  const claudeConfigRoot = path.join(tempDirectoryPath, ".claude");
   const initService = new InitService();
   const legacyRepository = new BankRepository(legacyBankRoot);
 
@@ -135,8 +138,8 @@ test("init migrates a legacy .guidancebank root to .guidance-bank without markin
 
   const result = await initService.run({
     bankRoot,
-
     cursorConfigRoot,
+    claudeConfigRoot,
     commandRunner: createSuccessfulCommandRunner(),
     selectedProviders: ["claude-code"],
   });

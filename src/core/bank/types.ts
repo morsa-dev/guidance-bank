@@ -66,7 +66,6 @@ export type ProviderIntegrationDescriptor = {
   installationMethod: "provider-cli" | "config-file";
   scope: "user";
   mcpServer: McpServerConfig;
-  instructions: string[];
 };
 
 export type ListedEntry = {
