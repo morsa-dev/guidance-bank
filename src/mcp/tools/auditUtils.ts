@@ -101,6 +101,12 @@ type WriteToolAuditEventInput = {
   projectId: string;
   projectPath: string;
   details: Record<string, unknown>;
+  metrics?: {
+    contextChars: number;
+    estimatedTokens: number;
+    entriesCount?: number;
+    alwaysOnChars?: number;
+  };
 };
 
 export const writeToolAuditEvent = async ({
@@ -111,6 +117,7 @@ export const writeToolAuditEvent = async ({
   projectId,
   projectPath,
   details,
+  metrics,
 }: WriteToolAuditEventInput): Promise<void> => {
   try {
     await auditLogger.writeEvent({
@@ -121,6 +128,7 @@ export const writeToolAuditEvent = async ({
       projectId,
       projectPath,
       details,
+      metrics,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown audit logging error.";

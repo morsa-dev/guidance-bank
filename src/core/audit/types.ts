@@ -55,6 +55,13 @@ export type EntryVersionEvent = {
   unifiedDiff: string;
 };
 
+export type ToolMetrics = {
+  contextChars: number;
+  estimatedTokens: number;
+  entriesCount?: number | undefined;
+  alwaysOnChars?: number | undefined;
+};
+
 export type ToolAuditEvent = {
   schemaVersion: 1;
   eventId: string;
@@ -74,6 +81,7 @@ export type ToolAuditEvent = {
   projectId: string;
   projectPath: string;
   details: Record<string, unknown>;
+  metrics?: ToolMetrics | undefined;
 };
 
 export type AuditEvent = EntryAuditEvent | ToolAuditEvent;

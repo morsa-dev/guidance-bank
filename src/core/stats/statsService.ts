@@ -10,6 +10,7 @@ import type {
   ProjectBankState,
   ProviderId,
 } from "../bank/types.js";
+import { TokenStatsService, type SessionTokenStats, type ProjectTokenStats } from "./tokenStatsService.js";
 
 type EntryCounts = {
   rules: number;
@@ -41,6 +42,7 @@ type ProjectStats = {
     byTool: Record<string, number>;
     byProvider: Record<string, number>;
   };
+  tokens?: ProjectTokenStats;
 };
 
 export type MemoryBankStats = {
@@ -50,6 +52,17 @@ export type MemoryBankStats = {
   projects: {
     total: number;
     byCreationState: Record<string, number>;
+    list?: Array<{
+      projectId: string;
+      projectName: string;
+      projectPath: string;
+      totalEvents: number;
+      tokens?: {
+        total: number;
+        bankOverhead: number;
+        bankOverheadPercent: number;
+      };
+    }>;
   };
   audit: {
     totalEvents: number;
@@ -58,6 +71,7 @@ export type MemoryBankStats = {
     latestEvents: EventSummary[];
   };
   project?: ProjectStats;
+  session?: SessionTokenStats;
 };
 
 const incrementCount = (bucket: Record<string, number>, key: string): void => {
@@ -125,12 +139,14 @@ const resolveProjectFilter = (
 
 export class StatsService {
   private readonly repository: BankRepository;
+  private readonly tokenStatsService: TokenStatsService;
 
   constructor(bankRoot?: string) {
     this.repository = new BankRepository(resolveBankRoot(bankRoot));
+    this.tokenStatsService = new TokenStatsService();
   }
 
-  async collect(options?: { projectPath?: string; latestEventsLimit?: number }): Promise<MemoryBankStats> {
+  async collect(options?: { projectPath?: string; sessionId?: string; latestEventsLimit?: number; withProjectsList?: boolean }): Promise<MemoryBankStats> {
     const latestEventsLimit = options?.latestEventsLimit ?? 10;
     const manifest = await this.repository.readManifestOptional();
 
@@ -150,6 +166,22 @@ export class StatsService {
 
     const matchedProject = resolveProjectFilter(projectManifests, options?.projectPath);
     let projectStats: ProjectStats | undefined;
+    let sessionStats: SessionTokenStats | undefined;
+
+    // Handle session-specific stats
+    if (options?.sessionId) {
+      const sessionEvents = auditEvents.filter(e => e.providerSessionId === options.sessionId);
+      if (sessionEvents.length > 0) {
+        const provider = sessionEvents[0]?.provider ?? "unknown";
+        const projectPath = options.projectPath ?? sessionEvents[0]?.projectPath ?? process.cwd();
+        sessionStats = await this.tokenStatsService.analyzeSession(
+          options.sessionId,
+          provider,
+          projectPath,
+          auditEvents,
+        );
+      }
+    }
 
     if (options?.projectPath) {
       if (matchedProject === null) {
@@ -159,6 +191,13 @@ export class StatsService {
       const projectState = await this.repository.readProjectStateOptional(matchedProject.projectId);
       const projectEntries = await countEntries(this.repository, "project", matchedProject.projectId);
       const projectEvents = auditEvents.filter((event) => event.projectId === matchedProject.projectId);
+      
+      // Analyze project tokens
+      const projectTokens = await this.tokenStatsService.analyzeProject(
+        matchedProject.projectId,
+        matchedProject.projectPath,
+        auditEvents,
+      );
 
       projectStats = {
         projectId: matchedProject.projectId,
@@ -174,7 +213,37 @@ export class StatsService {
           byTool: summarizeEventsByKey(projectEvents, (event) => event.tool),
           byProvider: summarizeEventsByKey(projectEvents, (event) => event.provider ?? "unknown"),
         },
+        tokens: projectTokens,
       };
+    }
+    
+    // Prepare project list if requested
+    let projectsList: MemoryBankStats["projects"]["list"];
+    if (options?.withProjectsList) {
+      projectsList = [];
+      for (const projectManifest of projectManifests) {
+        const projectEvents = auditEvents.filter(e => e.projectId === projectManifest.projectId);
+        const projectTokens = await this.tokenStatsService.analyzeProject(
+          projectManifest.projectId,
+          projectManifest.projectPath,
+          auditEvents,
+        );
+        
+        projectsList.push({
+          projectId: projectManifest.projectId,
+          projectName: projectManifest.projectName,
+          projectPath: projectManifest.projectPath,
+          totalEvents: projectEvents.length,
+          tokens: {
+            total: projectTokens.totalTokens.total,
+            bankOverhead: projectTokens.bankTokens.overhead,
+            bankOverheadPercent: projectTokens.bankOverheadPercent,
+          },
+        });
+      }
+      
+      // Sort by total tokens descending
+      projectsList.sort((a, b) => (b.tokens?.total ?? 0) - (a.tokens?.total ?? 0));
     }
 
     return {
@@ -191,6 +260,7 @@ export class StatsService {
       projects: {
         total: projectManifests.length,
         byCreationState: projectCountsByState,
+        ...(projectsList ? { list: projectsList } : {}),
       },
       audit: {
         totalEvents: auditEvents.length,
@@ -198,11 +268,8 @@ export class StatsService {
         byProvider: summarizeEventsByKey(auditEvents, (event) => event.provider ?? "unknown"),
         latestEvents: summarizeEvents(auditEvents, latestEventsLimit),
       },
-      ...(projectStats
-        ? {
-            project: projectStats,
-          }
-        : {}),
+      ...(projectStats ? { project: projectStats } : {}),
+      ...(sessionStats ? { session: sessionStats } : {}),
     };
   }
 }

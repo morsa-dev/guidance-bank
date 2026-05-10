@@ -106,6 +106,13 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
           repository: options.repository,
           projectPath: parsedArgs.data.projectPath,
         });
+        
+        // Calculate metrics for token tracking
+        const contextText = JSON.stringify(resolvedContext);
+        const estimatedTokens = Math.ceil(contextText.length / 3.5);
+        const alwaysOnChars = resolvedContext.text?.length ?? 0;
+        const entriesCount = (resolvedContext.rulesCatalog?.length ?? 0) + (resolvedContext.skillsCatalog?.length ?? 0);
+        
         await writeToolAuditEvent({
           auditLogger: options.auditLogger,
           providerSession,
@@ -119,6 +126,12 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
             requiredAction: resolvedContext.requiredAction ?? null,
             recommendedAction: resolvedContext.recommendedAction ?? null,
             createFlowPhase: resolvedContext.createFlowPhase ?? null,
+          },
+          metrics: {
+            contextChars: contextText.length,
+            estimatedTokens,
+            entriesCount,
+            alwaysOnChars,
           },
         });
 
