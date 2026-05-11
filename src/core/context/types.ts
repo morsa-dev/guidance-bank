@@ -64,7 +64,6 @@ export type ResolvedGuidanceBankContext = {
   projectLocalBankDisabled?: boolean;
   postponedUntil?: string | null;
   requiredAction?: "upgrade_bank" | "create_bank" | "continue_create_bank" | "sync_bank";
-  recommendedAction?: "create_bank";
   createFlowPhase?: CreateFlowPhase;
   nextIteration?: number;
   bankRoot?: string;

@@ -21,7 +21,6 @@ export const PUBLIC_MCP_TOOL_NAMES = [
   MCP_TOOL_NAMES.upgradeBank,
   MCP_TOOL_NAMES.syncBank,
   MCP_TOOL_NAMES.createBank,
-  MCP_TOOL_NAMES.improveBank,
   MCP_TOOL_NAMES.clearProjectBank,
   MCP_TOOL_NAMES.upsertRule,
   MCP_TOOL_NAMES.upsertSkill,

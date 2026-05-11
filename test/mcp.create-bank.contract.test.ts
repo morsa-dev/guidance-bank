@@ -2179,61 +2179,6 @@ test("ready project banks ask the user whether to run an improvement pass before
   assert.match(resolveStructured.text, /Continue with phase `finalize`/i);
 });
 
-test("improve_bank aliases the guided existing-bank flow", async (t) => {
-  const { tempDirectoryPath, bankRoot } = await createInitializedBank();
-  const projectRoot = path.join(tempDirectoryPath, "demo-project");
-
-  await writeProjectFiles(projectRoot, {
-    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
-  });
-
-  const { client, close } = await createConnectedClient(bankRoot);
-  t.after(close);
-
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 1, stepCompleted: true }, CreateBankSchema);
-  await callToolStructured(client, "create_bank", { projectPath: projectRoot, iteration: 2, stepCompleted: true, sourceReviewDecision: "keep_external" }, CreateBankSchema);
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 3,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "No derived changes were needed for this alias test.",
-    },
-    CreateBankSchema,
-  );
-  await callToolStructured(
-    client,
-    "create_bank",
-    {
-      projectPath: projectRoot,
-      iteration: 4,
-      stepCompleted: true,
-      stepOutcome: "no_changes",
-      stepOutcomeNote: "Finalize completed without cleanup changes for this alias test.",
-    },
-    CreateBankSchema,
-  );
-
-  const improveStructured = await callToolStructured(
-    client,
-    "improve_bank",
-    { projectPath: projectRoot },
-    CreateBankSchema,
-  );
-
-  assert.equal(improveStructured.phase, "ready_to_improve");
-  assert.equal(improveStructured.creationState, "ready");
-  assert.equal(improveStructured.stepCompletionRequired, false);
-  assert.equal(improveStructured.mustContinue, false);
-  assert.equal(improveStructured.nextIteration, 1);
-  assert.match(improveStructured.prompt, /Ask whether they want to improve it now/i);
-  assert.match(improveStructured.text, /Ask the user whether to improve it/i);
-});
-
 test("resolve_context suggests similar project banks and create_bank accepts selected references", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const referenceRoot = path.join(tempDirectoryPath, "angular-shared-ui");

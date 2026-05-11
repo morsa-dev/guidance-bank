@@ -1,7 +1,4 @@
-import { DEFAULT_PROJECT_BANK_POSTPONE_DAYS } from "../bank/project.js";
 import type { ResolvedContextCatalogEntry, ResolvedContextInlineRule } from "./types.js";
-
-const renderPostponeDays = (days: number): string => `${days} day${days === 1 ? "" : "s"}`;
 
 const renderScopedEntryPath = (scope: "shared" | "project", entryPath: string): string =>
   entryPath.startsWith(`${scope}/`) ? entryPath : `${scope}/${entryPath}`;
@@ -141,34 +138,21 @@ ${renderCatalogSummary("Skills", skillsCatalog)}`;
 
 export const buildMissingContextText = ({
   referenceProjectPaths,
-  creationState,
-  postponedUntil,
   sharedContextText,
 }: {
   referenceProjectPaths: readonly string[];
-  creationState: "unknown" | "postponed";
-  postponedUntil: string | null;
   sharedContextText?: string;
 }): string => {
   const referenceSection =
     referenceProjectPaths.length > 0
-      ? `\n\nBefore creating a new project AI Guidance Bank, offer these existing project banks as optional reference bases:\n${renderReferenceProjects(referenceProjectPaths)}`
+      ? `\n\nExisting project AI Guidance Banks with similar stack signals:\n${renderReferenceProjects(referenceProjectPaths)}`
       : "";
 
   const userInteractionSection =
-    creationState === "postponed"
-      ? `No project AI Guidance Bank exists for this repository yet, and AI Guidance Bank creation was previously postponed until ${postponedUntil}. Continue the current task normally and do not ask again about project-bank creation until that time has passed. If the user explicitly asks for AI Guidance Bank setup or project-bank editing before then, call \`create_bank\`.`
-      : `No project AI Guidance Bank exists for this repository yet. Continue the current task normally, but in every useful final response append one short explicit closing question about project-bank creation until the user chooses one of these outcomes: create now, postpone, or decline. Use this question shape: "Create the project AI Guidance Bank now, or postpone the question for ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} or longer?" If the user wants to postpone but does not give a duration, store a ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)} postponement by calling \`set_project_state\` with \`creationState: "postponed"\`.`;
+    "No project AI Guidance Bank exists for this repository yet. Continue the current task normally. If project-specific AI Guidance Bank setup or editing is needed later, use `create_bank` explicitly.";
 
   const sharedSection = sharedContextText ? `\n\n${sharedContextText}` : "";
-
-  return `${userInteractionSection}${referenceSection}${sharedSection}
-
-Internal next steps after the user answers:
-- If the user wants to create it, call \`create_bank\`.
-- If the user wants to postpone the question for later, record that choice with \`set_project_state\` using \`creationState: "postponed"\` and include either \`postponeDays\` or \`postponedUntil\`. If the user gives no duration, default to ${renderPostponeDays(DEFAULT_PROJECT_BANK_POSTPONE_DAYS)}.
-- If the user does not want to be asked again, record that choice with \`set_project_state\` using \`creationState: "declined"\`.
-- After the user decision is recorded, call \`resolve_context\` again.`;
+  return `${userInteractionSection}${referenceSection}${sharedSection}`;
 };
 
 export const buildCreatingContextText = ({

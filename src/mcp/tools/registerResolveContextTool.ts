@@ -37,7 +37,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         requiredAction: z
           .enum([MCP_TOOL_NAMES.upgradeBank, MCP_TOOL_NAMES.createBank, "continue_create_bank", MCP_TOOL_NAMES.syncBank])
           .optional(),
-        recommendedAction: z.enum([MCP_TOOL_NAMES.createBank]).optional(),
         createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
         nextIteration: z.number().int().nonnegative().optional(),
         bankRoot: z.string().optional(),
@@ -124,7 +123,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
             creationState: resolvedContext.creationState ?? null,
             projectLocalBankDisabled: resolvedContext.projectLocalBankDisabled ?? null,
             requiredAction: resolvedContext.requiredAction ?? null,
-            recommendedAction: resolvedContext.recommendedAction ?? null,
             createFlowPhase: resolvedContext.createFlowPhase ?? null,
           },
           metrics: {

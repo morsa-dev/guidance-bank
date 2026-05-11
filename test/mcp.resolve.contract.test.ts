@@ -109,16 +109,11 @@ test("resolve_context returns missing status when no project bank exists", async
   assert.ok(structured.detectedStacks?.includes("typescript"));
   assert.match(structured.text, /No project AI Guidance Bank exists for this repository yet/i);
   assert.match(structured.text, /Continue the current task normally/i);
-  assert.match(structured.text, /in every useful final response append one short explicit closing question/i);
-  assert.match(structured.text, /Create the project AI Guidance Bank now, or postpone the question for 1 day or longer\?/i);
-  assert.match(structured.text, /default to 1 day/i);
+  assert.doesNotMatch(structured.text, /append one short explicit closing question/i);
   assert.match(structured.text, /Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.match(structured.text, /Always-On Rules/i);
   assert.match(structured.text, /Catalog Summary/i);
-  assert.match(structured.text, /call `create_bank`/i);
-  assert.match(structured.text, /creationState: "postponed"/i);
-  assert.match(structured.text, /creationState: "declined"/i);
-  assert.match(structured.text, /call `resolve_context` again/i);
+  assert.match(structured.text, /use `create_bank` explicitly/i);
   assert.ok((structured.rulesCatalog?.length ?? 0) > 0);
   assert.ok((structured.skillsCatalog?.length ?? 0) > 0);
   assert.ok(structured.rulesCatalog?.every((entry) => entry.scope === "shared"));
@@ -227,7 +222,7 @@ test("resolve_context returns a tool error for non-canonical bank entries", asyn
   assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /shared\/preferences\/legacy-rule\.md/i);
 });
 
-test("set_project_state persists postponed creation and resolve_context stops prompting proactively for missing banks", async (t) => {
+test("set_project_state persists postponed creation but resolve_context ignores it for missing banks", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
   const beforePostpone = Date.now();
@@ -258,13 +253,11 @@ test("set_project_state persists postponed creation and resolve_context stops pr
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
-  assert.equal(resolveStructured.creationState, "postponed");
-  assert.equal(resolveStructured.postponedUntil, stateStructured.postponedUntil);
+  assert.equal(resolveStructured.creationState, "unknown");
+  assert.equal(resolveStructured.postponedUntil, undefined);
   assert.equal(resolveStructured.requiredAction, undefined);
-  assert.equal(resolveStructured.recommendedAction, undefined);
-  assert.match(resolveStructured.text, /AI Guidance Bank creation was previously postponed until/i);
-  assert.match(resolveStructured.text, /do not ask again about project-bank creation until that time has passed/i);
   assert.match(resolveStructured.text, /Continue the current task normally/i);
+  assert.match(resolveStructured.text, /use `create_bank` explicitly/i);
   assert.match(resolveStructured.text, /Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet/i);
   assert.ok((resolveStructured.rulesCatalog?.length ?? 0) > 0);
   assert.ok((resolveStructured.skillsCatalog?.length ?? 0) > 0);
@@ -335,7 +328,7 @@ test("resolve_context returns a stub when a project-local bank is disabled", asy
   assert.equal(structured.detectedStacks, undefined);
 });
 
-test("expired project creation postpone resumes the missing-bank reminder flow", async (t) => {
+test("missing-bank context is unchanged even when postponed creation is expired", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -363,8 +356,7 @@ test("expired project creation postpone resumes the missing-bank reminder flow",
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "unknown");
   assert.equal(resolveStructured.postponedUntil, undefined);
-  assert.equal(resolveStructured.recommendedAction, "create_bank");
-  assert.match(resolveStructured.text, /append one short explicit closing question/i);
+  assert.match(resolveStructured.text, /use `create_bank` explicitly/i);
 });
 
 test("resolve_context writes server-resolved provider session metadata to audit", async (t) => {

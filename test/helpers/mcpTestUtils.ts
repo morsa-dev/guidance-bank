@@ -103,7 +103,6 @@ export const TextPayloadSchema = z.object({
   projectLocalBankDisabled: z.boolean().optional(),
   postponedUntil: z.string().nullable().optional(),
   requiredAction: z.enum(["upgrade_bank", "create_bank", "continue_create_bank", "sync_bank"]).optional(),
-  recommendedAction: z.enum(["create_bank"]).optional(),
   createFlowPhase: z.string().optional(),
   nextIteration: z.number().int().nonnegative().optional(),
   bankRoot: z.string().optional(),

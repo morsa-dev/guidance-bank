@@ -1,7 +1,6 @@
 import type { BankRepository } from "../../storage/bankRepository.js";
 import {
   getProjectBankContinuationIteration,
-  isProjectBankPostponedUntilActive,
   resolveProjectBankLifecycleStatus,
 } from "../bank/lifecycle.js";
 import { resolveProjectLocalBankPaths } from "../bank/projectLocalBank.js";
@@ -98,9 +97,6 @@ export const resolveGuidanceBankContext = async ({
       currentProjectId: identity.projectId,
       detectedStacks: detectedProjectContext.detectedStacks,
     });
-    const isCreateReminderPostponed =
-      projectState?.creationState === "postponed" && isProjectBankPostponedUntilActive(projectState);
-    const creationState = isCreateReminderPostponed ? "postponed" : "unknown";
     const sharedRules = await loadResolvedContextEntries(repository, "shared", "rules", detectedProjectContext.detectedStacks);
     const sharedSkills = await loadResolvedContextEntries(repository, "shared", "skills", detectedProjectContext.detectedStacks);
 
@@ -113,8 +109,6 @@ export const resolveGuidanceBankContext = async ({
 
     const text = buildMissingContextText({
       referenceProjectPaths: referenceProjects.map((project) => project.projectPath),
-      creationState,
-      postponedUntil: isCreateReminderPostponed ? projectState?.postponedUntil ?? null : null,
       sharedContextText: buildSharedFallbackContextText({
         projectPath: identity.projectPath,
         detectedStacks: detectedProjectContext.detectedStacks,
@@ -125,12 +119,10 @@ export const resolveGuidanceBankContext = async ({
     });
     const missingContextBase: ResolvedGuidanceBankContext = {
       text,
-      creationState: creationState as "unknown" | "postponed",
+      creationState: "unknown",
       detectedStacks: [...detectedProjectContext.detectedStacks] as DetectableStack[],
       rulesCatalog,
       skillsCatalog,
-      ...(isCreateReminderPostponed ? { postponedUntil: projectState?.postponedUntil ?? null } : {}),
-      ...(!isCreateReminderPostponed ? { recommendedAction: "create_bank" as const } : {}),
     };
 
     return referenceProjects.length > 0

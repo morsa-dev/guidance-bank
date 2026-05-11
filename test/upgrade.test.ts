@@ -100,7 +100,6 @@ test("resolve_context requires a bank upgrade before any missing project-bank pr
 
   assert.equal(resolved.requiredAction, "upgrade_bank");
   assert.equal(resolved.creationState, undefined);
-  assert.equal(resolved.recommendedAction, undefined);
   assert.equal(resolved.bankRoot, bankRoot);
   assert.equal(resolved.sourceRoot, legacyBankRoot);
   assert.equal(resolved.storageVersion, 1);
@@ -209,7 +208,6 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
 
   assert.equal(resolved.requiredAction, undefined);
   assert.equal(resolved.creationState, "unknown");
-  assert.equal(resolved.recommendedAction, "create_bank");
   assert.equal(resolved.sourceRoot, undefined);
   assert.match(resolved.text, /No project AI Guidance Bank exists for this repository yet/i);
   assert.doesNotMatch(resolved.text, /update is required before resolving repository context/i);
