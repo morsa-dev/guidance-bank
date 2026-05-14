@@ -1950,7 +1950,7 @@ topics: [architecture]
   assert.equal(state?.creationState, "creating");
 });
 
-test("resolve_context blocks normal runtime context until the create flow is completed", async (t) => {
+test("resolve_context returns best-effort runtime context while the create flow is still in progress", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -1967,13 +1967,7 @@ test("resolve_context blocks normal runtime context until the create flow is com
   const inProgressStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
 
   assert.equal(inProgressStructured.creationState, "creating");
-  assert.equal(inProgressStructured.requiredAction, "continue_create_bank");
-  assert.equal(inProgressStructured.createFlowPhase, "review_existing_guidance");
-  assert.equal(inProgressStructured.nextIteration, 1);
-  assert.equal(
-    inProgressStructured.text,
-    "Continue with phase `review_existing_guidance`. Call `create_bank` with `iteration: 1` and `stepCompleted: true` after this step is complete. For content phases, also provide either `create_bank.apply` changes or `stepOutcome`.",
-  );
+  assert.match(inProgressStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
   assert.doesNotMatch(inProgressStructured.text, /AGENTS\.md/i);
   assert.doesNotMatch(inProgressStructured.text, /\.cursor/i);
 
@@ -2079,7 +2073,8 @@ test("create_bank does not clear sync_required for an existing outdated project 
   );
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.match(resolveStructured.text, /synchronization is required before using the project-specific bank/i);
+  assert.equal(resolveStructured.creationState, "ready");
+  assert.match(resolveStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 });
 
 test("ready project banks ask the user whether to run an improvement pass before continuing", async (t) => {
@@ -2174,9 +2169,7 @@ test("ready project banks ask the user whether to run an improvement pass before
 
   const resolveStructured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
   assert.equal(resolveStructured.creationState, "creating");
-  assert.equal(resolveStructured.requiredAction, "continue_create_bank");
-  assert.equal(resolveStructured.createFlowPhase, "finalize");
-  assert.match(resolveStructured.text, /Continue with phase `finalize`/i);
+  assert.match(resolveStructured.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 });
 
 test("resolve_context suggests similar project banks and create_bank accepts selected references", async (t) => {

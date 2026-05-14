@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { z } from "zod";
@@ -255,7 +256,6 @@ test("set_project_state persists postponed creation but resolve_context ignores 
 
   assert.equal(resolveStructured.creationState, "unknown");
   assert.equal(resolveStructured.postponedUntil, undefined);
-  assert.equal(resolveStructured.requiredAction, undefined);
   assert.match(resolveStructured.text, /Continue the current task normally/i);
   assert.match(resolveStructured.text, /use `create_bank` explicitly/i);
   assert.match(resolveStructured.text, /Shared AI Guidance Bank context is available even though this repository does not have a project-specific bank yet/i);
@@ -388,6 +388,26 @@ test("resolve_context writes server-resolved provider session metadata to audit"
   assert.equal(resolveEvent?.providerSessionSource, "unresolved");
 });
 
+test("resolve_context bootstraps a minimal root bank when the bank has not been initialized yet", async (t) => {
+  const tempDirectoryPath = await mkdtemp(path.join(os.tmpdir(), "gbank-cli-resolve-"));
+  const bankRoot = path.join(tempDirectoryPath, ".guidance-bank");
+  const projectRoot = path.join(tempDirectoryPath, "demo-project");
+
+  await writeProjectFiles(projectRoot, {
+    "package.json": JSON.stringify({ name: "demo-project" }, null, 2),
+  });
+
+  const { client, close } = await createConnectedClient(bankRoot);
+  t.after(close);
+
+  const structured = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, MissingContextSchema);
+
+  assert.equal(structured.creationState, "unknown");
+  assert.match(structured.text, /No project AI Guidance Bank exists for this repository yet/i);
+  await access(path.join(bankRoot, "manifest.json"));
+  await access(path.join(bankRoot, "mcp", "server.json"));
+});
+
 test("sync_bank runs explicit reconcile and reports the current bank summary", async (t) => {
   const { tempDirectoryPath, bankRoot } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
@@ -425,7 +445,7 @@ test("sync_bank runs explicit reconcile and reports the current bank summary", a
   assert.equal(structured.externalGuidanceSources[0]?.kind, "agents");
 });
 
-test("resolve_context asks for sync when the project bank is outdated and postpone suppresses the prompt temporarily", async (t) => {
+test("resolve_context ignores sync drift and still returns the currently available context", async (t) => {
   const { tempDirectoryPath, bankRoot, repository } = await createInitializedBank();
   const projectRoot = path.join(tempDirectoryPath, "demo-project");
 
@@ -446,9 +466,8 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
   await repository.writeProjectState(createBankStructured.projectId, createProjectBankState("ready"));
 
   const beforePostpone = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.match(beforePostpone.text, /synchronization is required before using the project-specific bank/i);
-  assert.match(beforePostpone.text, /Sync only reconciles the existing project bank/i);
-  assert.match(beforePostpone.text, /does not create a new bank and does not replace the normal create or improve flow/i);
+  assert.equal(beforePostpone.creationState, "ready");
+  assert.match(beforePostpone.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 
   const postponeStructured = await callToolStructured(
     client,
@@ -466,6 +485,6 @@ test("resolve_context asks for sync when the project bank is outdated and postpo
   assert.ok(postponeStructured.postponedUntil);
 
   const afterPostpone = await callToolStructured(client, "resolve_context", { projectPath: projectRoot }, TextPayloadSchema);
-  assert.doesNotMatch(afterPostpone.text, /synchronization is required/i);
+  assert.equal(afterPostpone.creationState, "ready");
   assert.match(afterPostpone.text, /Use the following AI Guidance Bank context catalog as the primary user-managed context/i);
 });

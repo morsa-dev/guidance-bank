@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { CREATE_FLOW_PHASES } from "../../core/projects/create-flow/createFlowPhases.js";
 import { resolveGuidanceBankContext } from "../../core/context/resolveContextService.js";
 import { resolveProjectIdentity } from "../../core/projects/identity.js";
 import { ValidationError } from "../../shared/errors.js";
@@ -34,15 +33,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
         creationState: z.enum(["unknown", "postponed", "declined", "creating", "ready"]).optional(),
         projectLocalBankDisabled: z.boolean().optional(),
         postponedUntil: z.string().nullable().optional(),
-        requiredAction: z
-          .enum([MCP_TOOL_NAMES.upgradeBank, MCP_TOOL_NAMES.createBank, "continue_create_bank", MCP_TOOL_NAMES.syncBank])
-          .optional(),
-        createFlowPhase: z.enum(CREATE_FLOW_PHASES).optional(),
-        nextIteration: z.number().int().nonnegative().optional(),
-        bankRoot: z.string().optional(),
-        sourceRoot: z.string().optional(),
-        expectedStorageVersion: z.number().int().positive().optional(),
-        storageVersion: z.number().int().positive().optional(),
         detectedStacks: z.array(z.string()).optional(),
         rulesCatalog: z
           .array(
@@ -122,8 +112,6 @@ export const registerResolveContextTool: ToolRegistrar = (server, options) => {
           details: {
             creationState: resolvedContext.creationState ?? null,
             projectLocalBankDisabled: resolvedContext.projectLocalBankDisabled ?? null,
-            requiredAction: resolvedContext.requiredAction ?? null,
-            createFlowPhase: resolvedContext.createFlowPhase ?? null,
           },
           metrics: {
             contextChars: contextText.length,

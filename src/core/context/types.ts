@@ -1,6 +1,5 @@
 import type { ProjectCreationState } from "../bank/types.js";
 import type { CanonicalRuleFrontmatter, CanonicalSkillFrontmatter } from "../bank/types.js";
-import type { CreateFlowPhase } from "../projects/create-flow/createFlowPhases.js";
 
 export const DETECTABLE_STACKS = ["nodejs", "typescript", "react", "nextjs", "angular", "ios", "other"] as const;
 export type DetectableStack = (typeof DETECTABLE_STACKS)[number];
@@ -63,13 +62,6 @@ export type ResolvedGuidanceBankContext = {
   creationState?: ProjectCreationState;
   projectLocalBankDisabled?: boolean;
   postponedUntil?: string | null;
-  requiredAction?: "upgrade_bank" | "create_bank" | "continue_create_bank" | "sync_bank";
-  createFlowPhase?: CreateFlowPhase;
-  nextIteration?: number;
-  bankRoot?: string;
-  sourceRoot?: string;
-  expectedStorageVersion?: number;
-  storageVersion?: number;
   detectedStacks?: DetectableStack[];
   rulesCatalog?: ResolvedContextCatalogEntry[];
   skillsCatalog?: ResolvedContextCatalogEntry[];

@@ -86,7 +86,7 @@ const createRecordingUpgradeCommandRunner = () => {
   };
 };
 
-test("resolve_context requires a bank upgrade before any missing project-bank prompt when a legacy v1 bank exists", async (t) => {
+test("resolve_context reads best-effort context from a legacy bank without blocking on upgrade", async (t) => {
   const { bankRoot, legacyBankRoot, projectRoot } = await createLegacyBankFixture();
   const { client, close } = await createConnectedClient(bankRoot);
   t.after(close);
@@ -98,14 +98,11 @@ test("resolve_context requires a bank upgrade before any missing project-bank pr
     TextPayloadSchema,
   );
 
-  assert.equal(resolved.requiredAction, "upgrade_bank");
-  assert.equal(resolved.creationState, undefined);
-  assert.equal(resolved.bankRoot, bankRoot);
-  assert.equal(resolved.sourceRoot, legacyBankRoot);
-  assert.equal(resolved.storageVersion, 1);
-  assert.equal(resolved.expectedStorageVersion, 3);
-  assert.match(resolved.text, /AI Guidance Bank update is required before resolving repository context/i);
-  assert.match(resolved.text, /Do not start project-bank creation, sync, or normal repository-context work until the bank-level update is complete/i);
+  assert.equal(resolved.creationState, "unknown");
+  assert.match(resolved.text, /No project AI Guidance Bank exists for this repository yet/i);
+  assert.doesNotMatch(resolved.text, /update is required before resolving repository context/i);
+  await assert.rejects(access(path.join(bankRoot, "manifest.json")));
+  await access(path.join(legacyBankRoot, "manifest.json"));
 });
 
 test("upgrade service migrates a legacy v1 bank, removes legacy MCP registrations, reapplies current integrations, and unblocks normal resolve_context", async (t) => {
@@ -206,9 +203,7 @@ test("upgrade service migrates a legacy v1 bank, removes legacy MCP registration
     TextPayloadSchema,
   );
 
-  assert.equal(resolved.requiredAction, undefined);
   assert.equal(resolved.creationState, "unknown");
-  assert.equal(resolved.sourceRoot, undefined);
   assert.match(resolved.text, /No project AI Guidance Bank exists for this repository yet/i);
   assert.doesNotMatch(resolved.text, /update is required before resolving repository context/i);
 });
